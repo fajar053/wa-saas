@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+ "scripts": {
+  "start": "node --max-old-space-size=4096 server.js"
+},
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^2.4.3",
