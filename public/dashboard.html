@@ -10,7 +10,6 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
 
-  <!-- Navigation -->
   <nav class="border-b border-slate-800 bg-slate-950/50 backdrop-blur px-6 py-4 flex justify-between items-center">
     <div class="flex items-center gap-2 font-bold text-lg text-indigo-400">
       <i data-lucide="bot"></i> WA AutoBot AI
@@ -23,18 +22,18 @@
 
   <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
 
-    <!-- Column 1: Koneksi & Status Paket -->
+    <!-- Kolom Kiri: WhatsApp & Status Langganan -->
     <div class="space-y-6">
       
-      <!-- Card WhatsApp Connection -->
+      <!-- Card WhatsApp -->
       <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
         <h2 class="text-md font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <i data-lucide="qr-code" class="text-indigo-400"></i> Koneksi WhatsApp
         </h2>
 
-        <div class="flex flex-col items-center justify-center p-4 bg-slate-900/50 border border-slate-700/30 rounded-xl mb-4 min-h-[220px]">
+        <div class="flex flex-col items-center justify-center p-4 bg-slate-900/50 border border-slate-700/30 rounded-xl mb-4 min-h-[200px]">
           <div id="qrContainer" class="hidden text-center">
-            <img id="qrImage" class="w-48 h-48 mx-auto rounded-lg shadow-md border border-white/10" alt="QR Code">
+            <img id="qrImage" class="w-44 h-44 mx-auto rounded-lg shadow-md border border-white/10" alt="QR Code">
             <p class="text-xs text-slate-400 mt-2">Scan QR dari WhatsApp Web di HP kamu</p>
           </div>
           <div id="statusPlaceholder" class="text-center text-slate-400 text-sm">
@@ -48,7 +47,7 @@
         </button>
       </div>
 
-      <!-- Card Status Langganan -->
+      <!-- Card Status Paket -->
       <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
         <h2 class="text-md font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <i data-lucide="zap" class="text-amber-400"></i> Status Langganan
@@ -64,7 +63,6 @@
             <span id="usageText" class="font-semibold text-slate-200">0 / 30 Chat</span>
           </div>
           
-          <!-- Progress Bar Limit -->
           <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700/50">
             <div id="usageBar" class="bg-indigo-500 h-full w-0 transition-all"></div>
           </div>
@@ -77,36 +75,73 @@
 
     </div>
 
-    <!-- Column 2 & 3: Pengaturan Bot -->
-    <div class="md:col-span-2 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-      <h2 class="text-md font-semibold text-slate-200 mb-6 flex items-center gap-2">
-        <i data-lucide="settings" class="text-indigo-400"></i> Pengaturan AI Bot
-      </h2>
-
-      <form id="configForm" onsubmit="saveConfig(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">OpenRouter API Key</label>
-          <input type="password" id="apiKey" placeholder="sk-or-v1-..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+    <!-- Kolom Kanan: Pengaturan Bot & Error Log -->
+    <div class="md:col-span-2 space-y-6">
+      
+      <!-- Card Settings -->
+      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="settings" class="text-indigo-400"></i> Pengaturan AI Bot
+          </h2>
+          
+          <!-- Toggle Status Bot -->
+          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
+            <span class="text-xs text-slate-400">Status Bot:</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="isBotActive" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Model AI</label>
-          <select id="modelName" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
-            <option value="google/gemini-2.0-flash-lite-preview-02-05:free">Gemini 2.0 Flash Lite (Gratis)</option>
-            <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B (Gratis)</option>
-            <option value="deepseek/deepseek-r1:free">DeepSeek R1 (Gratis)</option>
-          </select>
+        <form id="configForm" onsubmit="saveConfig(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">OpenRouter API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-or-v1-..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Model AI Gratis</label>
+            <select id="modelName" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+              <option value="nvidia/nemotron-3-ultra-550b-a55b:free">nvidia/nemotron-3-ultra-550b-a55b:free</option>
+              <option value="nvidia/nemotron-3.5-lightning:free">nvidia/nemotron-3.5-lightning:free</option>
+              <option value="nvidia/nemotron-3-super-120b-a12b:free">nvidia/nemotron-3-super-120b-a12b:free</option>
+              <option value="poolside/laguna-s-2.1:free">poolside/laguna-s-2.1:free</option>
+              <option value="poolside/laguna-xs-2.1:free">poolside/laguna-xs-2.1:free</option>
+              <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free</option>
+              <option value="thinkingmachines/inkling:free">thinkingmachines/inkling:free</option>
+              <option value="z-ai/glm-5.2:free">z-ai/glm-5.2:free</option>
+              <option value="cohere/north-mini-code:free">cohere/north-mini-code:free</option>
+              <option value="minimax/minimax-m3:free">minimax/minimax-m3:free</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">System Prompt / Pelatihan Bot</label>
+            <textarea id="systemPrompt" rows="4" placeholder="Contoh: Kamu adalah asisten AI yang ramah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"></textarea>
+          </div>
+
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-indigo-600/20">
+            Simpan Pengaturan
+          </button>
+        </form>
+      </div>
+
+      <!-- Card Tampilan Log Error -->
+      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="text-rose-400"></i> Log Error Balasan Bot
+          </h2>
+          <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Bersihkan Log</button>
         </div>
 
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">System Prompt / Instruksi Karakter AI</label>
-          <textarea id="systemPrompt" rows="6" placeholder="Contoh: Kamu adalah CS toko online X yang ramah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"></textarea>
+        <div id="logList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs space-y-2">
+          <p class="text-slate-500 italic">Belum ada riwayat error...</p>
         </div>
+      </div>
 
-        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-indigo-600/20">
-          Simpan Pengaturan
-        </button>
-      </form>
     </div>
 
   </div>
@@ -130,10 +165,6 @@
         <p class="text-xs text-slate-400">Bank Mandiri: <span class="text-slate-100 font-mono font-semibold">0987654321</span> (a.n Fajar)</p>
       </div>
 
-      <p class="text-xs text-slate-400">
-        Setelah melakukan transfer, silakan konfirmasi bukti transfer melalui WhatsApp Admin untuk pengaktifan akun Premium.
-      </p>
-
       <a href="https://wa.me/6281234567890?text=Halo%20Admin,%20saya%20mau%20konfirmasi%20pembayaran%20WA%20Bot%20SaaS" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition text-center block">
         Konfirmasi via WhatsApp
       </a>
@@ -155,10 +186,10 @@
       
       document.getElementById('userEmail').innerText = data.email;
       document.getElementById('apiKey').value = data.apiKey || '';
-      document.getElementById('modelName').value = data.modelName || 'google/gemini-2.0-flash-lite-preview-02-05:free';
+      document.getElementById('modelName').value = data.modelName || 'nvidia/nemotron-3-ultra-550b-a55b:free';
       document.getElementById('systemPrompt').value = data.systemPrompt || 'Kamu adalah asisten AI yang ramah.';
+      document.getElementById('isBotActive').checked = data.isBotActive ?? true;
 
-      // Render Badge & Limit
       const badge = document.getElementById('planBadge');
       if (data.plan === 'premium') {
         badge.innerText = 'PREMIUM';
@@ -184,7 +215,8 @@
         body: JSON.stringify({
           apiKey: document.getElementById('apiKey').value,
           modelName: document.getElementById('modelName').value,
-          systemPrompt: document.getElementById('systemPrompt').value
+          systemPrompt: document.getElementById('systemPrompt').value,
+          isBotActive: document.getElementById('isBotActive').checked
         })
       });
       const data = await res.json();
@@ -210,6 +242,21 @@
         lucide.createIcons();
       }
     });
+
+    // Handle Error Log Realtime
+    socket.on('error-log', (log) => {
+      const logList = document.getElementById('logList');
+      if (logList.querySelector('.italic')) logList.innerHTML = '';
+
+      const item = document.createElement('div');
+      item.className = 'text-rose-400 border-b border-slate-800/80 pb-1.5';
+      item.innerHTML = `<span class="text-slate-500">[${log.time}]</span> <span class="font-bold text-slate-300">${log.from.split('@')[0]}:</span> ${log.message}`;
+      logList.prepend(item);
+    });
+
+    function clearLogs() {
+      document.getElementById('logList').innerHTML = '<p class="text-slate-500 italic">Belum ada riwayat error...</p>';
+    }
 
     function openModal() { document.getElementById('paymentModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('paymentModal').classList.add('hidden'); }

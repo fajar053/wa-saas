@@ -35,7 +35,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 const activeSessions = new Map();
 
-// --- AUTHENTICATION API ---
+// --- AUTH API ---
 app.post("/api/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -78,7 +78,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   const today = new Date().toISOString().split("T")[0];
   
-  // Reset usage harian jika beda hari
   if (user.dailyUsage.date !== today) {
     user.dailyUsage = { count: 0, date: today };
     await user.save();
@@ -89,6 +88,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     apiKey: user.apiKey,
     modelName: user.modelName,
     systemPrompt: user.systemPrompt,
+    isBotActive: user.isBotActive,
     plan: user.plan,
     expiredAt: user.expiredAt,
     dailyUsage: user.dailyUsage.count,
@@ -97,9 +97,9 @@ app.get("/api/config", verifyToken, async (req, res) => {
 });
 
 app.post("/api/config", verifyToken, async (req, res) => {
-  const { apiKey, modelName, systemPrompt } = req.body;
-  await User.findByIdAndUpdate(req.user.userId, { apiKey, modelName, systemPrompt });
-  res.json({ success: true, message: "Pengaturan disimpan!" });
+  const { apiKey, modelName, systemPrompt, isBotActive } = req.body;
+  await User.findByIdAndUpdate(req.user.userId, { apiKey, modelName, systemPrompt, isBotActive });
+  res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
 // --- BOT WA ENGINE ---
@@ -149,24 +149,39 @@ async function startUserBot(userId, socket) {
       if (!text) continue;
 
       const user = await User.findById(userId);
-      if (!user || !user.apiKey) continue;
+      if (!user) continue;
+
+      // CEK STATUS BOT STATUS ACTIVE/INACTIVE
+      if (!user.isBotActive) {
+        console.log(`[BOT OFF] Pesan dari ${msg.key.remoteJid} diabaikan.`);
+        continue;
+      }
+
+      if (!user.apiKey) {
+        const errorMsg = "API Key OpenRouter belum diisi di dashboard.";
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: msg.key.remoteJid });
+        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, layanan pembalas otomatis belum dikonfigurasi dengan benar oleh pemilik." });
+        continue;
+      }
 
       const today = new Date().toISOString().split("T")[0];
       if (user.dailyUsage.date !== today) {
         user.dailyUsage = { count: 0, date: today };
       }
 
-      // CEK BATAS KUOTA FREE
+      // CEK LIMIT FREE
       if (user.plan === "free" && user.dailyUsage.count >= 30) {
-        await sock.sendMessage(msg.key.remoteJid, { 
-          text: "[Sistem Bot] Kuota balasan harian bot ini telah habis (30/30 chat). Silakan upgrade ke Premium untuk kuota unlimited." 
-        });
+        const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: msg.key.remoteJid });
+        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan otomatis harian bot ini telah habis (30/30)." });
         continue;
       }
 
-      // CEK MASA AKTIF PREMIUM
+      // CEK KEDALUWARSA PREMIUM
       if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
-        await sock.sendMessage(msg.key.remoteJid, { text: "Masa berlangganan Premium bot telah habis. Silakan perpanjang." });
+        const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: msg.key.remoteJid });
+        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Masa berlangganan bot ini telah habis." });
         continue;
       }
 
@@ -180,15 +195,23 @@ async function startUserBot(userId, socket) {
           ]
         });
 
-        const reply = response.choices[0]?.message?.content || "Maaf, AI sedang error.";
+        const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
         await sock.sendMessage(msg.key.remoteJid, { text: reply });
 
-        // NAIKKAN HITUNGAN PEMAKAIAN
         user.dailyUsage.count += 1;
         await user.save();
 
       } catch (err) {
-        console.error("AI Error:", err.message);
+        const errDetail = `AI Error (${user.modelName}): ${err.message}`;
+        console.error(errDetail);
+        
+        // Kirim Log Error ke Dashboard
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: msg.key.remoteJid });
+        
+        // Kirim Balasan Pesan Error ke WA Pengirim
+        await sock.sendMessage(msg.key.remoteJid, { 
+          text: "[Sistem] Mohon maaf, terjadi kendala saat memproses balasan otomatis. Silakan coba beberapa saat lagi." 
+        });
       }
     }
   });
