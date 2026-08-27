@@ -10,10 +10,16 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import QRCode from "qrcode";
 import OpenAI from "openai";
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import makeWASocket, { 
+  DisconnectReason, 
+  fetchLatestBaileysVersion, 
+  initAuthCreds, 
+  BufferJSON 
+} from "@whiskeysockets/baileys";
 import pino from "pino";
 
 import User from "./models/User.js";
+import Session from "./models/Session.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,13 +35,14 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
+// Connect Database
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ DB Connected"))
   .catch(err => console.error("❌ DB Error:", err));
 
 const activeSessions = new Map();
 
-// --- AUTH API ---
+// --- AUTHENTICATION API ---
 app.post("/api/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -103,10 +110,67 @@ app.post("/api/config", verifyToken, async (req, res) => {
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
+// --- CUSTOM MONGODB AUTH STATE ---
+async function useMongoDBAuthState(userId) {
+  let session = await Session.findOne({ userId });
+  let creds;
+  let keys = {};
+
+  if (session && session.data) {
+    try {
+      const parsed = JSON.parse(session.data, BufferJSON.reviver);
+      creds = parsed.creds;
+      keys = parsed.keys || {};
+    } catch (e) {
+      creds = initAuthCreds();
+    }
+  } else {
+    creds = initAuthCreds();
+  }
+
+  const saveCreds = async () => {
+    const dataStr = JSON.stringify({ creds, keys }, BufferJSON.replacer);
+    await Session.findOneAndUpdate(
+      { userId },
+      { data: dataStr },
+      { upsert: true, new: true }
+    );
+  };
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: (type, ids) => {
+          const data = keys[type] || {};
+          return ids.reduce((acc, id) => {
+            if (data[id]) acc[id] = data[id];
+            return acc;
+          }, {});
+        },
+        set: async (data) => {
+          for (const type in data) {
+            if (!keys[type]) keys[type] = {};
+            for (const id in data[type]) {
+              const value = data[type][id];
+              if (value) {
+                keys[type][id] = value;
+              } else {
+                delete keys[type][id];
+              }
+            }
+          }
+          await saveCreds();
+        }
+      }
+    },
+    saveCreds
+  };
+}
+
 // --- BOT WA ENGINE ---
 async function startUserBot(userId, socket) {
-  const authFolder = path.join(process.cwd(), `auth_${userId}`);
-  const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+  const { state, saveCreds } = await useMongoDBAuthState(userId);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -133,7 +197,7 @@ async function startUserBot(userId, socket) {
     if (connection === "close") {
       const isLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
       if (isLogout) {
-        fs.rmSync(authFolder, { recursive: true, force: true });
+        await Session.deleteOne({ userId });
         socket?.emit("status", "Disconnected");
       } else {
         startUserBot(userId, socket);
@@ -149,7 +213,7 @@ async function startUserBot(userId, socket) {
       const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
       if (!text) continue;
 
-      // 1. AUTO READ PESAN (CENTANG BIRU)
+      // Auto Read Pesan (Centang Biru)
       try {
         await sock.readMessages([msg.key]);
       } catch (e) {
@@ -158,7 +222,7 @@ async function startUserBot(userId, socket) {
 
       const senderNumber = msg.key.remoteJid.split("@")[0];
 
-      // Send log chat masuk ke Dashboard
+      // Kirim Log Chat Masuk ke Dashboard
       socket?.emit("chat-log", {
         time: new Date().toLocaleTimeString(),
         sender: senderNumber,
@@ -185,7 +249,7 @@ async function startUserBot(userId, socket) {
         await user.save();
       }
 
-      // CEK LIMIT FREE (30 Chat)
+      // Cek Limit Free (30 Chat)
       if (user.plan === "free" && user.dailyUsageCount >= 30) {
         const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
         socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
@@ -193,7 +257,7 @@ async function startUserBot(userId, socket) {
         continue;
       }
 
-      // CEK KEDALUWARSA PREMIUM
+      // Cek Kedaluwarsa Premium
       if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
         const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
         socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
@@ -214,10 +278,10 @@ async function startUserBot(userId, socket) {
         const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
         await sock.sendMessage(msg.key.remoteJid, { text: reply });
 
-        // Update hitungan batas harian
+        // Tambah hitungan penggunaan harian di DB
         await User.findByIdAndUpdate(userId, { $inc: { dailyUsageCount: 1 } });
 
-        // Send log chat balasan bot ke Dashboard
+        // Kirim Log Chat Balasan ke Dashboard
         socket?.emit("chat-log", {
           time: new Date().toLocaleTimeString(),
           sender: senderNumber,
@@ -236,6 +300,7 @@ async function startUserBot(userId, socket) {
   });
 }
 
+// SOCKET.IO REALTIME
 io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
