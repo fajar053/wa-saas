@@ -21,6 +21,16 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.static("public"));
 
+const path = require('path');
+
+// Melayani file statis dari folder public (tempat index.html/login.html berada)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Mengarahkan alamat utama (/) ke index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Connect Database
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ DB Connected"))
