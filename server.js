@@ -35,17 +35,17 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
-// Connect Database
+// Connect Database & Restore Sessions
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("✅ DB Connected");
-    // Auto-start bot untuk semua user yang punya session terhubung di DB
     autoStartAllSessions();
   })
   .catch(err => console.error("❌ DB Error:", err));
 
 const activeSessions = new Map();
-const userSockets = new Map(); // Menyimpan socket per user ID
+const connectedFlags = new Set();
+const userSockets = new Map();
 
 // --- AUTHENTICATION API ---
 app.post("/api/register", async (req, res) => {
@@ -178,7 +178,7 @@ async function autoStartAllSessions() {
   try {
     const sessions = await Session.find({});
     for (const session of sessions) {
-      if (!activeSessions.has(session.userId)) {
+      if (!activeSessions.has(String(session.userId))) {
         console.log(`🔄 Restoring WA Session for User ID: ${session.userId}`);
         startUserBot(session.userId);
       }
@@ -190,9 +190,10 @@ async function autoStartAllSessions() {
 
 // --- BOT WA ENGINE ---
 async function startUserBot(userId, socket = null) {
-  if (socket) userSockets.set(String(userId), socket);
+  const strUserId = String(userId);
+  if (socket) userSockets.set(strUserId, socket);
 
-  const { state, saveCreds } = await useMongoDBAuthState(userId);
+  const { state, saveCreds } = await useMongoDBAuthState(strUserId);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -202,31 +203,37 @@ async function startUserBot(userId, socket = null) {
     printQRInTerminal: false
   });
 
-  activeSessions.set(String(userId), sock);
+  activeSessions.set(strUserId, sock);
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
-    const currentSocket = userSockets.get(String(userId));
+    const currentSocket = userSockets.get(strUserId);
 
     if (qr && currentSocket) {
       const qrUrl = await QRCode.toDataURL(qr);
       currentSocket.emit("qr", qrUrl);
       currentSocket.emit("status", "Scan QR Code");
     }
+
     if (connection === "open") {
-      console.log(`✅ WA Connected for User: ${userId}`);
+      if (!connectedFlags.has(strUserId)) {
+        console.log(`✅ WA Connected for User: ${strUserId}`);
+        connectedFlags.add(strUserId);
+      }
       currentSocket?.emit("status", "Connected");
       currentSocket?.emit("ready");
     }
+
     if (connection === "close") {
+      connectedFlags.delete(strUserId);
       const isLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
       if (isLogout) {
-        await Session.deleteOne({ userId: String(userId) });
-        activeSessions.delete(String(userId));
+        await Session.deleteOne({ userId: strUserId });
+        activeSessions.delete(strUserId);
         currentSocket?.emit("status", "Disconnected");
       } else {
-        startUserBot(userId, currentSocket);
+        startUserBot(strUserId, currentSocket);
       }
     }
   });
@@ -239,13 +246,13 @@ async function startUserBot(userId, socket = null) {
       const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
       if (!text) continue;
 
-      // Auto read chat
+      // Auto-read pesan (Centang Biru)
       try {
         await sock.readMessages([msg.key]);
       } catch (e) {}
 
       const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
-      const targetSocket = userSockets.get(String(userId));
+      const targetSocket = userSockets.get(strUserId);
 
       // Emit log chat masuk ke dashboard
       targetSocket?.emit("chat-log", {
@@ -255,7 +262,7 @@ async function startUserBot(userId, socket = null) {
         type: "in"
       });
 
-      const user = await User.findById(userId);
+      const user = await User.findById(strUserId);
       if (!user) continue;
 
       if (!user.isBotActive) continue;
@@ -274,11 +281,19 @@ async function startUserBot(userId, socket = null) {
         await user.save();
       }
 
-      // Limit Check
+      // Check Kuota Harian (Free 30 Chat)
       if (user.plan === "free" && user.dailyUsageCount >= 30) {
         const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
         targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
         await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (30/30)." });
+        continue;
+      }
+
+      // Check Kedaluwarsa Premium
+      if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
+        const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
+        targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
+        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Masa berlangganan bot ini telah habis." });
         continue;
       }
 
@@ -295,8 +310,10 @@ async function startUserBot(userId, socket = null) {
         const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
         await sock.sendMessage(msg.key.remoteJid, { text: reply });
 
-        await User.findByIdAndUpdate(userId, { $inc: { dailyUsageCount: 1 } });
+        // Increment hitungan daily usage
+        await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
+        // Emit log chat balasan ke dashboard
         targetSocket?.emit("chat-log", {
           time: new Date().toLocaleTimeString(),
           sender: senderNumber,
