@@ -6,13 +6,11 @@ const userSchema = new mongoose.Schema({
   apiKey: { type: String, default: "" },
   modelName: { type: String, default: "nvidia/nemotron-3-ultra-550b-a55b:free" },
   systemPrompt: { type: String, default: "Kamu adalah asisten AI yang ramah." },
-  isBotActive: { type: Boolean, default: true }, // Status Bot On/Off
+  isBotActive: { type: Boolean, default: true },
   plan: { type: String, enum: ["free", "premium"], default: "free" },
   expiredAt: { type: Date, default: null },
-  dailyUsage: {
-    count: { type: Number, default: 0 },
-    date: { type: String, default: () => new Date().toISOString().split("T")[0] }
-  }
+  dailyUsageCount: { type: Number, default: 0 },
+  dailyUsageDate: { type: String, default: () => new Date().toISOString().split("T")[0] }
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);

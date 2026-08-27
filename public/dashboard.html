@@ -174,7 +174,9 @@
   <script>
     lucide.createIcons();
     const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/login.html';
+    
+    // PERBAIKAN: Mengarahkan ke route utama '/' jika token tidak ada
+    if (!token) window.location.href = '/';
 
     const socket = io();
 
@@ -243,7 +245,6 @@
       }
     });
 
-    // Handle Error Log Realtime
     socket.on('error-log', (log) => {
       const logList = document.getElementById('logList');
       if (logList.querySelector('.italic')) logList.innerHTML = '';
@@ -260,7 +261,12 @@
 
     function openModal() { document.getElementById('paymentModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('paymentModal').classList.add('hidden'); }
-    function logout() { localStorage.removeItem('token'); window.location.href = '/login.html'; }
+    
+    // PERBAIKAN: Fungsi logout mengarahkan ke halaman utama '/'
+    function logout() { 
+      localStorage.removeItem('token'); 
+      window.location.href = '/'; 
+    }
 
     loadConfig();
   </script>
