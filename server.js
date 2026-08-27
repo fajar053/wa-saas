@@ -174,5 +174,15 @@ io.on("connection", (socket) => {
   });
 });
 
+const path = require('path');
+
+// Melayani file statis dari folder public (tempat index.html/login.html berada)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Mengarahkan alamat utama (/) ke index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
