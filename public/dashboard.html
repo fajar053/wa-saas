@@ -75,7 +75,7 @@
 
     </div>
 
-    <!-- Kolom Kanan: Pengaturan Bot & Error Log -->
+    <!-- Kolom Kanan: Pengaturan Bot, Live Chat & Error Log -->
     <div class="md:col-span-2 space-y-6">
       
       <!-- Card Settings -->
@@ -85,7 +85,6 @@
             <i data-lucide="settings" class="text-indigo-400"></i> Pengaturan AI Bot
           </h2>
           
-          <!-- Toggle Status Bot -->
           <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
             <span class="text-xs text-slate-400">Status Bot:</span>
             <label class="relative inline-flex items-center cursor-pointer">
@@ -119,25 +118,39 @@
 
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1">System Prompt / Pelatihan Bot</label>
-            <textarea id="systemPrompt" rows="4" placeholder="Contoh: Kamu adalah asisten AI yang ramah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"></textarea>
+            <textarea id="systemPrompt" rows="3" placeholder="Contoh: Kamu adalah asisten AI yang ramah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"></textarea>
           </div>
 
-          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-indigo-600/20">
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
             Simpan Pengaturan
           </button>
         </form>
       </div>
 
-      <!-- Card Tampilan Log Error -->
+      <!-- Card Live Chat Log -->
+      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="message-square" class="text-emerald-400"></i> Live Activity Chat
+          </h2>
+          <button onclick="clearChatLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Clear Chat</button>
+        </div>
+
+        <div id="chatLogList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto text-xs space-y-2">
+          <p class="text-slate-500 italic">Belum ada obrolan masuk...</p>
+        </div>
+      </div>
+
+      <!-- Card Error Log -->
       <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
             <i data-lucide="alert-triangle" class="text-rose-400"></i> Log Error Balasan Bot
           </h2>
-          <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Bersihkan Log</button>
+          <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Clear Log</button>
         </div>
 
-        <div id="logList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs space-y-2">
+        <div id="logList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-36 overflow-y-auto font-mono text-xs space-y-2">
           <p class="text-slate-500 italic">Belum ada riwayat error...</p>
         </div>
       </div>
@@ -174,8 +187,6 @@
   <script>
     lucide.createIcons();
     const token = localStorage.getItem('token');
-    
-    // PERBAIKAN: Mengarahkan ke route utama '/' jika token tidak ada
     if (!token) window.location.href = '/';
 
     const socket = io();
@@ -245,15 +256,39 @@
       }
     });
 
+    // Handle Log Chat Realtime
+    socket.on('chat-log', (chat) => {
+      const list = document.getElementById('chatLogList');
+      if (list.querySelector('.italic')) list.innerHTML = '';
+
+      const isIncoming = chat.type === 'in';
+      const item = document.createElement('div');
+      item.className = `p-2 rounded-lg border ${isIncoming ? 'bg-slate-900 border-indigo-500/30 text-indigo-200' : 'bg-slate-900/80 border-emerald-500/30 text-emerald-200'}`;
+      item.innerHTML = `
+        <div class="flex justify-between items-center text-[10px] text-slate-400 mb-1">
+          <span class="font-bold ${isIncoming ? 'text-indigo-400' : 'text-emerald-400'}">${isIncoming ? '📥 ' + chat.sender : '📤 Bot (Balasan)'}</span>
+          <span>${chat.time}</span>
+        </div>
+        <p class="text-xs text-slate-200">${chat.text}</p>
+      `;
+      list.prepend(item);
+      loadConfig(); // Refresh hitungan limit harian
+    });
+
+    // Handle Log Error Realtime
     socket.on('error-log', (log) => {
       const logList = document.getElementById('logList');
       if (logList.querySelector('.italic')) logList.innerHTML = '';
 
       const item = document.createElement('div');
       item.className = 'text-rose-400 border-b border-slate-800/80 pb-1.5';
-      item.innerHTML = `<span class="text-slate-500">[${log.time}]</span> <span class="font-bold text-slate-300">${log.from.split('@')[0]}:</span> ${log.message}`;
+      item.innerHTML = `<span class="text-slate-500">[${log.time}]</span> <span class="font-bold text-slate-300">${log.from}:</span> ${log.message}`;
       logList.prepend(item);
     });
+
+    function clearChatLogs() {
+      document.getElementById('chatLogList').innerHTML = '<p class="text-slate-500 italic">Belum ada obrolan masuk...</p>';
+    }
 
     function clearLogs() {
       document.getElementById('logList').innerHTML = '<p class="text-slate-500 italic">Belum ada riwayat error...</p>';
@@ -261,12 +296,7 @@
 
     function openModal() { document.getElementById('paymentModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('paymentModal').classList.add('hidden'); }
-    
-    // PERBAIKAN: Fungsi logout mengarahkan ke halaman utama '/'
-    function logout() { 
-      localStorage.removeItem('token'); 
-      window.location.href = '/'; 
-    }
+    function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
 
     loadConfig();
   </script>

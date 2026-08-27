@@ -78,10 +78,9 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   const today = new Date().toISOString().split("T")[0];
   
-  // Reset otomatis jika masuk ke hari baru
   if (user.dailyUsageDate !== today) {
-    user.dailyUsageCount = 0;
     user.dailyUsageDate = today;
+    user.dailyUsageCount = 0;
     await user.save();
   }
 
@@ -150,31 +149,46 @@ async function startUserBot(userId, socket) {
       const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
       if (!text) continue;
 
+      // 1. AUTO READ PESAN (CENTANG BIRU)
+      try {
+        await sock.readMessages([msg.key]);
+      } catch (e) {
+        console.error("Gagal auto-read:", e.message);
+      }
+
+      const senderNumber = msg.key.remoteJid.split("@")[0];
+
+      // Send log chat masuk ke Dashboard
+      socket?.emit("chat-log", {
+        time: new Date().toLocaleTimeString(),
+        sender: senderNumber,
+        text: text,
+        type: "in"
+      });
+
       const user = await User.findById(userId);
       if (!user) continue;
 
       if (!user.isBotActive) continue;
 
       if (!user.apiKey) {
-        const errorMsg = "API Key OpenRouter belum diisi di dashboard.";
-        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: msg.key.remoteJid });
-        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi oleh pemilik." });
+        const errorMsg = "API Key OpenRouter belum diisi.";
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
+        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
         continue;
       }
 
       const today = new Date().toISOString().split("T")[0];
-      
-      // Reset harian jika tanggal berbeda
       if (user.dailyUsageDate !== today) {
-        user.dailyUsageCount = 0;
         user.dailyUsageDate = today;
+        user.dailyUsageCount = 0;
         await user.save();
       }
 
       // CEK LIMIT FREE (30 Chat)
       if (user.plan === "free" && user.dailyUsageCount >= 30) {
         const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
-        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: msg.key.remoteJid });
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
         await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (30/30)." });
         continue;
       }
@@ -182,7 +196,7 @@ async function startUserBot(userId, socket) {
       // CEK KEDALUWARSA PREMIUM
       if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
         const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
-        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: msg.key.remoteJid });
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
         await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Masa berlangganan bot ini telah habis." });
         continue;
       }
@@ -200,12 +214,20 @@ async function startUserBot(userId, socket) {
         const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
         await sock.sendMessage(msg.key.remoteJid, { text: reply });
 
-        // MENAMBAH PENAMBAHAN HITUNGAN SECARA PASTI KE DATABASE
+        // Update hitungan batas harian
         await User.findByIdAndUpdate(userId, { $inc: { dailyUsageCount: 1 } });
+
+        // Send log chat balasan bot ke Dashboard
+        socket?.emit("chat-log", {
+          time: new Date().toLocaleTimeString(),
+          sender: senderNumber,
+          text: reply,
+          type: "out"
+        });
 
       } catch (err) {
         console.error("AI Error:", err.message);
-        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: msg.key.remoteJid });
+        socket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: senderNumber });
         await sock.sendMessage(msg.key.remoteJid, { 
           text: "[Sistem] Mohon maaf, terjadi kendala saat memproses balasan otomatis. Silakan coba beberapa saat lagi." 
         });
