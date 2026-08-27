@@ -191,6 +191,9 @@
 
     const socket = io();
 
+    // Auto register socket saat halaman dimuat
+    socket.emit('start-bot', token);
+
     async function loadConfig() {
       const res = await fetch('/api/config', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -256,7 +259,7 @@
       }
     });
 
-    // Handle Log Chat Realtime
+    // Realtime Chat Log
     socket.on('chat-log', (chat) => {
       const list = document.getElementById('chatLogList');
       if (list.querySelector('.italic')) list.innerHTML = '';
@@ -272,10 +275,10 @@
         <p class="text-xs text-slate-200">${chat.text}</p>
       `;
       list.prepend(item);
-      loadConfig(); // Refresh hitungan limit harian
+      loadConfig();
     });
 
-    // Handle Log Error Realtime
+    // Realtime Error Log
     socket.on('error-log', (log) => {
       const logList = document.getElementById('logList');
       if (logList.querySelector('.italic')) logList.innerHTML = '';

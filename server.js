@@ -44,7 +44,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error("❌ DB Error:", err));
 
 const activeSessions = new Map();
-const isStartingSession = new Set(); // Mencegah duplikasi inisialisasi bot
+const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 
@@ -195,9 +195,7 @@ async function startUserBot(userId, socket = null) {
 
   if (socket) userSockets.set(strUserId, socket);
 
-  // Jika bot untuk user ini sedang aktif berjalan, jangan buat ulang instance baru
   if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
-    console.log(`⚡ Session already running for User: ${strUserId}`);
     const currentSocket = userSockets.get(strUserId);
     currentSocket?.emit("status", "Connected");
     currentSocket?.emit("ready");
@@ -254,7 +252,6 @@ async function startUserBot(userId, socket = null) {
           await Session.deleteOne({ userId: strUserId });
           currentSocket?.emit("status", "Disconnected");
         } else {
-          console.log(`⚠️ Connection Closed (Reason: ${statusCode}). Reconnecting in 3s...`);
           setTimeout(() => {
             startUserBot(strUserId, currentSocket);
           }, 3000);
@@ -270,7 +267,6 @@ async function startUserBot(userId, socket = null) {
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
         if (!text) continue;
 
-        // Auto-read pesan (Centang Biru)
         try {
           await sock.readMessages([msg.key]);
         } catch (e) {}
@@ -278,7 +274,6 @@ async function startUserBot(userId, socket = null) {
         const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
         const targetSocket = userSockets.get(strUserId);
 
-        // Emit log chat masuk ke dashboard
         targetSocket?.emit("chat-log", {
           time: new Date().toLocaleTimeString(),
           sender: senderNumber,
@@ -305,7 +300,6 @@ async function startUserBot(userId, socket = null) {
           await user.save();
         }
 
-        // Check Kuota Harian (Free 30 Chat)
         if (user.plan === "free" && user.dailyUsageCount >= 30) {
           const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
           targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
@@ -313,7 +307,6 @@ async function startUserBot(userId, socket = null) {
           continue;
         }
 
-        // Check Kedaluwarsa Premium
         if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
           const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
           targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
@@ -334,10 +327,8 @@ async function startUserBot(userId, socket = null) {
           const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
           await sock.sendMessage(msg.key.remoteJid, { text: reply });
 
-          // Increment hitungan daily usage
           await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-          // Emit log chat balasan ke dashboard
           targetSocket?.emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -366,9 +357,22 @@ io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      startUserBot(decoded.userId, socket);
+      const strUserId = String(decoded.userId);
+
+      userSockets.set(strUserId, socket);
+      startUserBot(strUserId, socket);
+
     } catch (e) {
       socket.emit("status", "Unauthorized");
+    }
+  });
+
+  socket.on("disconnect", () => {
+    for (const [userId, sock] of userSockets.entries()) {
+      if (sock.id === socket.id) {
+        userSockets.delete(userId);
+        break;
+      }
     }
   });
 });
