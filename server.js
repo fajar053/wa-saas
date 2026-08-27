@@ -44,6 +44,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error("❌ DB Error:", err));
 
 const activeSessions = new Map();
+const isStartingSession = new Set(); // Mencegah duplikasi inisialisasi bot
 const connectedFlags = new Set();
 const userSockets = new Map();
 
@@ -178,7 +179,7 @@ async function autoStartAllSessions() {
   try {
     const sessions = await Session.find({});
     for (const session of sessions) {
-      if (!activeSessions.has(String(session.userId))) {
+      if (!activeSessions.has(String(session.userId)) && !isStartingSession.has(String(session.userId))) {
         console.log(`🔄 Restoring WA Session for User ID: ${session.userId}`);
         startUserBot(session.userId);
       }
@@ -191,145 +192,173 @@ async function autoStartAllSessions() {
 // --- BOT WA ENGINE ---
 async function startUserBot(userId, socket = null) {
   const strUserId = String(userId);
+
   if (socket) userSockets.set(strUserId, socket);
 
-  const { state, saveCreds } = await useMongoDBAuthState(strUserId);
-  const { version } = await fetchLatestBaileysVersion();
-
-  const sock = makeWASocket({
-    version,
-    logger: pino({ level: "silent" }),
-    auth: state,
-    printQRInTerminal: false
-  });
-
-  activeSessions.set(strUserId, sock);
-  sock.ev.on("creds.update", saveCreds);
-
-  sock.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect, qr } = update;
+  // Jika bot untuk user ini sedang aktif berjalan, jangan buat ulang instance baru
+  if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
+    console.log(`⚡ Session already running for User: ${strUserId}`);
     const currentSocket = userSockets.get(strUserId);
+    currentSocket?.emit("status", "Connected");
+    currentSocket?.emit("ready");
+    return;
+  }
 
-    if (qr && currentSocket) {
-      const qrUrl = await QRCode.toDataURL(qr);
-      currentSocket.emit("qr", qrUrl);
-      currentSocket.emit("status", "Scan QR Code");
-    }
+  if (isStartingSession.has(strUserId)) return;
+  isStartingSession.add(strUserId);
 
-    if (connection === "open") {
-      if (!connectedFlags.has(strUserId)) {
-        console.log(`✅ WA Connected for User: ${strUserId}`);
-        connectedFlags.add(strUserId);
+  try {
+    const { state, saveCreds } = await useMongoDBAuthState(strUserId);
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+      version,
+      logger: pino({ level: "silent" }),
+      auth: state,
+      printQRInTerminal: false
+    });
+
+    activeSessions.set(strUserId, sock);
+    sock.ev.on("creds.update", saveCreds);
+
+    sock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      const currentSocket = userSockets.get(strUserId);
+
+      if (qr && currentSocket) {
+        const qrUrl = await QRCode.toDataURL(qr);
+        currentSocket.emit("qr", qrUrl);
+        currentSocket.emit("status", "Scan QR Code");
       }
-      currentSocket?.emit("status", "Connected");
-      currentSocket?.emit("ready");
-    }
 
-    if (connection === "close") {
-      connectedFlags.delete(strUserId);
-      const isLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
-      if (isLogout) {
-        await Session.deleteOne({ userId: strUserId });
+      if (connection === "open") {
+        isStartingSession.delete(strUserId);
+        if (!connectedFlags.has(strUserId)) {
+          console.log(`✅ WA Connected for User: ${strUserId}`);
+          connectedFlags.add(strUserId);
+        }
+        currentSocket?.emit("status", "Connected");
+        currentSocket?.emit("ready");
+      }
+
+      if (connection === "close") {
+        isStartingSession.delete(strUserId);
+        connectedFlags.delete(strUserId);
         activeSessions.delete(strUserId);
-        currentSocket?.emit("status", "Disconnected");
-      } else {
-        startUserBot(strUserId, currentSocket);
+
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const isLogout = statusCode === DisconnectReason.loggedOut;
+
+        if (isLogout) {
+          console.log(`🔴 User Logged Out: ${strUserId}`);
+          await Session.deleteOne({ userId: strUserId });
+          currentSocket?.emit("status", "Disconnected");
+        } else {
+          console.log(`⚠️ Connection Closed (Reason: ${statusCode}). Reconnecting in 3s...`);
+          setTimeout(() => {
+            startUserBot(strUserId, currentSocket);
+          }, 3000);
+        }
       }
-    }
-  });
+    });
 
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
-    for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+      if (type !== "notify") return;
+      for (const msg of messages) {
+        if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
 
-      const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-      if (!text) continue;
+        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        if (!text) continue;
 
-      // Auto-read pesan (Centang Biru)
-      try {
-        await sock.readMessages([msg.key]);
-      } catch (e) {}
+        // Auto-read pesan (Centang Biru)
+        try {
+          await sock.readMessages([msg.key]);
+        } catch (e) {}
 
-      const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
-      const targetSocket = userSockets.get(strUserId);
+        const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
+        const targetSocket = userSockets.get(strUserId);
 
-      // Emit log chat masuk ke dashboard
-      targetSocket?.emit("chat-log", {
-        time: new Date().toLocaleTimeString(),
-        sender: senderNumber,
-        text: text,
-        type: "in"
-      });
-
-      const user = await User.findById(strUserId);
-      if (!user) continue;
-
-      if (!user.isBotActive) continue;
-
-      if (!user.apiKey) {
-        const errorMsg = "API Key OpenRouter belum diisi.";
-        targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
-        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
-        continue;
-      }
-
-      const today = new Date().toISOString().split("T")[0];
-      if (user.dailyUsageDate !== today) {
-        user.dailyUsageDate = today;
-        user.dailyUsageCount = 0;
-        await user.save();
-      }
-
-      // Check Kuota Harian (Free 30 Chat)
-      if (user.plan === "free" && user.dailyUsageCount >= 30) {
-        const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
-        targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
-        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (30/30)." });
-        continue;
-      }
-
-      // Check Kedaluwarsa Premium
-      if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
-        const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
-        targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
-        await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Masa berlangganan bot ini telah habis." });
-        continue;
-      }
-
-      try {
-        const openai = new OpenAI({ apiKey: user.apiKey, baseURL: "https://openrouter.ai/api/v1" });
-        const response = await openai.chat.completions.create({
-          model: user.modelName,
-          messages: [
-            { role: "system", content: user.systemPrompt },
-            { role: "user", content: text }
-          ]
-        });
-
-        const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
-        await sock.sendMessage(msg.key.remoteJid, { text: reply });
-
-        // Increment hitungan daily usage
-        await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
-
-        // Emit log chat balasan ke dashboard
+        // Emit log chat masuk ke dashboard
         targetSocket?.emit("chat-log", {
           time: new Date().toLocaleTimeString(),
           sender: senderNumber,
-          text: reply,
-          type: "out"
+          text: text,
+          type: "in"
         });
 
-      } catch (err) {
-        console.error("AI Error:", err.message);
-        targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: senderNumber });
-        await sock.sendMessage(msg.key.remoteJid, { 
-          text: "[Sistem] Mohon maaf, terjadi kendala saat memproses balasan otomatis. Silakan coba beberapa saat lagi." 
-        });
+        const user = await User.findById(strUserId);
+        if (!user) continue;
+
+        if (!user.isBotActive) continue;
+
+        if (!user.apiKey) {
+          const errorMsg = "API Key OpenRouter belum diisi.";
+          targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
+          await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
+          continue;
+        }
+
+        const today = new Date().toISOString().split("T")[0];
+        if (user.dailyUsageDate !== today) {
+          user.dailyUsageDate = today;
+          user.dailyUsageCount = 0;
+          await user.save();
+        }
+
+        // Check Kuota Harian (Free 30 Chat)
+        if (user.plan === "free" && user.dailyUsageCount >= 30) {
+          const limitMsg = "Batas kuota gratis harian (30 chat) telah tercapai.";
+          targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
+          await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (30/30)." });
+          continue;
+        }
+
+        // Check Kedaluwarsa Premium
+        if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
+          const expMsg = "Masa langganan Premium bot telah kedaluwarsa.";
+          targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: expMsg, from: senderNumber });
+          await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Masa berlangganan bot ini telah habis." });
+          continue;
+        }
+
+        try {
+          const openai = new OpenAI({ apiKey: user.apiKey, baseURL: "https://openrouter.ai/api/v1" });
+          const response = await openai.chat.completions.create({
+            model: user.modelName,
+            messages: [
+              { role: "system", content: user.systemPrompt },
+              { role: "user", content: text }
+            ]
+          });
+
+          const reply = response.choices[0]?.message?.content || "Maaf, AI tidak memberikan respons.";
+          await sock.sendMessage(msg.key.remoteJid, { text: reply });
+
+          // Increment hitungan daily usage
+          await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
+
+          // Emit log chat balasan ke dashboard
+          targetSocket?.emit("chat-log", {
+            time: new Date().toLocaleTimeString(),
+            sender: senderNumber,
+            text: reply,
+            type: "out"
+          });
+
+        } catch (err) {
+          console.error("AI Error:", err.message);
+          targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: senderNumber });
+          await sock.sendMessage(msg.key.remoteJid, { 
+            text: "[Sistem] Mohon maaf, terjadi kendala saat memproses balasan otomatis. Silakan coba beberapa saat lagi." 
+          });
+        }
       }
-    }
-  });
+    });
+
+  } catch (error) {
+    console.error("Error starting bot:", error.message);
+    isStartingSession.delete(strUserId);
+  }
 }
 
 // SOCKET.IO REALTIME
