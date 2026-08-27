@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import path from "path";
+import { fileURLToPath } from "url";
 import fs from "fs";
 import QRCode from "qrcode";
 import OpenAI from "openai";
@@ -14,21 +15,22 @@ import pino from "pino";
 
 import User from "./models/User.js";
 
+// Solusi __dirname untuk ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.json());
-app.use(express.static("public"));
 
-const path = require('path');
+// Melayani file statis dari folder public
+app.use(express.static(path.join(__dirname, "public")));
 
-// Melayani file statis dari folder public (tempat index.html/login.html berada)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Mengarahkan alamat utama (/) ke index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Route utama ke index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // Connect Database
@@ -137,7 +139,6 @@ async function startUserBot(userId, socket) {
       const user = await User.findById(userId);
       if (!user || !user.apiKey) continue;
 
-      // Cek Status Langganan
       if (new Date() > new Date(user.expiredAt)) {
         await sock.sendMessage(msg.key.remoteJid, { text: "Masa berlangganan bot telah habis. Silakan perpanjang." });
         continue;
@@ -172,16 +173,6 @@ io.on("connection", (socket) => {
       socket.emit("status", "Unauthorized");
     }
   });
-});
-
-const path = require('path');
-
-// Melayani file statis dari folder public (tempat index.html/login.html berada)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Mengarahkan alamat utama (/) ke index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
