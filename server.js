@@ -28,7 +28,7 @@ app.use(express.json());
 // Melayani file statis dari folder public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route utama ke index.html
+// Route utama mendaftar ke index.html
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -44,25 +44,35 @@ const activeSessions = new Map();
 app.post("/api/register", async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: "Email dan password wajib diisi!" });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, password: hashedPassword });
-    res.json({ success: true, message: "Register berhasil" });
+    await User.create({ email, password: hashedPassword });
+    res.json({ success: true, message: "Register berhasil! Silakan login." });
   } catch (e) {
-    res.status(400).json({ success: false, error: e.message });
+    let msg = e.message;
+    if (e.code === 11000) {
+      msg = "Email sudah terdaftar!";
+    }
+    res.status(400).json({ success: false, message: msg });
   }
 });
 
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: "Email dan password wajib diisi!" });
+    }
     const user = await User.findOne({ email });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(400).json({ success: false, message: "Email/Password salah" });
+      return res.status(400).json({ success: false, message: "Email atau Password salah!" });
     }
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ success: true, token, user });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false, message: e.message || "Terjadi kesalahan server." });
   }
 });
 
@@ -139,7 +149,8 @@ async function startUserBot(userId, socket) {
       const user = await User.findById(userId);
       if (!user || !user.apiKey) continue;
 
-      if (new Date() > new Date(user.expiredAt)) {
+      // Cek Status Langganan
+      if (user.expiredAt && new Date() > new Date(user.expiredAt)) {
         await sock.sendMessage(msg.key.remoteJid, { text: "Masa berlangganan bot telah habis. Silakan perpanjang." });
         continue;
       }
