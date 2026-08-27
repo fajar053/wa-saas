@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Bot WA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-gray-50 p-8">
+  <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+    
+    <!-- Panel WA Status & QR -->
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-xl font-bold mb-4">Koneksi WhatsApp</h3>
+      <div id="status" class="inline-block px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold mb-4">Status: Disconnected</div>
+      <div class="text-center">
+        <img id="qr" class="hidden mx-auto w-48 h-48 border p-2">
+        <button onclick="connectWA()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded">Mulai / Hubungkan WA</button>
+      </div>
+      <div class="mt-6 border-t pt-4">
+        <h4 class="font-bold">Status Berlangganan:</h4>
+        <p id="sub-status" class="text-gray-600">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Panel Pengaturan AI -->
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-xl font-bold mb-4">Pengaturan AI Bot</h3>
+      <label class="block text-sm font-semibold mb-1">OpenRouter API Key</label>
+      <input id="apiKey" type="password" class="w-full p-2 border rounded mb-4">
+
+      <label class="block text-sm font-semibold mb-1">Model AI</label>
+      <select id="modelName" class="w-full p-2 border rounded mb-4">
+        <option value="google/gemini-2.0-flash-lite-001:free">Gemini 2.0 Flash Lite (Gratis)</option>
+        <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Gratis)</option>
+        <option value="deepseek/deepseek-r1:free">Deepseek R1 (Gratis)</option>
+      </select>
+
+      <label class="block text-sm font-semibold mb-1">System Prompt / Pelatihan Bot</label>
+      <textarea id="systemPrompt" rows="4" class="w-full p-2 border rounded mb-4" placeholder="Masukkan instruksi watak bot..."></textarea>
+
+      <button onclick="saveConfig()" class="w-full bg-blue-600 text-white p-2 rounded">Simpan Pengaturan</button>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    const socket = io();
+
+    async function loadConfig() {
+      const res = await fetch('/api/config', { headers: { Authorization: `Bearer ${token}` } });
+      const user = await res.json();
+      apiKey.value = user.apiKey || '';
+      modelName.value = user.modelName;
+      systemPrompt.value = user.systemPrompt;
+      subStatus.innerText = `Paket: ${user.subscriptionStatus.toUpperCase()} (Berlaku hingga: ${new Date(user.expiredAt).toLocaleDateString()})`;
+    }
+
+    async function saveConfig() {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ apiKey: apiKey.value, modelName: modelName.value, systemPrompt: systemPrompt.value })
+      });
+      alert('Pengaturan Berhasil Disimpan!');
+    }
+
+    function connectWA() {
+      socket.emit('start-bot', token);
+    }
+
+    socket.on('status', (s) => {
+      status.innerText = `Status: ${s}`;
+    });
+
+    socket.on('qr', (url) => {
+      qr.src = url;
+      qr.classList.remove('hidden');
+    });
+
+    socket.on('ready', () => {
+      qr.classList.add('hidden');
+    });
+
+    loadConfig();
+  </script>
+</body>
+</html>
