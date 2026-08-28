@@ -40,7 +40,7 @@ if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
 
-// Konfigurasi Multer untuk Upload Foto
+// Konfigurasi Multer untuk Upload Foto Profil (Maks 1 MB & Hanya Gambar)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -48,7 +48,24 @@ const storage = multer.diskStorage({
     cb(null, `avatar_${req.user.userId}_${Date.now()}${ext}`);
   }
 });
-const upload = multer({ storage });
+
+const upload = multer({ 
+  storage,
+  limits: { 
+    fileSize: 1 * 1024 * 1024 // Batas Maksimal 1 MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      return cb(null, true);
+    } else {
+      cb(new Error("Hanya file gambar (JPG, PNG, WEBP, GIF) yang diperbolehkan!"));
+    }
+  }
+});
 
 // Konfigurasi Transporter Nodemailer
 const transporter = nodemailer.createTransport({
@@ -132,7 +149,7 @@ app.get("/api/verify-email", async (req, res) => {
     const user = await User.findOne({ verificationToken: token });
 
     if (!user) {
-      return res.send(`<h2>Token verifikasi tidak valid atau sudah kadaluwarsa.</h2><a href="/login.html">Ke Halaman Login</a>`);
+      return res.send(`<h2>Token verifikasi tidak valid atau sudah kadaluwarsa.</h2><a href="/">Ke Halaman Login</a>`);
     }
 
     user.isVerified = true;
@@ -178,7 +195,7 @@ app.post("/api/forgot-password", async (req, res) => {
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 jam
+    user.resetPasswordExpires = Date.now() + 3600000; // berlaku 1 jam
     await user.save();
 
     const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password.html?token=${resetToken}`;
@@ -275,30 +292,41 @@ app.post("/api/config", verifyToken, async (req, res) => {
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
-// 7. UPDATE PROFILE & PASSWORD
-app.post("/api/profile/update", verifyToken, upload.single("avatar"), async (req, res) => {
-  try {
-    const { nickname, oldPassword, newPassword } = req.body;
-    const user = await User.findById(req.user.userId);
-
-    if (nickname) user.nickname = nickname;
-
-    if (req.file) {
-      user.profilePicture = `/uploads/${req.file.filename}`;
-    }
-
-    if (newPassword) {
-      if (!oldPassword || !(await bcrypt.compare(oldPassword, user.password))) {
-        return res.status(400).json({ success: false, message: "Password lama salah!" });
+// 7. UPDATE PROFILE & FOTO PROFIL (Dengan Validasi Ukuran & Format)
+app.post("/api/profile/update", verifyToken, (req, res) => {
+  upload.single("avatar")(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ success: false, message: "Ukuran foto terlalu besar! Maksimal 1 MB." });
       }
-      user.password = await bcrypt.hash(newPassword, 10);
+      return res.status(400).json({ success: false, message: err.message });
+    } else if (err) {
+      return res.status(400).json({ success: false, message: err.message });
     }
 
-    await user.save();
-    res.json({ success: true, message: "Profil berhasil diperbarui!", profilePicture: user.profilePicture });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
+    try {
+      const { nickname, oldPassword, newPassword } = req.body;
+      const user = await User.findById(req.user.userId);
+
+      if (nickname) user.nickname = nickname;
+
+      if (req.file) {
+        user.profilePicture = `/uploads/${req.file.filename}`;
+      }
+
+      if (newPassword) {
+        if (!oldPassword || !(await bcrypt.compare(oldPassword, user.password))) {
+          return res.status(400).json({ success: false, message: "Password lama salah!" });
+        }
+        user.password = await bcrypt.hash(newPassword, 10);
+      }
+
+      await user.save();
+      res.json({ success: true, message: "Profil berhasil diperbarui!", profilePicture: user.profilePicture });
+    } catch (e) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
 });
 
 // --- MONGODB AUTH STATE BAILEYS ---
