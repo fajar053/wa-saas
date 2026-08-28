@@ -183,7 +183,6 @@
               <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
             </h3>
             
-            <!-- Tombol Disconnect / Logout WA -->
             <button onclick="disconnectWhatsApp()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5" title="Putuskan koneksi & hapus sesi WhatsApp">
               <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Disconnect
             </button>
@@ -288,6 +287,7 @@
 
     const socket = io();
     let currentUserPlan = 'free';
+    let currentWeeklyUsage = 0;
 
     function openApiKeyTutorial() {
       document.getElementById('apiKeyModal').classList.remove('hidden');
@@ -297,7 +297,6 @@
       document.getElementById('apiKeyModal').classList.add('hidden');
     }
 
-    // Fungsi Toggle Lihat / Sembunyikan API Key
     function toggleApiKeyVisibility() {
       const apiKeyInput = document.getElementById('apiKey');
       const eyeIcon = document.getElementById('eyeIcon');
@@ -320,6 +319,7 @@
         const data = await res.json();
 
         currentUserPlan = data.plan || 'free';
+        currentWeeklyUsage = data.weeklyUsage || 0;
 
         document.getElementById('userNickname').innerText = data.nickname;
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
@@ -331,7 +331,7 @@
         document.getElementById('isBotActive').checked = data.isBotActive;
 
         // Update Kuota Mingguan Stat
-        document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.weeklyUsage} / Unlimited` : `${data.weeklyUsage} / 200`;
+        updateUsageDisplay();
 
         if (currentUserPlan !== 'premium') {
           document.getElementById('lockIcon').classList.remove('hidden');
@@ -342,6 +342,10 @@
       } catch (err) {
         console.error("Load Config Error:", err);
       }
+    }
+
+    function updateUsageDisplay() {
+      document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${currentWeeklyUsage} / Unlimited` : `${currentWeeklyUsage} / 200`;
     }
 
     async function saveConfig(e) {
@@ -367,7 +371,6 @@
       }
     }
 
-    // Fungsi Tombol Disconnect WhatsApp
     async function disconnectWhatsApp() {
       if (!confirm("Apakah kamu yakin ingin memutus koneksi WhatsApp dan menghapus sesi saat ini? Kamu perlu scan QR Code ulang.")) {
         return;
@@ -443,7 +446,6 @@
       }
     }
 
-    // Helper Auto Delete Chat Log > 5 Menit
     const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
     function appendLogElement(element) {
@@ -491,6 +493,12 @@
       p.className = log.type === 'in' ? 'text-indigo-400' : 'text-emerald-400';
       p.innerText = `[${log.time}] ${log.sender}: ${log.text}`;
       appendLogElement(p);
+
+      // Otomatis update counter kuota setiap ada chat keluar (sukses dibalas AI)
+      if (log.type === 'out') {
+        currentWeeklyUsage++;
+        updateUsageDisplay();
+      }
     });
 
     socket.on('error-log', (log) => {

@@ -955,6 +955,8 @@ async function startUserBot(userId, socket = null) {
 
             // Kirim pesan balasan ke WA
             await sock.sendMessage(msg.key.remoteJid, { text: reply });
+            
+            // INCREMENT KUOTA MINGGUAN YANG BENAR
             await User.findByIdAndUpdate(strUserId, { $inc: { weeklyUsageCount: 1 } });
 
             targetSocket?.emit("chat-log", {
