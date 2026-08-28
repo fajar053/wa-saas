@@ -78,7 +78,14 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-medium text-slate-300 mb-1">OpenRouter API Key</label>
-              <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+              
+              <!-- Input dengan Tombol Lihat/Sembunyikan API Key -->
+              <div class="relative">
+                <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-xs focus:outline-none focus:border-indigo-500">
+                <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition">
+                  <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
+                </button>
+              </div>
               
               <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
                 <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Cara mendapatkan API Key?
@@ -288,6 +295,21 @@
 
     function closeApiKeyTutorial() {
       document.getElementById('apiKeyModal').classList.add('hidden');
+    }
+
+    // Fungsi Toggle Lihat / Sembunyikan API Key
+    function toggleApiKeyVisibility() {
+      const apiKeyInput = document.getElementById('apiKey');
+      const eyeIcon = document.getElementById('eyeIcon');
+      
+      if (apiKeyInput.type === 'password') {
+        apiKeyInput.type = 'text';
+        eyeIcon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        apiKeyInput.type = 'password';
+        eyeIcon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
     }
 
     async function loadConfig() {

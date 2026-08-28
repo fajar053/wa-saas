@@ -86,7 +86,7 @@ const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 
-// --- HELPER OPENROUTER API VIA NATIVE FETCH (OPTIMIZED MEMORY & FAST FALLBACK) ---
+// --- HELPER OPENROUTER API VIA NATIVE FETCH (OPTIMIZED WITH AUTO-RETRY) ---
 async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto", targetSocket = null, senderNumber = "") {
   
   const modelsToTry = [
@@ -105,63 +105,65 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
   const uniqueModels = [...new Set(modelsToTry)];
 
   for (const model of uniqueModels) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 detik max per request
+    // Coba maksimal 3 kali per model jika terjadi Connection Closed / timeout
+    let retries = 3;
+    while (retries > 0) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik max per request
 
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": "WA AutoBot AI"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages,
-          route: "fallback"
-        }),
-        signal: controller.signal
-      });
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+            "X-Title": "WA AutoBot AI"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages,
+            route: "fallback"
+          }),
+          signal: controller.signal
+        });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
-        
-        if (model === modelCandidate && targetSocket) {
-          targetSocket.emit("error-log", {
-            time: new Date().toLocaleTimeString(),
-            message: `Model "${modelCandidate}" gagal/error (${response.status}). Otomatis menggunakan model cadangan. Disarankan mengganti Model AI di Dashboard.`,
-            from: senderNumber || "Sistem"
-          });
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
+          
+          if (response.status === 429) {
+            // Jika kena rate limit (429), langsung skip model ini ke model berikutnya tanpa retry
+            break;
+          }
+
+          retries--;
+          if (retries === 0) break;
+          continue;
         }
 
-        continue;
-      }
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          console.log(`✅ AI Response Generated via Model: ${model}`);
+          return content;
+        }
 
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        console.log(`✅ AI Response Generated via Model: ${model}`);
-        return content;
+      } catch (err) {
+        console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message} (Sisa percobaan: ${retries - 1})`);
+        retries--;
+        if (retries === 0) {
+          break; // Lanjut ke model cadangan berikutnya
+        }
+        // Tunggu 1 detik sebelum retry ulang
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-    } catch (err) {
-      console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message}`);
-      if (model === modelCandidate && targetSocket) {
-        targetSocket.emit("error-log", {
-          time: new Date().toLocaleTimeString(),
-          message: `Koneksi ke "${modelCandidate}" terputus (${err.message}). Disarankan memilih Model AI lain di Dashboard.`,
-          from: senderNumber || "Sistem"
-        });
-      }
-    } finally {
-      clearTimeout(timeoutId); // Bersihkan timer untuk mencegah memory leak
     }
   }
 
-  throw new Error("Semua server AI cadangan sedang sibuk. Silakan ganti Model AI di dropdown Dashboard.");
+  throw new Error("Koneksi ke server AI tidak stabil / terputus. Silakan coba beberapa saat lagi atau ganti Model AI di Dashboard.");
 }
 
 // --- AUTHENTICATION & ACCOUNT API ---
