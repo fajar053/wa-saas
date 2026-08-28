@@ -31,7 +31,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Inisialisasi Client Resend Email API
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.json());
@@ -82,7 +81,7 @@ const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 
-// --- HELPER OPENROUTER API KHUSUS DI SERVER.JS ---
+// --- HELPER OPENROUTER API ---
 async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto", targetSocket = null, senderNumber = "") {
   const modelsToTry = [
     modelCandidate,
@@ -100,10 +99,10 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
   const uniqueModels = [...new Set(modelsToTry)];
 
   for (const model of uniqueModels) {
-    let retries = 3;
+    let retries = 2;
     while (retries > 0) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -122,12 +121,13 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
           signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
           const errText = await response.text();
           console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
           if (response.status === 429) break;
           retries--;
-          if (retries === 0) break;
           continue;
         }
 
@@ -139,17 +139,17 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
         }
 
       } catch (err) {
-        console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message}`);
-        retries--;
-        if (retries === 0) break;
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } finally {
         clearTimeout(timeoutId);
+        console.warn(`⚠️ OpenRouter Model ${model} Error: ${err.message}`);
+        retries--;
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
     }
   }
 
-  throw new Error("Koneksi ke server AI tidak stabil / terputus. Silakan coba beberapa saat lagi.");
+  throw new Error("Koneksi AI gagal / Timeout");
 }
 
 // --- AUTH & CONFIG API ---
@@ -440,7 +440,9 @@ async function startUserBot(userId, socket = null) {
           }
 
           if (user.plan === "free" && (user.weeklyUsageCount || 0) >= 200) {
-            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Kuota mingguan bot telah habis (200/200)." });
+            try {
+              await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Kuota mingguan bot telah habis (200/200)." });
+            } catch (e) {}
             continue;
           }
 
@@ -454,7 +456,6 @@ async function startUserBot(userId, socket = null) {
           const messagesPayload = [{ role: "system", content: user.systemPrompt || "Kamu asisten AI ramah." }, ...historyForAI];
 
           try {
-            // MENGGUNAKAN MODEL PILIHAN DARI DATABASE USER
             const selectedModel = user.modelName || "openrouter/auto";
             const reply = await fetchOpenRouterAI(user.apiKey, messagesPayload, selectedModel, targetSocket, senderNumber);
 
