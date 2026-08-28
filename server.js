@@ -267,22 +267,48 @@ app.post("/api/config", verifyToken, async (req, res) => {
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
+// Auto Generate System Prompt Endpoint
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
+
+    if (mode === "very_detailed" && user.plan !== "premium") {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Fitur 'Sangat Detail (~700 kata)' khusus untuk pengguna Plan Premium!" 
+      });
+    }
+
+    if (!promptText || !promptText.trim()) {
+      return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
+    }
+
     if (!user || !user.apiKey) {
       return res.status(400).json({ success: false, message: "API Key OpenRouter belum diisi!" });
     }
+
     const wordTarget = mode === "very_detailed" ? "700" : "100";
+    const modeLabel = mode === "very_detailed" ? "SANGAT DETAIL" : "DETAIL";
+
+    const systemInstruction = `Kamu adalah seorang AI Prompt Engineer ahli. Tugasmu adalah mengembangkan instruksi/informasi singkat menjadi System Prompt / Pelatihan Bot WhatsApp yang sangat komprehensif, profesional, dan siap pakai.
+
+Aturan Pembuatan:
+1. Buat hasilnya dalam bentuk instruksi System Prompt (meliputi Peran Bot, Gaya Bahasa, Aturan Komunikasi, Batasan Jawaban, dan Contoh Respon).
+2. Hasil prompt HARUS panjang dan mendalam dengan target sekitar ${wordTarget} kata (opsi ${modeLabel}).
+3. Gunakan Bahasa Indonesia yang jelas, sopan, dan terstruktur.
+4. Jangan tambahkan kalimat sapaan/pembuka/penutup seperti "Tentu, ini prompt kamu:". Langsung keluarkan teks System Prompt-nya saja.`;
+
     const messages = [
-      { role: "system", content: "Kamu adalah AI Prompt Engineer. Buatkan System Prompt WhatsApp komprehensif tanpa teks basa-basi pembuka." },
-      { role: "user", content: `Kembangkan prompt berikut (${wordTarget} kata): "${promptText}"` }
+      { role: "system", content: systemInstruction },
+      { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
     ];
+
     const generatedPrompt = await fetchOpenRouterAI(user.apiKey, messages, "openrouter/auto");
     res.json({ success: true, generatedPrompt });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: `Gagal generate prompt: ${err.message}` });
   }
 });
 
