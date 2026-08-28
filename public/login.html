@@ -5,12 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-4">
   <div class="bg-slate-800 border border-slate-700/60 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
     <div class="text-center">
-      <h1 class="text-2xl font-bold text-indigo-400">WA AutoBot AI</h1>
-      <p class="text-xs text-slate-400 mt-1">Masuk ke akun kamu untuk mengelola bot</p>
+      <h1 class="text-2xl font-bold text-indigo-400 flex items-center justify-center gap-2">
+        <i data-lucide="bot"></i> WA AutoBot AI
+      </h1>
+      <p class="text-xs text-slate-400 mt-1">Masuk ke dashboard pengelola bot kamu</p>
+    </div>
+
+    <!-- Alert Box Notifikasi -->
+    <div id="alertBox" class="hidden p-4 rounded-xl text-xs flex items-start gap-3 transition-all border shadow-lg">
+      <i id="alertIcon" data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+      <div class="space-y-1">
+        <p id="alertTitle" class="font-bold text-sm"></p>
+        <p id="alertMessage" class="text-xs leading-relaxed"></p>
+      </div>
     </div>
 
     <form onsubmit="handleLogin(event)" class="space-y-4">
@@ -21,35 +33,140 @@
       <div>
         <div class="flex justify-between items-center mb-1">
           <label class="block text-xs font-medium text-slate-400">Password</label>
-          <a href="/forgot-password.html" class="text-xs text-indigo-400 hover:underline">Lupa Password?</a>
+          <a href="/forgot-password.html" class="text-[11px] text-indigo-400 hover:underline">Lupa Password?</a>
         </div>
         <input type="password" id="password" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500">
       </div>
-      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition">Masuk</button>
+      
+      <button type="submit" id="loginBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+        <span>Masuk Sekarang</span>
+      </button>
     </form>
 
-    <p class="text-xs text-center text-slate-400">
-      Belum punya akun? <a href="/register.html" class="text-indigo-400 font-semibold hover:underline">Daftar Sekarang</a>
-    </p>
+    <div class="space-y-2 text-center pt-2 border-t border-slate-700/50">
+      <p class="text-xs text-slate-400">
+        Belum menerima email verifikasi? 
+        <button onclick="openResendModal()" class="text-amber-400 font-semibold hover:underline">Kirim Ulang Email</button>
+      </p>
+      <p class="text-xs text-slate-400">
+        Belum punya akun? 
+        <a href="/register.html" class="text-indigo-400 font-bold hover:underline">Daftar Sekarang</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Modal Resend Verification Email -->
+  <div id="resendModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+          <i data-lucide="mail-plus" class="text-amber-400"></i> Kirim Ulang Email Verifikasi
+        </h3>
+        <button onclick="closeResendModal()" class="text-slate-400 hover:text-slate-200"><i data-lucide="x"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Masukkan email yang kamu daftarkan. Kami akan mengirimkan link verifikasi akun yang baru.
+      </p>
+
+      <form onsubmit="handleResendVerification(event)" class="space-y-3">
+        <div>
+          <input type="email" id="resendEmail" placeholder="nama@email.com" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+        </div>
+        <button type="submit" id="resendSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl transition">
+          Kirim Email Verifikasi
+        </button>
+      </form>
+    </div>
   </div>
 
   <script>
+    lucide.createIcons();
+
+    function showAlert(title, message, type = 'error') {
+      const alertBox = document.getElementById('alertBox');
+      const alertTitle = document.getElementById('alertTitle');
+      const alertMessage = document.getElementById('alertMessage');
+      const alertIcon = document.getElementById('alertIcon');
+
+      alertBox.className = 'p-4 rounded-xl text-xs flex items-start gap-3 transition-all border shadow-lg';
+
+      if (type === 'success') {
+        alertBox.classList.add('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
+        alertIcon.setAttribute('data-lucide', 'check-circle-2');
+      } else {
+        alertBox.classList.add('bg-rose-500/10', 'border-rose-500/40', 'text-rose-300');
+        alertIcon.setAttribute('data-lucide', 'alert-triangle');
+      }
+
+      alertTitle.innerText = title;
+      alertMessage.innerText = message;
+      alertBox.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
     async function handleLogin(e) {
       e.preventDefault();
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: document.getElementById('email').value,
-          password: document.getElementById('password').value
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        localStorage.setItem('token', data.token);
-        window.location.href = '/dashboard.html';
-      } else {
-        alert(data.message);
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const loginBtn = document.getElementById('loginBtn');
+
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = `<span>Memproses...</span>`;
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          localStorage.setItem('token', data.token);
+          window.location.href = '/dashboard.html';
+        } else {
+          showAlert("Login Gagal", data.message, "error");
+        }
+      } catch (err) {
+        showAlert("Gangguan Server", "Gagal terhubung ke server.", "error");
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = `<span>Masuk Sekarang</span>`;
+      }
+    }
+
+    function openResendModal() { document.getElementById('resendModal').classList.remove('hidden'); }
+    function closeResendModal() { document.getElementById('resendModal').classList.add('hidden'); }
+
+    async function handleResendVerification(e) {
+      e.preventDefault();
+      const email = document.getElementById('resendEmail').value;
+      const btn = document.getElementById('resendSubmitBtn');
+
+      btn.disabled = true;
+      btn.innerHTML = `<span>Mengirim...</span>`;
+
+      try {
+        const res = await fetch('/api/resend-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        closeResendModal();
+        if (data.success) {
+          showAlert("Pengiriman Berhasil", data.message, "success");
+        } else {
+          showAlert("Pengiriman Gagal", data.message, "error");
+        }
+      } catch (err) {
+        closeResendModal();
+        showAlert("Gangguan Server", "Gagal mengirim permintaan.", "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Kirim Email Verifikasi</span>`;
       }
     }
   </script>

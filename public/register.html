@@ -5,15 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Daftar Akun - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-4">
   <div class="bg-slate-800 border border-slate-700/60 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
     <div class="text-center">
-      <h1 class="text-2xl font-bold text-indigo-400">Buat Akun Baru</h1>
+      <h1 class="text-2xl font-bold text-indigo-400 flex items-center justify-center gap-2">
+        <i data-lucide="user-plus"></i> Buat Akun Baru
+      </h1>
       <p class="text-xs text-slate-400 mt-1">Lengkapi data diri kamu di bawah ini</p>
     </div>
 
-    <form onsubmit="handleRegister(event)" class="space-y-4">
+    <!-- Alert Box Notifikasi (Dibuat Lebih Jelas) -->
+    <div id="alertBox" class="hidden p-4 rounded-xl text-xs flex items-start gap-3 transition-all border shadow-lg">
+      <i id="alertIcon" data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+      <div class="space-y-1">
+        <p id="alertTitle" class="font-bold text-sm"></p>
+        <p id="alertMessage" class="text-xs leading-relaxed"></p>
+      </div>
+    </div>
+
+    <form id="regForm" onsubmit="handleRegister(event)" class="space-y-4">
       <div>
         <label class="block text-xs font-medium text-slate-400 mb-1">Nama Panggilan</label>
         <input type="text" id="nickname" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500">
@@ -34,15 +46,48 @@
         <label class="block text-xs font-medium text-slate-400 mb-1">Verifikasi Password</label>
         <input type="password" id="confirmPassword" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500">
       </div>
-      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition">Daftar Akun</button>
+      
+      <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+        <span>Daftar Akun</span>
+      </button>
     </form>
 
-    <p class="text-xs text-center text-slate-400">
-      Sudah punya akun? <a href="/" class="text-indigo-400 font-semibold hover:underline">Masuk</a>
-    </p>
+    <div class="text-center pt-2">
+      <p class="text-xs text-slate-400">
+        Sudah punya akun? 
+        <a href="/login.html" class="text-indigo-400 font-bold hover:underline transition">Masuk di Sini</a>
+      </p>
+    </div>
   </div>
 
   <script>
+    lucide.createIcons();
+
+    function showAlert(title, message, type = 'error') {
+      const alertBox = document.getElementById('alertBox');
+      const alertTitle = document.getElementById('alertTitle');
+      const alertMessage = document.getElementById('alertMessage');
+      const alertIcon = document.getElementById('alertIcon');
+
+      alertBox.className = 'p-4 rounded-xl text-xs flex items-start gap-3 transition-all border shadow-lg';
+
+      if (type === 'success') {
+        alertBox.classList.add('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
+        alertIcon.setAttribute('data-lucide', 'check-circle-2');
+      } else {
+        alertBox.classList.add('bg-rose-500/10', 'border-rose-500/40', 'text-rose-300');
+        alertIcon.setAttribute('data-lucide', 'alert-triangle');
+      }
+
+      alertTitle.innerText = title;
+      alertMessage.innerText = message;
+      alertBox.classList.remove('hidden');
+      lucide.createIcons();
+      
+      // Auto-scroll ke atas agar user langsung melihat notifikasinya
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     async function handleRegister(e) {
       e.preventDefault();
       const nickname = document.getElementById('nickname').value;
@@ -52,20 +97,39 @@
       const confirmPassword = document.getElementById('confirmPassword').value;
 
       if (password !== confirmPassword) {
-        alert("Konfirmasi password tidak cocok!");
+        showAlert("Pendaftaran Gagal", "Konfirmasi password tidak cocok!", "error");
         return;
       }
 
-      const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, username, email, password, confirmPassword })
-      });
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span>Memproses...</span>`;
 
-      const data = await res.json();
-      alert(data.message);
-      if (data.success) {
-        window.location.href = '/';
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nickname, username, email, password, confirmPassword })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert("Pendaftaran Berhasil 🎉", data.message, "success");
+          document.getElementById('regForm').reset();
+          
+          // Memberi jeda 3.5 detik agar pengguna sempat membaca notifikasi sebelum diarahkan
+          setTimeout(() => {
+            window.location.href = '/login.html';
+          }, 3500);
+        } else {
+          showAlert("Pendaftaran Gagal", data.message, "error");
+        }
+      } catch (err) {
+        showAlert("Gangguan Server", "Gagal terhubung ke server. Silakan coba beberapa saat lagi.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>Daftar Akun</span>`;
       }
     }
   </script>
