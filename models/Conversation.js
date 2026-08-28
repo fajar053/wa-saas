@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 
 const conversationSchema = new mongoose.Schema({
-  botUserId: { type: String, required: true },
-  senderNumber: { type: String, required: true },
-  knownName: { type: String, default: null },
+  botUserId: { type: String, required: true }, // ID User Pemilik Bot
+  senderNumber: { type: String, required: true }, // Nomor WhatsApp pengirim
+  knownName: { type: String, default: null }, // Nama pengirim yang sudah diingat
   messages: [
     {
       role: { type: String, enum: ["user", "assistant"], required: true },
@@ -11,7 +11,9 @@ const conversationSchema = new mongoose.Schema({
       timestamp: { type: Date, default: Date.now }
     }
   ],
-  lastClearedAt: { type: Date, default: Date.now }
-});
+  lastClearedAt: { type: Date, default: Date.now } // Untuk melacak reset riwayat per 3 hari
+}, { timestamps: true });
+
+conversationSchema.index({ botUserId: 1, senderNumber: 1 }, { unique: true });
 
 export default mongoose.model("Conversation", conversationSchema);

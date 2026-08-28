@@ -78,14 +78,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-medium text-slate-300 mb-1">OpenRouter API Key</label>
-              
-              <!-- Input dengan Tombol Lihat/Sembunyikan API Key -->
-              <div class="relative">
-                <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-xs focus:outline-none focus:border-indigo-500">
-                <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition">
-                  <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
-                </button>
-              </div>
+              <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
               
               <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
                 <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Cara mendapatkan API Key?
@@ -95,18 +88,29 @@
               <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
               <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
                 <optgroup label="✨ OpenRouter System Models">
-                  <option value="openrouter/auto">OpenRouter Auto Router (Direkomendasikan)</option>
+                  <option value="openrouter/auto">OpenRouter Auto Router (Sangat Direkomendasikan)</option>
                   <option value="openrouter/free">OpenRouter Free Tier Default</option>
                   <option value="openrouter/auto-beta">OpenRouter Auto (Beta)</option>
                   <option value="openrouter/fusion">OpenRouter Fusion</option>
+                  <option value="openrouter/pareto-code">OpenRouter Pareto Code</option>
+                  <option value="openrouter/bodybuilder">OpenRouter Bodybuilder</option>
                 </optgroup>
                 <optgroup label="⚡ Free Models">
                   <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI Ling 3.0 Flash Fin (Free)</option>
                   <option value="dots-studio/dots-3-note-preview:free">Dots Studio Dots 3 Note (Free)</option>
                   <option value="liquid/lfm-2.5-2.6b:free">Liquid LFM 2.5 2.6B (Free)</option>
                   <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free)</option>
+                  <option value="thinkingmachines/inkling-small:free">ThinkingMachines Inkling Small (Free)</option>
+                  <option value="thinkingmachines/inkling:free">ThinkingMachines Inkling (Free)</option>
+                  <option value="poolside/laguna-xs-2.1:free">Poolside Laguna XS 2.1 (Free)</option>
+                  <option value="poolside/laguna-s-2.1:free">Poolside Laguna S 2.1 (Free)</option>
                   <option value="z-ai/glm-5.2:free">Z-AI GLM 5.2 (Free)</option>
+                  <option value="nvidia/nemotron-3.5-content-safety:free">NVIDIA Nemotron 3.5 Content Safety (Free)</option>
+                  <option value="nvidia/nemotron-3-ultra-550b-a55b:free">NVIDIA Nemotron 3 Ultra 550B (Free)</option>
                   <option value="minimax/minimax-m3:free">MiniMax M3 (Free)</option>
+                  <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">NVIDIA Nemotron 3 Nano Omni (Free)</option>
+                  <option value="minimax/minimax-m2.7:free">MiniMax M2.7 (Free)</option>
+                  <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B (Free)</option>
                 </optgroup>
               </select>
             </div>
@@ -166,16 +170,10 @@
 
       <!-- Column 2: QR Code & Status -->
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
-        <div class="space-y-4">
-          <div class="flex justify-between items-center">
-            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-              <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
-            </h3>
-            
-            <button onclick="disconnectWhatsApp()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5" title="Putuskan koneksi & hapus sesi WhatsApp">
-              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Disconnect
-            </button>
-          </div>
+        <div>
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
+            <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
+          </h3>
 
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
             <div id="qrContainer" class="hidden">
@@ -196,8 +194,8 @@
 
         <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-1">
           <div class="flex justify-between text-slate-400">
-            <span>Kuota Mingguan:</span>
-            <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
+            <span>Kuota Harian:</span>
+            <span id="usageStat" class="font-bold text-slate-200">0 / 50</span>
           </div>
         </div>
       </div>
@@ -276,7 +274,6 @@
 
     const socket = io();
     let currentUserPlan = 'free';
-    let currentWeeklyUsage = 0;
 
     function openApiKeyTutorial() {
       document.getElementById('apiKeyModal').classList.remove('hidden');
@@ -284,20 +281,6 @@
 
     function closeApiKeyTutorial() {
       document.getElementById('apiKeyModal').classList.add('hidden');
-    }
-
-    function toggleApiKeyVisibility() {
-      const apiKeyInput = document.getElementById('apiKey');
-      const eyeIcon = document.getElementById('eyeIcon');
-      
-      if (apiKeyInput.type === 'password') {
-        apiKeyInput.type = 'text';
-        eyeIcon.setAttribute('data-lucide', 'eye-off');
-      } else {
-        apiKeyInput.type = 'password';
-        eyeIcon.setAttribute('data-lucide', 'eye');
-      }
-      lucide.createIcons();
     }
 
     async function loadConfig() {
@@ -308,7 +291,6 @@
         const data = await res.json();
 
         currentUserPlan = data.plan || 'free';
-        currentWeeklyUsage = data.weeklyUsage || 0;
 
         document.getElementById('userNickname').innerText = data.nickname;
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
@@ -319,7 +301,8 @@
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
-        updateUsageDisplay();
+        // Update Kuota Stat
+        document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
 
         if (currentUserPlan !== 'premium') {
           document.getElementById('lockIcon').classList.remove('hidden');
@@ -330,10 +313,6 @@
       } catch (err) {
         console.error("Load Config Error:", err);
       }
-    }
-
-    function updateUsageDisplay() {
-      document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${currentWeeklyUsage} / Unlimited` : `${currentWeeklyUsage} / 200`;
     }
 
     async function saveConfig(e) {
@@ -356,31 +335,6 @@
         alert(data.message);
       } catch (err) {
         alert("Gagal menyimpan pengaturan.");
-      }
-    }
-
-    async function disconnectWhatsApp() {
-      if (!confirm("Apakah kamu yakin ingin memutus koneksi WhatsApp dan menghapus sesi saat ini? Kamu perlu scan QR Code ulang.")) {
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/whatsapp/reset', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          alert(data.message);
-          window.location.reload();
-        } else {
-          alert(data.message || "Gagal mereset sesi WhatsApp.");
-        }
-      } catch (err) {
-        alert("Terjadi kesalahan pada server.");
       }
     }
 
@@ -434,6 +388,7 @@
       }
     }
 
+    // Helper Auto Delete Chat Log > 5 Menit
     const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
     function appendLogElement(element) {
@@ -453,6 +408,7 @@
       }, FIVE_MINUTES_MS);
     }
 
+    // Socket.io Handlers
     socket.emit('start-bot', token);
 
     socket.on('status', (status) => {
@@ -463,8 +419,6 @@
         document.getElementById('qrLoading').classList.add('hidden');
         document.getElementById('qrContainer').classList.add('hidden');
         document.getElementById('qrConnected').classList.remove('hidden');
-      } else {
-        document.getElementById('qrConnected').classList.add('hidden');
       }
     });
 
@@ -480,11 +434,6 @@
       p.className = log.type === 'in' ? 'text-indigo-400' : 'text-emerald-400';
       p.innerText = `[${log.time}] ${log.sender}: ${log.text}`;
       appendLogElement(p);
-
-      if (log.type === 'out') {
-        currentWeeklyUsage++;
-        updateUsageDisplay();
-      }
     });
 
     socket.on('error-log', (log) => {
