@@ -170,10 +170,17 @@
 
       <!-- Column 2: QR Code & Status -->
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
-        <div>
-          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
-            <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
-          </h3>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+              <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
+            </h3>
+            
+            <!-- Tombol Disconnect / Logout WA -->
+            <button onclick="disconnectWhatsApp()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5" title="Putuskan koneksi & hapus sesi WhatsApp">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Disconnect
+            </button>
+          </div>
 
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
             <div id="qrContainer" class="hidden">
@@ -338,6 +345,32 @@
       }
     }
 
+    // Fungsi Tombol Disconnect WhatsApp
+    async function disconnectWhatsApp() {
+      if (!confirm("Apakah kamu yakin ingin memutus koneksi WhatsApp dan menghapus sesi saat ini? Kamu perlu scan QR Code ulang.")) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/whatsapp/reset', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert(data.message || "Gagal mereset sesi WhatsApp.");
+        }
+      } catch (err) {
+        alert("Terjadi kesalahan pada server.");
+      }
+    }
+
     async function generatePrompt(mode) {
       if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
         alert("🔒 Fitur Auto-Generate 'Sangat Detail (~700 kata)' khusus untuk pengguna Premium Plan!\n\nSilakan klik menu 'Upgrade Premium' di sidebar untuk berlangganan 49rb/bulan.");
@@ -419,6 +452,8 @@
         document.getElementById('qrLoading').classList.add('hidden');
         document.getElementById('qrContainer').classList.add('hidden');
         document.getElementById('qrConnected').classList.remove('hidden');
+      } else {
+        document.getElementById('qrConnected').classList.add('hidden');
       }
     });
 
