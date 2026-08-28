@@ -129,19 +129,28 @@ app.post("/api/register", async (req, res) => {
 
     const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/api/verify-email?token=${verificationToken}`;
     
-    await transporter.sendMail({
-      from: `"WA AutoBot AI" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Aktivasi Akun WA AutoBot AI",
-      html: `
-        <h3>Halo ${nickname},</h3>
-        <p>Terima kasih telah mendaftar di WA AutoBot AI. Klik tombol di bawah ini untuk memverifikasi email kamu:</p>
-        <a href="${verifyLink}" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;display:inline-block;">Aktivasi Akun Saya</a>
-        <p>Atau buka link berikut: <a href="${verifyLink}">${verifyLink}</a></p>
-      `
-    });
+    try {
+      await transporter.sendMail({
+        from: `"WA AutoBot AI" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: "Aktivasi Akun WA AutoBot AI",
+        html: `
+          <h3>Halo ${nickname},</h3>
+          <p>Terima kasih telah mendaftar di WA AutoBot AI. Klik tombol di bawah ini untuk memverifikasi email kamu:</p>
+          <a href="${verifyLink}" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;display:inline-block;">Aktivasi Akun Saya</a>
+          <p>Atau buka link berikut: <a href="${verifyLink}">${verifyLink}</a></p>
+        `
+      });
 
-    res.json({ success: true, message: "Pendaftaran berhasil! Silakan cek email kamu untuk verifikasi akun." });
+      res.json({ success: true, message: "Pendaftaran berhasil! Silakan cek email kamu untuk verifikasi akun." });
+    } catch (mailErr) {
+      console.error("❌ Gagal Kirim Email:", mailErr.message);
+      res.status(200).json({ 
+        success: true, 
+        message: "Akun berhasil terdaftar! Namun email verifikasi gagal terkirim. Pastikan variabel SMTP_USER & SMTP_PASS di server sudah benar." 
+      });
+    }
+
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
