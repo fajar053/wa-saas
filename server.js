@@ -105,7 +105,6 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
   const uniqueModels = [...new Set(modelsToTry)];
 
   for (const model of uniqueModels) {
-    // Coba maksimal 3 kali per model jika terjadi Connection Closed / timeout
     let retries = 3;
     while (retries > 0) {
       const controller = new AbortController();
@@ -133,8 +132,7 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
           console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
           
           if (response.status === 429) {
-            // Jika kena rate limit (429), langsung skip model ini ke model berikutnya tanpa retry
-            break;
+            break; // Jika rate limit, langsung skip ke model lain
           }
 
           retries--;
@@ -153,9 +151,8 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
         console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message} (Sisa percobaan: ${retries - 1})`);
         retries--;
         if (retries === 0) {
-          break; // Lanjut ke model cadangan berikutnya
+          break;
         }
-        // Tunggu 1 detik sebelum retry ulang
         await new Promise(resolve => setTimeout(resolve, 1000));
       } finally {
         clearTimeout(timeoutId);
@@ -487,11 +484,10 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// 7. GET USER PROFILE & CONFIG (UPDATED TO WEEKLY LIMIT)
+// 7. GET USER PROFILE & CONFIG
 app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   
-  // Logika Reset Mingguan (7 Hari)
   const now = new Date();
   const resetDate = user.weeklyResetDate ? new Date(user.weeklyResetDate) : new Date(0);
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
