@@ -38,17 +38,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Direct Landing Page ke index.html
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Pastikan folder uploads ada
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
 
-// Konfigurasi Multer untuk Upload Foto Profil
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -59,7 +56,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 1 * 1024 * 1024 }, // Maksimal 1 MB
+  limits: { fileSize: 1 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -73,7 +70,6 @@ const upload = multer({
   }
 });
 
-// Database Connection
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("✅ DB Connected");
@@ -86,9 +82,8 @@ const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 
-// --- HELPER OPENROUTER API VIA NATIVE FETCH (OPTIMIZED WITH AUTO-RETRY) ---
+// --- HELPER OPENROUTER API KHUSUS DI SERVER.JS ---
 async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto", targetSocket = null, senderNumber = "") {
-  
   const modelsToTry = [
     modelCandidate,
     "openrouter/auto",
@@ -108,7 +103,7 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
     let retries = 3;
     while (retries > 0) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik max per request
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -130,11 +125,7 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
         if (!response.ok) {
           const errText = await response.text();
           console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
-          
-          if (response.status === 429) {
-            break; // Jika rate limit, langsung skip ke model lain
-          }
-
+          if (response.status === 429) break;
           retries--;
           if (retries === 0) break;
           continue;
@@ -148,11 +139,9 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
         }
 
       } catch (err) {
-        console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message} (Sisa percobaan: ${retries - 1})`);
+        console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message}`);
         retries--;
-        if (retries === 0) {
-          break;
-        }
+        if (retries === 0) break;
         await new Promise(resolve => setTimeout(resolve, 1000));
       } finally {
         clearTimeout(timeoutId);
@@ -160,247 +149,73 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
     }
   }
 
-  throw new Error("Koneksi ke server AI tidak stabil / terputus. Silakan coba beberapa saat lagi atau ganti Model AI di Dashboard.");
+  throw new Error("Koneksi ke server AI tidak stabil / terputus. Silakan coba beberapa saat lagi.");
 }
 
-// --- AUTHENTICATION & ACCOUNT API ---
-
-// 1. REGISTER
+// --- AUTH & CONFIG API ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
-    
     if (!nickname || !username || !email || !password || !confirmPassword) {
       return res.status(400).json({ success: false, message: "Semua field wajib diisi!" });
     }
-
     if (password !== confirmPassword) {
       return res.status(400).json({ success: false, message: "Konfirmasi password tidak cocok!" });
     }
-
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return res.status(400).json({ success: false, message: "Email atau Username sudah terdaftar!" });
     }
-
     const hashedPassword = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString("hex");
-
     const defaultAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`;
 
     await User.create({
-      nickname,
-      username,
-      email,
-      password: hashedPassword,
-      verificationToken,
-      profilePicture: defaultAvatar
+      nickname, username, email, password: hashedPassword, verificationToken, profilePicture: defaultAvatar
     });
 
     const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/api/verify-email?token=${verificationToken}`;
-    
-    try {
-      const emailResponse = await resend.emails.send({
-        from: "WA AutoBot AI <noreply@wasaas.my.id>",
-        to: [email],
-        subject: "Aktivasi Akun WA AutoBot AI",
-        html: `
-          <h3>Halo ${nickname},</h3>
-          <p>Terima kasih telah mendaftar di WA AutoBot AI. Klik tombol di bawah ini untuk memverifikasi email kamu:</p>
-          <a href="${verifyLink}" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;display:inline-block;">Aktivasi Akun Saya</a>
-          <p>Atau buka link berikut: <a href="${verifyLink}">${verifyLink}</a></p>
-        `
-      });
-
-      if (emailResponse.error) {
-        console.error("⚠️ Resend API Error:", emailResponse.error.message);
-        return res.json({ 
-          success: true, 
-          message: `Pendaftaran berhasil! Jika email belum diterima, gunakan link aktivasi ini: ${verifyLink}` 
-        });
-      }
-
-      console.log("✅ Email Verifikasi Terkirim ID:", emailResponse.data.id);
-      res.json({ success: true, message: "Pendaftaran berhasil! Silakan cek inbox/spam email kamu untuk verifikasi akun." });
-
-    } catch (mailErr) {
-      console.error("❌ Exception Kirim Email:", mailErr.message);
-      res.json({ 
-        success: true, 
-        message: `Pendaftaran berhasil! Klik link verifikasi ini untuk mengaktifkan akun: ${verifyLink}` 
-      });
-    }
-
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// 2. VERIFIKASI EMAIL
-app.get("/api/verify-email", async (req, res) => {
-  try {
-    const { token } = req.query;
-    const user = await User.findOne({ verificationToken: token });
-
-    if (!user) {
-      return res.send(`
-        <!DOCTYPE html>
-        <html lang="id">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verifikasi Gagal - WA AutoBot AI</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <script src="https://unpkg.com/lucide@latest"></script>
-        </head>
-        <body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-4">
-          <div class="bg-slate-800 border border-slate-700/60 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl space-y-4">
-            <div class="w-16 h-16 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
-              <i data-lucide="alert-triangle" class="w-8 h-8"></i>
-            </div>
-            <h2 class="text-xl font-bold text-slate-100">Token Tidak Valid / Expired</h2>
-            <p class="text-xs text-slate-400 leading-relaxed">
-              Token verifikasi email kamu tidak ditemukan atau sudah kadaluwarsa. Silakan minta email verifikasi baru melalui halaman login.
-            </p>
-            <a href="/login.html" class="inline-block w-full bg-slate-700 hover:bg-slate-600 font-bold py-3 rounded-xl transition text-xs">
-              Ke Halaman Login
-            </a>
-          </div>
-          <script>lucide.createIcons();</script>
-        </body>
-        </html>
-      `);
-    }
-
-    user.isVerified = true;
-    user.verificationToken = null;
-    await user.save();
-
-    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
-
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="id">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Email Terverifikasi - WA AutoBot AI</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://unpkg.com/lucide@latest"></script>
-      </head>
-      <body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-4">
-        <div class="bg-slate-800 border border-slate-700/60 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl space-y-6">
-          <div class="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20 shadow-lg shadow-emerald-500/10">
-            <i data-lucide="check-circle-2" class="w-10 h-10"></i>
-          </div>
-
-          <div class="space-y-2">
-            <h2 class="text-2xl font-bold text-slate-100">Verifikasi Berhasil!</h2>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Selamat, email kamu <span class="text-indigo-400 font-semibold">${user.email}</span> telah aktif.
-            </p>
-          </div>
-
-          <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4 flex items-center justify-center gap-3">
-            <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-xs text-slate-400">Mengalihkan kamu ke Dashboard dalam <span id="countdown" class="font-bold text-indigo-400">3</span> detik...</p>
-          </div>
-
-          <a href="/dashboard.html" class="inline-block w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition text-xs shadow-lg shadow-indigo-600/20">
-            Masuk ke Dashboard Sekarang
-          </a>
-        </div>
-
-        <script>
-          lucide.createIcons();
-          localStorage.setItem('token', '${loginToken}');
-
-          let timeLeft = 3;
-          const countdownEl = document.getElementById('countdown');
-          const timer = setInterval(() => {
-            timeLeft--;
-            if (countdownEl) countdownEl.innerText = timeLeft;
-            if (timeLeft <= 0) {
-              clearInterval(timer);
-              window.location.href = '/dashboard.html';
-            }
-          }, 1000);
-        </script>
-      </body>
-      </html>
-    `);
-  } catch (e) {
-    res.status(500).send("Terjadi kesalahan pada server.");
-  }
-});
-
-// 3. KIRIM ULANG EMAIL VERIFIKASI
-app.post("/api/resend-verification", async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ success: false, message: "Email wajib diisi!" });
-    }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(400).json({ success: false, message: "Email tidak ditemukan!" });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({ success: false, message: "Akun dengan email ini sudah terverifikasi. Silakan langsung login." });
-    }
-
-    if (!user.verificationToken) {
-      user.verificationToken = crypto.randomBytes(32).toString("hex");
-      await user.save();
-    }
-
-    const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/api/verify-email?token=${user.verificationToken}`;
-
     try {
       await resend.emails.send({
         from: "WA AutoBot AI <noreply@wasaas.my.id>",
         to: [email],
-        subject: "Kirim Ulang: Aktivasi Akun WA AutoBot AI",
-        html: `
-          <h3>Halo ${user.nickname},</h3>
-          <p>Kamu meminta pengiriman ulang link verifikasi akun. Klik tombol di bawah ini untuk mengaktifkan akun kamu:</p>
-          <a href="${verifyLink}" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;display:inline-block;">Aktivasi Akun Saya</a>
-          <p>Atau buka link berikut: <a href="${verifyLink}">${verifyLink}</a></p>
-        `
+        subject: "Aktivasi Akun WA AutoBot AI",
+        html: `<h3>Halo ${nickname},</h3><p>Klik tombol untuk verifikasi email:</p><a href="${verifyLink}">Aktivasi Akun Saya</a>`
       });
-
-      res.json({ success: true, message: "Email verifikasi baru berhasil dikirim! Silakan cek inbox/spam kamu." });
+      res.json({ success: true, message: "Pendaftaran berhasil! Silakan cek email kamu." });
     } catch (mailErr) {
-      console.error("❌ Resend Error:", mailErr.message);
-      res.json({ 
-        success: true, 
-        message: `Jika email tidak muncul, kamu dapat langsung mengklik link aktivasi ini: ${verifyLink}` 
-      });
+      res.json({ success: true, message: `Pendaftaran berhasil! Link verifikasi: ${verifyLink}` });
     }
-
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
 });
 
-// 4. LOGIN
+app.get("/api/verify-email", async (req, res) => {
+  try {
+    const { token } = req.query;
+    const user = await User.findOne({ verificationToken: token });
+    if (!user) return res.send("Token tidak valid.");
+    user.isVerified = true;
+    user.verificationToken = null;
+    await user.save();
+    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+    res.send(`<script>localStorage.setItem('token', '${loginToken}'); window.location.href='/dashboard.html';</script>`);
+  } catch (e) {
+    res.status(500).send("Error server.");
+  }
+});
+
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ success: false, message: "Email atau Password salah!" });
     }
-
     if (!user.isVerified) {
-      return res.status(400).json({ success: false, message: "Akun belum diverifikasi! Silakan cek email kamu." });
+      return res.status(400).json({ success: false, message: "Akun belum diverifikasi!" });
     }
-
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ success: true, token, user });
   } catch (e) {
@@ -408,71 +223,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// 5. LUPA PASSWORD
-app.post("/api/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(400).json({ success: false, message: "Email tidak ditemukan!" });
-    }
-
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 3600000;
-    await user.save();
-
-    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password.html?token=${resetToken}`;
-
-    await resend.emails.send({
-      from: "WA AutoBot AI <noreply@wasaas.my.id>",
-      to: [email],
-      subject: "Reset Password Akun WA AutoBot AI",
-      html: `
-        <h3>Halo ${user.nickname},</h3>
-        <p>Kamu menerima email ini karena ada permintaan reset password. Klik tombol di bawah ini untuk mengubah password kamu:</p>
-        <a href="${resetLink}" style="background:#EF4444;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;display:inline-block;">Reset Password</a>
-        <p>Link ini berlaku selama 1 jam.</p>
-      `
-    });
-
-    res.json({ success: true, message: "Link reset password telah dikirim ke email kamu!" });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// 6. RESET PASSWORD
-app.post("/api/reset-password", async (req, res) => {
-  try {
-    const { token, newPassword, confirmPassword } = req.body;
-
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ success: false, message: "Konfirmasi password tidak cocok!" });
-    }
-
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ success: false, message: "Token reset password tidak valid atau sudah expired!" });
-    }
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = null;
-    user.resetPasswordExpires = null;
-    await user.save();
-
-    res.json({ success: true, message: "Password berhasil diperbarui! Silakan login kembali." });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// MIDDLEWARE AUTHENTICATION
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Unauthorized" });
@@ -484,10 +234,8 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// 7. GET USER PROFILE & CONFIG
 app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
-  
   const now = new Date();
   const resetDate = user.weeklyResetDate ? new Date(user.weeklyResetDate) : new Date(0);
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
@@ -498,22 +246,16 @@ app.get("/api/config", verifyToken, async (req, res) => {
     await user.save();
   }
 
-  if (user.plan === "premium" && user.expiredAt && new Date() > new Date(user.expiredAt)) {
-    user.plan = "free";
-    await user.save();
-  }
-
   res.json({
     email: user.email,
     nickname: user.nickname,
     username: user.username,
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     apiKey: user.apiKey,
-    modelName: user.modelName,
+    modelName: user.modelName || "openrouter/auto",
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive,
     plan: user.plan || "free",
-    expiredAt: user.expiredAt,
     weeklyUsage: user.weeklyUsageCount || 0,
     weeklyLimit: user.plan === "premium" ? "Unlimited" : 200
   });
@@ -525,169 +267,49 @@ app.post("/api/config", verifyToken, async (req, res) => {
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
-// 8. AUTO GENERATE SYSTEM PROMPT VIA NATIVE FETCH
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
-
-    if (mode === "very_detailed" && user.plan !== "premium") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Fitur 'Sangat Detail (~700 kata)' khusus untuk pengguna Plan Premium! Silakan tingkatkan langganan Anda." 
-      });
-    }
-
-    if (!promptText || !promptText.trim()) {
-      return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
-    }
-
     if (!user || !user.apiKey) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "API Key OpenRouter belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!" 
-      });
+      return res.status(400).json({ success: false, message: "API Key OpenRouter belum diisi!" });
     }
-
     const wordTarget = mode === "very_detailed" ? "700" : "100";
-    const modeLabel = mode === "very_detailed" ? "SANGAT DETAIL" : "DETAIL";
-
-    const systemInstruction = `Kamu adalah seorang AI Prompt Engineer ahli. Tugasmu adalah mengembangkan instruksi/informasi singkat menjadi System Prompt / Pelatihan Bot WhatsApp yang sangat komprehensif, profesional, dan siap pakai.
-
-Aturan Pembuatan:
-1. Buat hasilnya dalam bentuk instruksi System Prompt (meliputi Peran Bot, Gaya Bahasa, Aturan Komunikasi, Batasan Jawaban, dan Contoh Respon).
-2. Hasil prompt HARUS panjang dan mendalam dengan target sekitar ${wordTarget} kata (opsi ${modeLabel}).
-3. Gunakan Bahasa Indonesia yang jelas, sopan, dan terstruktur.
-4. Jangan tambahkan kalimat sapaan/pembuka/penutup seperti "Tentu, ini prompt kamu:". Langsung keluarkan teks System Prompt-nya saja.`;
-
     const messages = [
-      { role: "system", content: systemInstruction },
-      { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
+      { role: "system", content: "Kamu adalah AI Prompt Engineer. Buatkan System Prompt WhatsApp komprehensif tanpa teks basa-basi pembuka." },
+      { role: "user", content: `Kembangkan prompt berikut (${wordTarget} kata): "${promptText}"` }
     ];
-
     const generatedPrompt = await fetchOpenRouterAI(user.apiKey, messages, "openrouter/auto");
     res.json({ success: true, generatedPrompt });
-
-  } catch (err) {
-    console.error("Generate Prompt Error:", err.message);
-    res.status(500).json({ success: false, message: `Gagal generate prompt: ${err.message}` });
-  }
-});
-
-// 9. PAYMENT & SUBSCRIPTION ENDPOINTS
-app.post("/api/subscribe/create", verifyToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    const orderId = `SUBS-${user._id}-${Date.now()}`;
-    const amount = 49000;
-
-    res.json({
-      success: true,
-      orderId,
-      amount,
-      message: "Silakan selesaikan pembayaran Rp 49.000 untuk berlangganan Premium 30 Hari.",
-      paymentUrl: `https://tripay.co.id/checkout/${orderId}`
-    });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-app.post("/api/payment/webhook", async (req, res) => {
-  try {
-    const { order_id, status, userId } = req.body;
-
-    if (status === "PAID" || status === "settlement") {
-      const expiredDate = new Date();
-      expiredDate.setDate(expiredDate.getDate() + 30);
-
-      await User.findByIdAndUpdate(userId, {
-        plan: "premium",
-        expiredAt: expiredDate
-      });
-
-      console.log(`✅ User ${userId} berhasil otomatis di-upgrade ke PREMIUM!`);
-      return res.json({ success: true, message: "Webhook processed successfully" });
-    }
-
-    res.json({ success: true, message: "Transaction pending/failed" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// 10. UPDATE PROFILE & FOTO PROFIL
-app.post("/api/profile/update", verifyToken, (req, res) => {
-  upload.single("avatar")(req, res, async (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ success: false, message: "Ukuran foto terlalu besar! Maksimal 1 MB." });
-      }
-      return res.status(400).json({ success: false, message: err.message });
-    } else if (err) {
-      return res.status(400).json({ success: false, message: err.message });
-    }
-
-    try {
-      const { nickname, oldPassword, newPassword } = req.body;
-      const user = await User.findById(req.user.userId);
-
-      if (nickname) user.nickname = nickname;
-
-      if (req.file) {
-        user.profilePicture = `/uploads/${req.file.filename}`;
-      }
-
-      if (newPassword) {
-        if (!oldPassword || !(await bcrypt.compare(oldPassword, user.password))) {
-          return res.status(400).json({ success: false, message: "Password lama salah!" });
-        }
-        user.password = await bcrypt.hash(newPassword, 10);
-      }
-
-      await user.save();
-      res.json({ success: true, message: "Profil berhasil diperbarui!", profilePicture: user.profilePicture });
-    } catch (e) {
-      res.status(500).json({ success: false, message: e.message });
-    }
-  });
-});
-
-// 11. RESET SESI WHATSAPP (MENGATASI BAD MAC ERROR)
 app.post("/api/whatsapp/reset", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
-    
     if (activeSessions.has(strUserId)) {
-      try {
-        activeSessions.get(strUserId).logout();
-      } catch (e) {}
+      try { activeSessions.get(strUserId).logout(); } catch (e) {}
       activeSessions.delete(strUserId);
     }
-    
     await Session.deleteOne({ userId: strUserId });
-    
-    res.json({ success: true, message: "Sesi WhatsApp berhasil direset. Silakan scan QR Code ulang!" });
+    res.json({ success: true, message: "Sesi WhatsApp berhasil direset." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// --- MONGODB AUTH STATE BAILEYS (FIX BAD MAC & SESSION CORRUPTION) ---
 async function useMongoDBAuthState(userId) {
   let session = await Session.findOne({ userId: String(userId) });
-  let creds;
-  let keys = {};
-
+  let creds, keys = {};
   if (session && session.data) {
     try {
       const parsed = JSON.parse(session.data, BufferJSON.reviver);
       creds = parsed.creds || initAuthCreds();
       keys = parsed.keys || {};
     } catch (e) {
-      console.warn(`⚠️ Session data corrupt for user ${userId}, re-initializing...`);
       creds = initAuthCreds();
-      keys = {};
     }
   } else {
     creds = initAuthCreds();
@@ -696,14 +318,8 @@ async function useMongoDBAuthState(userId) {
   const saveCreds = async () => {
     try {
       const dataStr = JSON.stringify({ creds, keys }, BufferJSON.replacer);
-      await Session.findOneAndUpdate(
-        { userId: String(userId) },
-        { data: dataStr },
-        { upsert: true, new: true }
-      );
-    } catch (err) {
-      console.error(`❌ Error saving auth credentials for ${userId}:`, err.message);
-    }
+      await Session.findOneAndUpdate({ userId: String(userId) }, { data: dataStr }, { upsert: true, new: true });
+    } catch (err) {}
   };
 
   return {
@@ -721,12 +337,8 @@ async function useMongoDBAuthState(userId) {
           for (const type in data) {
             if (!keys[type]) keys[type] = {};
             for (const id in data[type]) {
-              const value = data[type][id];
-              if (value) {
-                keys[type][id] = value;
-              } else {
-                delete keys[type][id];
-              }
+              if (data[type][id]) keys[type][id] = data[type][id];
+              else delete keys[type][id];
             }
           }
           await saveCreds();
@@ -741,27 +353,16 @@ async function autoStartAllSessions() {
   try {
     const sessions = await Session.find({});
     for (const session of sessions) {
-      if (!activeSessions.has(String(session.userId)) && !isStartingSession.has(String(session.userId))) {
-        console.log(`🔄 Restoring WA Session for User ID: ${session.userId}`);
+      if (!activeSessions.has(String(session.userId))) {
         startUserBot(session.userId);
       }
     }
-  } catch (e) {
-    console.error("Error restoring sessions:", e.message);
-  }
+  } catch (e) {}
 }
 
-// --- BOT WA ENGINE ---
 async function startUserBot(userId, socket = null) {
   const strUserId = String(userId);
   if (socket) userSockets.set(strUserId, socket);
-
-  if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
-    const currentSocket = userSockets.get(strUserId);
-    currentSocket?.emit("status", "Connected");
-    currentSocket?.emit("ready");
-  }
-
   if (isStartingSession.has(strUserId)) return;
   isStartingSession.add(strUserId);
 
@@ -793,34 +394,22 @@ async function startUserBot(userId, socket = null) {
 
       if (connection === "open") {
         isStartingSession.delete(strUserId);
-        if (!connectedFlags.has(strUserId)) {
-          console.log(`✅ WA Connected for User: ${strUserId}`);
-          connectedFlags.add(strUserId);
-        }
         currentSocket?.emit("status", "Connected");
         currentSocket?.emit("ready");
       }
 
       if (connection === "close") {
         isStartingSession.delete(strUserId);
-        connectedFlags.delete(strUserId);
         activeSessions.delete(strUserId);
-
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const isLogout = statusCode === DisconnectReason.loggedOut;
-
-        if (isLogout) {
+        if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
           await Session.deleteOne({ userId: strUserId });
           currentSocket?.emit("status", "Disconnected");
         } else {
-          setTimeout(() => {
-            startUserBot(strUserId, currentSocket);
-          }, 3000);
+          setTimeout(() => startUserBot(strUserId, currentSocket), 3000);
         }
       }
     });
 
-    // EVENT LISTENER PESAN MASUK
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
         const { messages, type } = chatUpdate;
@@ -829,184 +418,76 @@ async function startUserBot(userId, socket = null) {
         for (const msg of messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
 
-          // 1. CEK BOT ACTIVE
           const user = await User.findById(strUserId);
           if (!user || !user.isBotActive) continue;
 
-          const text = 
-            msg.message.conversation || 
-            msg.message.extendedTextMessage?.text || 
-            msg.message.imageMessage?.caption || 
-            "";
-
+          const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || "";
           if (!text) continue;
-
-          // 2. KARENA BOT ACTIVE = ON -> Tandai Centang Biru (Read)
-          try {
-            await sock.readMessages([{
-              remoteJid: msg.key.remoteJid,
-              id: msg.key.id,
-              participant: msg.key.participant
-            }]);
-          } catch (readErr) {
-            console.error("Auto Read Error:", readErr.message);
-          }
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
           const targetSocket = userSockets.get(strUserId);
 
-          // Realtime Chat Log Pesan Masuk
           targetSocket?.emit("chat-log", {
             time: new Date().toLocaleTimeString(),
-            timestamp: Date.now(),
             sender: senderNumber,
             text: text,
             type: "in"
           });
 
           if (!user.apiKey) {
-            const errorMsg = "API Key OpenRouter belum diisi.";
-            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
-            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
+            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: "API Key belum diisi", from: senderNumber });
             continue;
-          }
-
-          // Cek & Reset Kuota Mingguan (200 Chat / Minggu)
-          const now = new Date();
-          const resetDate = user.weeklyResetDate ? new Date(user.weeklyResetDate) : new Date(0);
-          const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-
-          if (!user.weeklyResetDate || (now - resetDate) >= sevenDaysMs) {
-            user.weeklyResetDate = now;
-            user.weeklyUsageCount = 0;
-            await user.save();
           }
 
           if (user.plan === "free" && (user.weeklyUsageCount || 0) >= 200) {
-            const limitMsg = "Batas kuota gratis mingguan (200 chat) telah tercapai.";
-            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
-            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan mingguan bot ini telah habis (200/200 chat)." });
+            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Kuota mingguan bot telah habis (200/200)." });
             continue;
           }
 
-          // 3. KELOLA MEMORI PERCAKAPAN (3-Day Reset Policy)
           let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
           if (!conv) {
             conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
           }
 
-          const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-          let wasMemoryReset = false;
-
-          if (Date.now() - new Date(conv.lastClearedAt).getTime() > THREE_DAYS_MS) {
-            conv.messages = [];
-            conv.lastClearedAt = new Date();
-            await conv.save();
-            wasMemoryReset = true;
-          }
-
-          // Deteksi Otomatis Nama Pengirim jika belum pernah tersimpan
-          if (!conv.knownName) {
-            const nameMatch = text.match(/(?:nama aku|namaku|aku|panggil aku|nama saya)\s+([a-zA-Z]+)/i);
-            if (nameMatch && nameMatch[1]) {
-              conv.knownName = nameMatch[1];
-            }
-          }
-
-          // Catat pesan pengguna ke memori
           conv.messages.push({ role: "user", content: text });
+          const historyForAI = conv.messages.slice(-20).map(m => ({ role: m.role, content: m.content }));
+          const messagesPayload = [{ role: "system", content: user.systemPrompt || "Kamu asisten AI ramah." }, ...historyForAI];
 
-          // Susun Konteks Dynamic Prompt
-          let dynamicSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
-
-          if (conv.knownName) {
-            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Nama pengirim percakapan ini adalah "${conv.knownName}". Kamu SUDAH MENGETAHUI namanya. Jangan pernah menanyakan namanya lagi.`;
-          }
-
-          if (wasMemoryReset) {
-            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar. Jika pengguna menanyakan obrolan atau topik masa lalu yang tidak ada di konteks, sampaikan dengan ramah dan santai sesuai gaya bahasamu bahwa riwayat chat sebelumnya telah diperbarui/direset agar sistem berjalan dengan lancar.`;
-          }
-
-          const historyForAI = conv.messages.slice(-20).map(m => ({
-            role: m.role,
-            content: m.content
-          }));
-
-          const messagesPayload = [
-            { role: "system", content: dynamicSystemPrompt },
-            ...historyForAI
-          ];
-
-          // 4. PEMROSESAN BALASAN AI VIA NATIVE FETCH
           try {
+            // MENGGUNAKAN MODEL PILIHAN DARI DATABASE USER
             const selectedModel = user.modelName || "openrouter/auto";
+            const reply = await fetchOpenRouterAI(user.apiKey, messagesPayload, selectedModel, targetSocket, senderNumber);
 
-            const reply = await fetchOpenRouterAI(
-              user.apiKey, 
-              messagesPayload, 
-              selectedModel,
-              targetSocket,
-              senderNumber
-            );
-
-            // Simpan balasan AI ke riwayat
             conv.messages.push({ role: "assistant", content: reply });
             await conv.save();
 
-            // Kirim pesan balasan ke WA
             await sock.sendMessage(msg.key.remoteJid, { text: reply });
-            
-            // INCREMENT KUOTA MINGGUAN YANG BENAR
             await User.findByIdAndUpdate(strUserId, { $inc: { weeklyUsageCount: 1 } });
 
             targetSocket?.emit("chat-log", {
               time: new Date().toLocaleTimeString(),
-              timestamp: Date.now(),
               sender: senderNumber,
               text: reply,
               type: "out"
             });
-
           } catch (err) {
-            console.error("AI Complete Error:", err.message);
-            targetSocket?.emit("error-log", { 
-              time: new Date().toLocaleTimeString(), 
-              message: `Koneksi AI gagal: ${err.message}`, 
-              from: senderNumber 
-            });
+            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: err.message, from: senderNumber });
           }
         }
-      } catch (upsertErr) {
-        console.error("Upsert Event Error:", upsertErr.message);
-      }
+      } catch (e) {}
     });
-
   } catch (error) {
-    console.error("Error starting bot:", error.message);
     isStartingSession.delete(strUserId);
   }
 }
 
-// SOCKET.IO REALTIME
 io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const strUserId = String(decoded.userId);
-      userSockets.set(strUserId, socket);
-      startUserBot(strUserId, socket);
-    } catch (e) {
-      socket.emit("status", "Unauthorized");
-    }
-  });
-
-  socket.on("disconnect", () => {
-    for (const [userId, sock] of userSockets.entries()) {
-      if (sock.id === socket.id) {
-        userSockets.delete(userId);
-        break;
-      }
-    }
+      userSockets.set(String(decoded.userId), socket);
+      startUserBot(decoded.userId, socket);
+    } catch (e) {}
   });
 });
 
