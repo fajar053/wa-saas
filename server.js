@@ -35,6 +35,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Direct Landing Page ke index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 // Pastikan folder uploads ada
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
@@ -149,14 +154,14 @@ app.get("/api/verify-email", async (req, res) => {
     const user = await User.findOne({ verificationToken: token });
 
     if (!user) {
-      return res.send(`<h2>Token verifikasi tidak valid atau sudah kadaluwarsa.</h2><a href="/">Ke Halaman Login</a>`);
+      return res.send(`<h2>Token verifikasi tidak valid atau sudah kadaluwarsa.</h2><a href="/login.html">Ke Halaman Login</a>`);
     }
 
     user.isVerified = true;
     user.verificationToken = null;
     await user.save();
 
-    res.send(`<h2>Email berhasil diverifikasi!</h2><p>Sekarang kamu bisa login.</p><a href="/">Login Sekarang</a>`);
+    res.send(`<h2>Email berhasil diverifikasi!</h2><p>Sekarang kamu bisa login.</p><a href="/login.html">Login Sekarang</a>`);
   } catch (e) {
     res.status(500).send("Terjadi kesalahan pada server.");
   }

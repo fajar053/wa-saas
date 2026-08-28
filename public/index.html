@@ -1,74 +1,180 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="scroll-smooth">
 <head>
   <meta charset="UTF-8">
-  <title>Login - WA Bot SaaS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WA AutoBot AI - Balas WhatsApp Otomatis Berbasis AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-gray-100 h-screen flex items-center justify-center">
-  <div class="bg-white p-8 rounded-lg shadow-md w-96">
-    <h2 class="text-2xl font-bold mb-6 text-center">Login Dashboard</h2>
-    <input id="email" type="email" placeholder="Email" class="w-full p-2 border rounded mb-4" required>
-    <input id="password" type="password" placeholder="Password" class="w-full p-2 border rounded mb-4" required>
-    <button onclick="login()" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-semibold">Login</button>
-    <p class="mt-4 text-sm text-center">Belum punya akun? <a href="#" onclick="register()" class="text-blue-600 font-semibold underline">Daftar</a></p>
-  </div>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Navbar Header -->
+  <header class="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2 font-extrabold text-xl text-indigo-400 tracking-wide">
+        <i data-lucide="bot" class="w-7 h-7 text-indigo-500"></i> WA AutoBot AI
+      </div>
+
+      <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+        <a href="#fitur" class="hover:text-indigo-400 transition">Fitur Utama</a>
+        <a href="#cara-kerja" class="hover:text-indigo-400 transition">Cara Kerja</a>
+        <a href="#harga" class="hover:text-indigo-400 transition">Harga Paket</a>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <a href="/login.html" class="text-sm font-semibold px-4 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          Masuk
+        </a>
+        <a href="/register.html" class="text-sm font-semibold px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 transition">
+          Daftar Gratis
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="pt-32 pb-20 px-6 max-w-7xl mx-auto text-center relative overflow-hidden">
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+    <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-6">
+      <i data-lucide="sparkles" class="w-4 h-4"></i> Didukung AI Terunggul via OpenRouter
+    </span>
+
+    <h1 class="text-4xl md:text-6xl font-black text-slate-100 tracking-tight leading-tight max-w-4xl mx-auto">
+      Otomatisasi Balasan WhatsApp Customer Service Kamu dengan <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">Kecerdasan Buatan</span>
+    </h1>
+
+    <p class="mt-6 text-slate-400 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
+      Tingkatkan respon bisnis 24/7 tanpa henti. Hubungkan nomor WhatsApp kamu, latih instruksi AI sesuai bisnis kamu, dan biarkan bot menjawab pesan calon pembeli secara pintar & otomatis.
+    </p>
+
+    <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+      <a href="/register.html" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-xl shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+        Coba Gratis Sekarang <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </a>
+      <a href="/login.html" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 font-semibold text-slate-200 transition">
+        Masuk ke Dashboard
+      </a>
+    </div>
+  </section>
+
+  <!-- Fitur Utama -->
+  <section id="fitur" class="py-20 bg-slate-950/60 border-y border-slate-800/60 px-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-xl mx-auto mb-16">
+        <h2 class="text-2xl md:text-3xl font-bold text-slate-100">Fitur Canggih untuk Bisnis Anda</h2>
+        <p class="text-slate-400 text-sm mt-2">Dibuat khusus untuk mempermudah operasional dan komunikasi bisnis kamu.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Card 1 -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
+          <div class="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+            <i data-lucide="qr-code"></i>
+          </div>
+          <h3 class="font-bold text-lg text-slate-100">Koneksi QR Tanpa Ribet</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">Scan QR Code langsung dari WhatsApp di HP kamu tanpa perlu setup server yang rumit.</p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
+          <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+            <i data-lucide="brain-circuit"></i>
+          </div>
+          <h3 class="font-bold text-lg text-slate-100">Kustomisasi Prompt AI</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">Atur karakter, nada bicara, dan pengetahuan AI agar dapat menjawab pertanyaan sesuai SOP bisnismu.</p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
+          <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400">
+            <i data-lucide="message-square"></i>
+          </div>
+          <h3 class="font-bold text-lg text-slate-100">Live Activity Monitor</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">Pantau percakapan masuk dan balasan bot secara real-time langsung melalui dashboard interaktif.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cara Kerja -->
+  <section id="cara-kerja" class="py-20 px-6 max-w-7xl mx-auto">
+    <div class="text-center max-w-xl mx-auto mb-16">
+      <h2 class="text-2xl md:text-3xl font-bold text-slate-100">3 Langkah Mudah Memulai</h2>
+      <p class="text-slate-400 text-sm mt-2">Mulai aktifkan bot pembalas otomatis dalam kurun waktu kurang dari 5 menit.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+      <div class="space-y-3">
+        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">1</div>
+        <h4 class="font-bold text-slate-200">Daftar Akun & Login</h4>
+        <p class="text-slate-400 text-xs leading-relaxed">Buat akun gratis dan verifikasi email kamu untuk masuk ke dashboard utama.</p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">2</div>
+        <h4 class="font-bold text-slate-200">Scan QR WhatsApp</h4>
+        <p class="text-slate-400 text-xs leading-relaxed">Tautkan akun WhatsApp bisnismu melalui fitur Scan QR Code yang tersedia.</p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">3</div>
+        <h4 class="font-bold text-slate-200">Isi API Key & Aktifkan</h4>
+        <p class="text-slate-400 text-xs leading-relaxed">Masukkan API Key OpenRouter dan System Prompt, bot kamu siap bekerja otomatis!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="harga" class="py-20 bg-slate-950/60 border-t border-slate-800/60 px-6">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center max-w-xl mx-auto mb-16">
+        <h2 class="text-2xl md:text-3xl font-bold text-slate-100">Pilihan Paket Langganan</h2>
+        <p class="text-slate-400 text-sm mt-2">Pilih paket yang paling sesuai dengan kebutuhan skala bisnismu.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Paket Gratis -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6 flex flex-col justify-between">
+          <div class="space-y-4">
+            <span class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">GRATIS</span>
+            <h3 class="text-3xl font-bold text-slate-100">Rp 0 <span class="text-sm font-normal text-slate-400">/ selamanya</span></h3>
+            <ul class="space-y-3 text-xs text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Batas 30 Balasan Chat / Hari</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Model AI Gratis via OpenRouter</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Monitoring Chat Realtime</li>
+            </ul>
+          </div>
+          <a href="/register.html" class="w-full text-center py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 transition text-sm">Daftar Akun Free</a>
+        </div>
+
+        <!-- Paket Premium -->
+        <div class="bg-gradient-to-b from-indigo-950/40 to-slate-900 border-2 border-indigo-500 rounded-2xl p-8 space-y-6 flex flex-col justify-between relative overflow-hidden">
+          <span class="absolute top-4 right-4 px-3 py-1 rounded-full bg-indigo-500 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md">POPULER</span>
+          <div class="space-y-4">
+            <span class="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-semibold border border-indigo-500/30">PREMIUM</span>
+            <h3 class="text-3xl font-bold text-slate-100">Rp 50.000 <span class="text-sm font-normal text-slate-400">/ bulan</span></h3>
+            <ul class="space-y-3 text-xs text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> <strong>Unlimited Chat Balasan</strong> tanpa batas</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Sesi Tersimpan Permanen di DB</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Bebas Pilih Model AI Apapun</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Dukungan Prioritas Customer Service</li>
+            </ul>
+          </div>
+          <a href="/register.html" class="w-full text-center py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-lg shadow-indigo-600/30 transition text-sm">Mulai Premium</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800 py-8 text-center text-xs text-slate-500">
+    <p>&copy; 2026 WA AutoBot AI. Seluruh Hak Cipta Dilindungi.</p>
+  </footer>
 
   <script>
-    async function login() {
-      const emailInput = document.getElementById('email').value.trim();
-      const passwordInput = document.getElementById('password').value.trim();
-
-      if (!emailInput || !passwordInput) {
-        alert('Isi email dan password terlebih dahulu!');
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: emailInput, password: passwordInput })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          localStorage.setItem('token', data.token);
-          window.location.href = '/dashboard.html';
-        } else {
-          alert(data.message || data.error || 'Login gagal, periksa email dan password!');
-        }
-      } catch (err) {
-        alert('Gagal terhubung ke server!');
-      }
-    }
-
-    async function register() {
-      const emailInput = document.getElementById('email').value.trim();
-      const passwordInput = document.getElementById('password').value.trim();
-
-      if (!emailInput || !passwordInput) {
-        alert('Isi email dan password untuk mendaftar!');
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: emailInput, password: passwordInput })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          alert(data.message || 'Register berhasil! Silakan login.');
-        } else {
-          alert(data.message || data.error || 'Register gagal!');
-        }
-      } catch (err) {
-        alert('Gagal terhubung ke server!');
-      }
-    }
+    lucide.createIcons();
   </script>
 </body>
 </html>
