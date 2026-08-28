@@ -34,11 +34,31 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), { extensions: ['html'] }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
+});
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+app.get("/register", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "register.html"));
+});
+
+app.get("/tutorial", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "tutorial.html"));
+});
+
+app.get("/subscription", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "subscription.html"));
 });
 
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
@@ -78,11 +98,9 @@ mongoose.connect(process.env.MONGODB_URI)
 
 const activeSessions = new Map();
 const isStartingSession = new Set();
-const connectedFlags = new Set();
 const userSockets = new Map();
 
-// --- HELPER OPENROUTER API ---
-async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto", targetSocket = null, senderNumber = "") {
+async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto") {
   const modelsToTry = [
     modelCandidate,
     "openrouter/auto",
@@ -125,7 +143,6 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
 
         if (!response.ok) {
           const errText = await response.text();
-          console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
           if (response.status === 429) break;
           retries--;
           continue;
@@ -136,7 +153,6 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
         if (content) {
           return content;
         }
-
       } catch (err) {
         clearTimeout(timeoutId);
         retries--;
@@ -150,7 +166,6 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/
   throw new Error("Koneksi AI gagal / Timeout");
 }
 
-// --- AUTH & CONFIG API ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -418,7 +433,6 @@ async function startUserBot(userId, socket = null) {
           await Session.deleteOne({ userId: strUserId });
           currentSocket?.emit("status", "Disconnected");
         } else {
-          // Reconnect otomatis jika koneksi tertutup tanpa logout
           setTimeout(() => startUserBot(strUserId, currentSocket), 3000);
         }
       }
@@ -471,7 +485,7 @@ async function startUserBot(userId, socket = null) {
 
           try {
             const selectedModel = user.modelName || "openrouter/auto";
-            const reply = await fetchOpenRouterAI(user.apiKey, messagesPayload, selectedModel, targetSocket, senderNumber);
+            const reply = await fetchOpenRouterAI(user.apiKey, messagesPayload, selectedModel);
 
             conv.messages.push({ role: "assistant", content: reply });
             await conv.save();
