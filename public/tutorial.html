@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial & Panduan - WA AutoBot AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+
+  <!-- Sidebar / Navigation -->
+  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
+    <div class="space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+          <i data-lucide="bot"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
+          <p class="text-[11px] text-slate-400">SaaS Manager</p>
+        </div>
+      </div>
+
+      <nav class="space-y-1">
+        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+        </a>
+        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
+          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
+        </a>
+        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
+        </a>
+      </nav>
+    </div>
+
+    <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
+      <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
+    </button>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto max-w-4xl">
+    <div>
+      <h2 class="text-xl font-bold text-slate-100">Tutorial & Panduan Penggunaan</h2>
+      <p class="text-xs text-slate-400">Panduan lengkap langkah demi langkah menyambungkan bot WhatsApp dan mengatur AI</p>
+    </div>
+
+    <div class="space-y-4">
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3 shadow-xl">
+        <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+          <i data-lucide="1-circle" class="w-5 h-5"></i> Menyiapkan OpenRouter API Key
+        </h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Bot ini menggunakan kecerdasan buatan dari OpenRouter. Masuk ke situs OpenRouter, buat akun gratis, lalu buat API Key baru di menu pengaturan akun Anda dan tempelkan kodenya di Dashboard.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3 shadow-xl">
+        <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+          <i data-lucide="2-circle" class="w-5 h-5"></i> Menghubungkan WhatsApp
+        </h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Buka halaman Dashboard utama. Scan QR Code yang muncul menggunakan aplikasi WhatsApp di handphone Anda (menu Perangkat Tertaut / Linked Devices) agar bot aktif dan siap membalas pesan secara otomatis.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3 shadow-xl">
+        <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+          <i data-lucide="3-circle" class="w-5 h-5"></i> Mengatur System Prompt / Pelatihan Bot
+        </h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Tuliskan instruksi karakter bot Anda (misalnya sebagai Customer Service toko online). Anda juga bisa menggunakan tombol <strong>Auto Generate</strong> agar AI merapikan dan membuatkan pelatihan bot yang sangat detail secara otomatis.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+    }
+  </script>
+</body>
+</html>
