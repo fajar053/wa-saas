@@ -10,12 +10,16 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
 
+  <!-- Navbar dengan Foto Profil & Nama Panggilan -->
   <nav class="border-b border-slate-800 bg-slate-950/50 backdrop-blur px-6 py-4 flex justify-between items-center">
     <div class="flex items-center gap-2 font-bold text-lg text-indigo-400">
       <i data-lucide="bot"></i> WA AutoBot AI
     </div>
     <div class="flex items-center gap-4">
-      <span id="userEmail" class="text-xs text-slate-400">Loading...</span>
+      <a href="/profile.html" class="flex items-center gap-2 hover:opacity-80 transition bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+        <img id="userAvatar" src="https://via.placeholder.com/150" class="w-7 h-7 rounded-full object-cover border border-indigo-500">
+        <span id="userNickname" class="text-xs font-semibold text-slate-200">Loading...</span>
+      </a>
       <button onclick="logout()" class="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20 transition">Logout</button>
     </div>
   </nav>
@@ -191,7 +195,7 @@
 
     const socket = io();
 
-    // Auto register socket saat halaman dimuat
+    // Register socket untuk user saat masuk dashboard
     socket.emit('start-bot', token);
 
     async function loadConfig() {
@@ -200,12 +204,19 @@
       });
       const data = await res.json();
       
-      document.getElementById('userEmail').innerText = data.email;
+      // Update data Profil di Navbar
+      document.getElementById('userNickname').innerText = data.nickname || data.email;
+      if (data.profilePicture) {
+        document.getElementById('userAvatar').src = data.profilePicture;
+      }
+
+      // Update Form Configuration
       document.getElementById('apiKey').value = data.apiKey || '';
       document.getElementById('modelName').value = data.modelName || 'nvidia/nemotron-3-ultra-550b-a55b:free';
       document.getElementById('systemPrompt').value = data.systemPrompt || 'Kamu adalah asisten AI yang ramah.';
       document.getElementById('isBotActive').checked = data.isBotActive ?? true;
 
+      // Update Plan & Usage
       const badge = document.getElementById('planBadge');
       if (data.plan === 'premium') {
         badge.innerText = 'PREMIUM';

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pengaturan Profil - WA AutoBot AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <nav class="border-b border-slate-800 bg-slate-950/50 backdrop-blur px-6 py-4 flex justify-between items-center">
+    <a href="/dashboard.html" class="flex items-center gap-2 font-bold text-lg text-indigo-400">
+      <i data-lucide="arrow-left"></i> Kembali ke Dashboard
+    </a>
+  </nav>
+
+  <div class="max-w-xl mx-auto p-6 mt-6">
+    <div class="bg-slate-800 border border-slate-700/60 rounded-2xl p-6 shadow-xl space-y-6">
+      <h2 class="text-lg font-bold text-slate-100">Edit Profil Pengguna</h2>
+
+      <form onsubmit="updateProfile(event)" class="space-y-4" enctype="multipart/form-data">
+        <div class="flex flex-col items-center gap-3">
+          <img id="avatarPreview" src="https://via.placeholder.com/150" class="w-24 h-24 rounded-full object-cover border-2 border-indigo-500 shadow-lg">
+          <input type="file" id="avatarInput" accept="image/*" class="text-xs text-slate-400">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Nama Panggilan</label>
+          <input type="text" id="nickname" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm">
+        </div>
+
+        <hr class="border-slate-700/60">
+        <h3 class="text-sm font-semibold text-slate-300">Ubah Password</h3>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Password Lama</label>
+          <input type="password" id="oldPassword" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Password Baru</label>
+          <input type="password" id="newPassword" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm">
+        </div>
+
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition">Simpan Perubahan</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/';
+
+    async function loadProfile() {
+      const res = await fetch('/api/config', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      document.getElementById('nickname').value = data.nickname || '';
+      if (data.profilePicture) document.getElementById('avatarPreview').src = data.profilePicture;
+    }
+
+    async function updateProfile(e) {
+      e.preventDefault();
+      const formData = new FormData();
+      formData.append('nickname', document.getElementById('nickname').value);
+      formData.append('oldPassword', document.getElementById('oldPassword').value);
+      formData.append('newPassword', document.getElementById('newPassword').value);
+
+      const avatarFile = document.getElementById('avatarInput').files[0];
+      if (avatarFile) formData.append('avatar', avatarFile);
+
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      if (data.success) location.reload();
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

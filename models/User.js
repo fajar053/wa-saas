@@ -1,8 +1,15 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
+  nickname: { type: String, required: true },
+  username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  profilePicture: { type: String, default: "https://via.placeholder.com/150" },
+  isVerified: { type: Boolean, default: false },
+  verificationToken: { type: String, default: null },
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
   apiKey: { type: String, default: "" },
   modelName: { type: String, default: "nvidia/nemotron-3-ultra-550b-a55b:free" },
   systemPrompt: { type: String, default: "Kamu adalah asisten AI yang ramah." },
