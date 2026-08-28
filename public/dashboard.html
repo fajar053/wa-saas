@@ -3,314 +3,450 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - WA Bot SaaS</title>
+  <title>Dashboard - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
 
-  <!-- Navbar dengan Foto Profil & Nama Panggilan -->
-  <nav class="border-b border-slate-800 bg-slate-950/50 backdrop-blur px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center gap-2 font-bold text-lg text-indigo-400">
-      <i data-lucide="bot"></i> WA AutoBot AI
-    </div>
-    <div class="flex items-center gap-4">
-      <a href="/profile.html" class="flex items-center gap-2 hover:opacity-80 transition bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-        <img id="userAvatar" src="https://via.placeholder.com/150" class="w-7 h-7 rounded-full object-cover border border-indigo-500">
-        <span id="userNickname" class="text-xs font-semibold text-slate-200">Loading...</span>
-      </a>
-      <button onclick="logout()" class="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20 transition">Logout</button>
-    </div>
-  </nav>
-
-  <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-
-    <!-- Kolom Kiri: WhatsApp & Status Langganan -->
+  <!-- Sidebar / Navigation -->
+  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
     <div class="space-y-6">
-      
-      <!-- Card WhatsApp -->
-      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-        <h2 class="text-md font-semibold text-slate-200 mb-4 flex items-center gap-2">
-          <i data-lucide="qr-code" class="text-indigo-400"></i> Koneksi WhatsApp
-        </h2>
-
-        <div class="flex flex-col items-center justify-center p-4 bg-slate-900/50 border border-slate-700/30 rounded-xl mb-4 min-h-[200px]">
-          <div id="qrContainer" class="hidden text-center">
-            <img id="qrImage" class="w-44 h-44 mx-auto rounded-lg shadow-md border border-white/10" alt="QR Code">
-            <p class="text-xs text-slate-400 mt-2">Scan QR dari WhatsApp Web di HP kamu</p>
-          </div>
-          <div id="statusPlaceholder" class="text-center text-slate-400 text-sm">
-            <i data-lucide="wifi-off" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
-            <span id="statusText">Belum Terhubung</span>
-          </div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+          <i data-lucide="bot"></i>
         </div>
-
-        <button onclick="startBot()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
-          <i data-lucide="play" class="w-4 h-4"></i> Hubungkan WhatsApp
-        </button>
+        <div>
+          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
+          <p class="text-[11px] text-slate-400">SaaS Manager</p>
+        </div>
       </div>
 
-      <!-- Card Status Paket -->
-      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-        <h2 class="text-md font-semibold text-slate-200 mb-4 flex items-center gap-2">
-          <i data-lucide="zap" class="text-amber-400"></i> Status Langganan
-        </h2>
-
-        <div class="space-y-3 mb-4">
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-slate-400">Paket Saat Ini:</span>
-            <span id="planBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-700 text-slate-300">FREE</span>
-          </div>
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-slate-400">Penggunaan Hari Ini:</span>
-            <span id="usageText" class="font-semibold text-slate-200">0 / 30 Chat</span>
-          </div>
-          
-          <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700/50">
-            <div id="usageBar" class="bg-indigo-500 h-full w-0 transition-all"></div>
-          </div>
+      <!-- User Profile Badge -->
+      <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-center gap-3">
+        <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 object-cover">
+        <div class="overflow-hidden">
+          <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
+          <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
         </div>
-
-        <button onclick="openModal()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10">
-          <i data-lucide="crown" class="w-4 h-4"></i> Upgrade Premium (Unlimited)
-        </button>
       </div>
 
+      <nav class="space-y-1">
+        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+        </a>
+        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
+        </a>
+        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
+        </a>
+      </nav>
     </div>
 
-    <!-- Kolom Kanan: Pengaturan Bot, Live Chat & Error Log -->
-    <div class="md:col-span-2 space-y-6">
-      
-      <!-- Card Settings -->
-      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
-            <i data-lucide="settings" class="text-indigo-400"></i> Pengaturan AI Bot
-          </h2>
-          
-          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
-            <span class="text-xs text-slate-400">Status Bot:</span>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="isBotActive" class="sr-only peer">
-              <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-          </div>
-        </div>
+    <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
+      <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
+    </button>
+  </aside>
 
-        <form id="configForm" onsubmit="saveConfig(event)" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1">OpenRouter API Key</label>
-            <input type="password" id="apiKey" placeholder="sk-or-v1-..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+  <!-- Main Content Area -->
+  <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
+
+    <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-slate-100">Pengaturan & Koneksi Bot</h2>
+        <p class="text-xs text-slate-400">Kelola kuesioner bot, model AI, dan pantau aktivitas kirim pesan</p>
+      </div>
+
+      <!-- Connection Badge Status -->
+      <div id="statusBadge" class="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-xs flex items-center gap-2 self-start">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="statusText" class="font-medium text-amber-300">Menghubungkan...</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Column 1: Config Form -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
+        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Konfigurasi AI Bot
+        </h3>
+
+        <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">OpenRouter API Key</label>
+              <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+              
+              <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
+                <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Cara mendapatkan API Key?
+              </button>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
+              <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+                <optgroup label="✨ OpenRouter System Models">
+                  <option value="openrouter/auto">OpenRouter Auto Router (Sangat Direkomendasikan)</option>
+                  <option value="openrouter/free">OpenRouter Free Tier Default</option>
+                  <option value="openrouter/auto-beta">OpenRouter Auto (Beta)</option>
+                  <option value="openrouter/fusion">OpenRouter Fusion</option>
+                  <option value="openrouter/pareto-code">OpenRouter Pareto Code</option>
+                  <option value="openrouter/bodybuilder">OpenRouter Bodybuilder</option>
+                </optgroup>
+                <optgroup label="⚡ Free Models">
+                  <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI Ling 3.0 Flash Fin (Free)</option>
+                  <option value="dots-studio/dots-3-note-preview:free">Dots Studio Dots 3 Note (Free)</option>
+                  <option value="liquid/lfm-2.5-2.6b:free">Liquid LFM 2.5 2.6B (Free)</option>
+                  <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free)</option>
+                  <option value="thinkingmachines/inkling-small:free">ThinkingMachines Inkling Small (Free)</option>
+                  <option value="thinkingmachines/inkling:free">ThinkingMachines Inkling (Free)</option>
+                  <option value="poolside/laguna-xs-2.1:free">Poolside Laguna XS 2.1 (Free)</option>
+                  <option value="poolside/laguna-s-2.1:free">Poolside Laguna S 2.1 (Free)</option>
+                  <option value="z-ai/glm-5.2:free">Z-AI GLM 5.2 (Free)</option>
+                  <option value="nvidia/nemotron-3.5-content-safety:free">NVIDIA Nemotron 3.5 Content Safety (Free)</option>
+                  <option value="nvidia/nemotron-3-ultra-550b-a55b:free">NVIDIA Nemotron 3 Ultra 550B (Free)</option>
+                  <option value="minimax/minimax-m3:free">MiniMax M3 (Free)</option>
+                  <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">NVIDIA Nemotron 3 Nano Omni (Free)</option>
+                  <option value="minimax/minimax-m2.7:free">MiniMax M2.7 (Free)</option>
+                  <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B (Free)</option>
+                </optgroup>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1">Model AI Gratis</label>
-            <select id="modelName" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
-              <option value="nvidia/nemotron-3-ultra-550b-a55b:free">nvidia/nemotron-3-ultra-550b-a55b:free</option>
-              <option value="nvidia/nemotron-3.5-lightning:free">nvidia/nemotron-3.5-lightning:free</option>
-              <option value="nvidia/nemotron-3-super-120b-a12b:free">nvidia/nemotron-3-super-120b-a12b:free</option>
-              <option value="poolside/laguna-s-2.1:free">poolside/laguna-s-2.1:free</option>
-              <option value="poolside/laguna-xs-2.1:free">poolside/laguna-xs-2.1:free</option>
-              <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free</option>
-              <option value="thinkingmachines/inkling:free">thinkingmachines/inkling:free</option>
-              <option value="z-ai/glm-5.2:free">z-ai/glm-5.2:free</option>
-              <option value="cohere/north-mini-code:free">cohere/north-mini-code:free</option>
-              <option value="minimax/minimax-m3:free">minimax/minimax-m3:free</option>
-            </select>
+          <!-- System Prompt / Pelatihan Bot dengan Tombol Auto Generate -->
+          <div class="space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="block text-xs font-medium text-slate-300">
+                System Prompt / Pelatihan Bot
+              </label>
+
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i> Auto Generate:
+                </span>
+                <button 
+                  type="button" 
+                  onclick="generatePrompt('detailed')" 
+                  id="btnGenDetailed"
+                  class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                >
+                  <span>Detail (~100 kata)</span>
+                </button>
+                <button 
+                  type="button" 
+                  onclick="generatePrompt('very_detailed')" 
+                  id="btnGenVeryDetailed"
+                  class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                >
+                  <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400 hidden"></i>
+                  <span>Sangat Detail (~700 kata)</span>
+                </button>
+              </div>
+            </div>
+
+            <textarea 
+              id="systemPrompt" 
+              rows="6" 
+              placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu klik tombol Auto Generate di atas..." 
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
+            ></textarea>
           </div>
 
-          <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1">System Prompt / Pelatihan Bot</label>
-            <textarea id="systemPrompt" rows="3" placeholder="Contoh: Kamu adalah asisten AI yang ramah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"></textarea>
-          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+            <div class="flex items-center gap-3">
+              <input type="checkbox" id="isBotActive" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-0">
+              <label for="isBotActive" class="text-xs font-medium text-slate-300">Aktifkan Respon Otomatis Bot</label>
+            </div>
 
-          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
-            Simpan Pengaturan
-          </button>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
+              Simpan Pengaturan
+            </button>
+          </div>
         </form>
       </div>
 
-      <!-- Card Live Chat Log -->
-      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
-            <i data-lucide="message-square" class="text-emerald-400"></i> Live Activity Chat
-          </h2>
-          <button onclick="clearChatLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Clear Chat</button>
+      <!-- Column 2: QR Code & Status -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
+        <div>
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
+            <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
+          </h3>
+
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
+            <div id="qrContainer" class="hidden">
+              <img id="qrCodeImg" src="" class="w-48 h-48 rounded-lg border border-slate-700 bg-white p-2">
+            </div>
+            <div id="qrLoading" class="space-y-2">
+              <div class="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p class="text-xs text-slate-400">Menyiapkan QR Code...</p>
+            </div>
+            <div id="qrConnected" class="hidden space-y-2">
+              <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+                <i data-lucide="check-circle" class="w-6 h-6"></i>
+              </div>
+              <p class="text-xs font-bold text-emerald-400">Terhubung ke WhatsApp</p>
+            </div>
+          </div>
         </div>
 
-        <div id="chatLogList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto text-xs space-y-2">
-          <p class="text-slate-500 italic">Belum ada obrolan masuk...</p>
-        </div>
-      </div>
-
-      <!-- Card Error Log -->
-      <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-md font-semibold text-slate-200 flex items-center gap-2">
-            <i data-lucide="alert-triangle" class="text-rose-400"></i> Log Error Balasan Bot
-          </h2>
-          <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Clear Log</button>
-        </div>
-
-        <div id="logList" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-36 overflow-y-auto font-mono text-xs space-y-2">
-          <p class="text-slate-500 italic">Belum ada riwayat error...</p>
+        <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>Kuota Mingguan:</span>
+            <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
+          </div>
         </div>
       </div>
 
     </div>
 
-  </div>
-
-  <!-- Modal Transfer Bank -->
-  <div id="paymentModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
-        <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2"><i data-lucide="credit-card" class="text-amber-400"></i> Transfer Pembayaran</h3>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200"><i data-lucide="x"></i></button>
-      </div>
-      
-      <p class="text-xs text-slate-300 leading-relaxed">
-        Nikmati fitur **Unlimited Chat Balasan** tanpa batasan 30 chat per hari dengan berlangganan Paket Premium.
-      </p>
-
-      <div class="bg-slate-900 border border-slate-700/80 rounded-xl p-4 space-y-2">
-        <p class="text-xs text-slate-400">Biaya Langganan: <span class="text-amber-400 font-bold">Rp 50.000 / Bulan</span></p>
-        <hr class="border-slate-800">
-        <p class="text-xs text-slate-400">Bank BCA: <span class="text-slate-100 font-mono font-semibold">1234567890</span> (a.n Fajar)</p>
-        <p class="text-xs text-slate-400">Bank Mandiri: <span class="text-slate-100 font-mono font-semibold">0987654321</span> (a.n Fajar)</p>
+    <!-- Live Chat Logs -->
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+          <i data-lucide="message-square" class="w-4 h-4 text-indigo-400"></i> Chat Log Realtime
+        </h3>
+        <span class="text-[10px] text-slate-500 italic">*Riwayat log otomatis terhapus setelah 5 menit</span>
       </div>
 
-      <a href="https://wa.me/6281234567890?text=Halo%20Admin,%20saya%20mau%20konfirmasi%20pembayaran%20WA%20Bot%20SaaS" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition text-center block">
-        Konfirmasi via WhatsApp
-      </a>
+      <div id="chatLogBox" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+        <p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal Tutorial API Key -->
+  <div id="apiKeyModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+          <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> Panduan Mendapatkan API Key OpenRouter
+        </h3>
+        <button onclick="closeApiKeyTutorial()" class="text-slate-400 hover:text-slate-200 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p class="text-slate-400">Ikuti langkah mudah di bawah ini untuk membuat API Key gratis di OpenRouter:</p>
+        
+        <ol class="space-y-2.5 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-4 rounded-xl">
+          <li>
+            Buka situs resmi 
+            <a href="https://openrouter.ai/" target="_blank" class="text-indigo-400 font-bold hover:underline inline-flex items-center gap-1">
+              OpenRouter<i data-lucide="external-link" class="w-3 h-3"></i>
+            </a>
+          </li>
+          <li>Login atau buat akun baru menggunakan akun <strong>Google / GitHub</strong> kamu.</li>
+          <li>Jika muncul "Legal consent" centang bagian I agree to the Terms of Service, Privacy Policy, and Model Terms. lalu <strong class="text-indigo-300">"Continue"</strong></li>
+          <li>Selanjutnya Pilih "Individual" lalu Klik Next, Continue, I'll do this later dan Pilih apa aja dan klik Continue</li>
+          <li>
+            Pilih Menu API Keys atau klik  
+            <a href="https://openrouter.ai/keys" target="_blank" class="text-indigo-400 font-bold hover:underline inline-flex items-center gap-1">
+              (openrouter.ai/keys) <i data-lucide="external-link" class="w-3 h-3"></i>
+            </a>
+          </li>
+          <li>Klik tombol <strong class="text-indigo-300">"Create Key"</strong> di bagian kanan atas.</li>
+          <li>Beri nama kunci kamu (misal: <em>WA AutoBot AI</em>), lalu klik <strong>Create</strong>.</li>
+          <li>Salin (copy) kode kunci yang muncul (diawali dengan <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">sk-or-v1-...</code>).</li>
+          <li>Tempelkan (paste) kode kunci tersebut ke dalam kolom <strong>OpenRouter API Key</strong> di dashboard ini.</li>
+        </ol>
+
+        <p class="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg flex items-start gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0 mt-0.5"></i>
+          <span>Simpan API Key kamu dengan aman! Kunci ini hanya akan ditampilkan penuh satu kali oleh OpenRouter.</span>
+        </p>
+      </div>
+
+      <button onclick="closeApiKeyTutorial()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-2.5 rounded-xl transition">
+        Saya Mengerti
+      </button>
     </div>
   </div>
 
   <script>
     lucide.createIcons();
     const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/';
+    if (!token) window.location.href = '/login.html';
 
     const socket = io();
+    let currentUserPlan = 'free';
 
-    // Register socket untuk user saat masuk dashboard
-    socket.emit('start-bot', token);
+    function openApiKeyTutorial() {
+      document.getElementById('apiKeyModal').classList.remove('hidden');
+    }
+
+    function closeApiKeyTutorial() {
+      document.getElementById('apiKeyModal').classList.add('hidden');
+    }
 
     async function loadConfig() {
-      const res = await fetch('/api/config', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      
-      // Update data Profil di Navbar
-      document.getElementById('userNickname').innerText = data.nickname || data.email;
-      if (data.profilePicture) {
+      try {
+        const res = await fetch('/api/config', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        currentUserPlan = data.plan || 'free';
+
+        document.getElementById('userNickname').innerText = data.nickname;
+        document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
         document.getElementById('userAvatar').src = data.profilePicture;
-      }
 
-      // Update Form Configuration
-      document.getElementById('apiKey').value = data.apiKey || '';
-      document.getElementById('modelName').value = data.modelName || 'nvidia/nemotron-3-ultra-550b-a55b:free';
-      document.getElementById('systemPrompt').value = data.systemPrompt || 'Kamu adalah asisten AI yang ramah.';
-      document.getElementById('isBotActive').checked = data.isBotActive ?? true;
+        document.getElementById('apiKey').value = data.apiKey || '';
+        document.getElementById('modelName').value = data.modelName || 'openrouter/auto';
+        document.getElementById('systemPrompt').value = data.systemPrompt || '';
+        document.getElementById('isBotActive').checked = data.isBotActive;
 
-      // Update Plan & Usage
-      const badge = document.getElementById('planBadge');
-      if (data.plan === 'premium') {
-        badge.innerText = 'PREMIUM';
-        badge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30';
-        document.getElementById('usageText').innerText = `${data.dailyUsage} / Unlimited`;
-        document.getElementById('usageBar').style.width = '100%';
-      } else {
-        badge.innerText = 'FREE';
-        document.getElementById('usageText').innerText = `${data.dailyUsage} / 30 Chat`;
-        const percent = Math.min((data.dailyUsage / 30) * 100, 100);
-        document.getElementById('usageBar').style.width = `${percent}%`;
+        // Update Kuota Mingguan Stat
+        document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.weeklyUsage} / Unlimited` : `${data.weeklyUsage} / 200`;
+
+        if (currentUserPlan !== 'premium') {
+          document.getElementById('lockIcon').classList.remove('hidden');
+        } else {
+          document.getElementById('lockIcon').classList.add('hidden');
+        }
+
+      } catch (err) {
+        console.error("Load Config Error:", err);
       }
     }
 
     async function saveConfig(e) {
       e.preventDefault();
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          apiKey: document.getElementById('apiKey').value,
-          modelName: document.getElementById('modelName').value,
-          systemPrompt: document.getElementById('systemPrompt').value,
-          isBotActive: document.getElementById('isBotActive').checked
-        })
-      });
-      const data = await res.json();
-      alert(data.message);
+      const apiKey = document.getElementById('apiKey').value;
+      const modelName = document.getElementById('modelName').value;
+      const systemPrompt = document.getElementById('systemPrompt').value;
+      const isBotActive = document.getElementById('isBotActive').checked;
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ apiKey, modelName, systemPrompt, isBotActive })
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (err) {
+        alert("Gagal menyimpan pengaturan.");
+      }
     }
 
-    function startBot() {
-      socket.emit('start-bot', token);
+    async function generatePrompt(mode) {
+      if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
+        alert("🔒 Fitur Auto-Generate 'Sangat Detail (~700 kata)' khusus untuk pengguna Premium Plan!\n\nSilakan klik menu 'Upgrade Premium' di sidebar untuk berlangganan 49rb/bulan.");
+        return;
+      }
+
+      const promptInput = document.getElementById('systemPrompt');
+      const text = promptInput.value;
+
+      if (!text.trim()) {
+        alert("Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!");
+        return;
+      }
+
+      const btnDetailed = document.getElementById('btnGenDetailed');
+      const btnVeryDetailed = document.getElementById('btnGenVeryDetailed');
+
+      btnDetailed.disabled = true;
+      btnVeryDetailed.disabled = true;
+
+      const originalText = promptInput.value;
+      promptInput.value = "🤖 Mengisi & mengembangkan System Prompt menggunakan AI, mohon tunggu sebentar...";
+
+      try {
+        const res = await fetch('/api/generate-prompt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ promptText: text, mode: mode })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          promptInput.value = data.generatedPrompt;
+        } else {
+          alert(data.message);
+          promptInput.value = originalText;
+        }
+      } catch (err) {
+        alert("Gagal terhubung ke server.");
+        promptInput.value = originalText;
+      } finally {
+        btnDetailed.disabled = false;
+        btnVeryDetailed.disabled = false;
+      }
     }
 
-    socket.on('qr', (qrUrl) => {
-      document.getElementById('statusPlaceholder').classList.add('hidden');
-      document.getElementById('qrContainer').classList.remove('hidden');
-      document.getElementById('qrImage').src = qrUrl;
-    });
+    // Helper Auto Delete Chat Log > 5 Menit
+    const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+    function appendLogElement(element) {
+      const box = document.getElementById('chatLogBox');
+      
+      const emptyNotice = box.querySelector('p.italic');
+      if (emptyNotice) emptyNotice.remove();
+
+      box.appendChild(element);
+      box.scrollTop = box.scrollHeight;
+
+      setTimeout(() => {
+        element.remove();
+        if (box.children.length === 0) {
+          box.innerHTML = '<p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>';
+        }
+      }, FIVE_MINUTES_MS);
+    }
+
+    // Socket.io Handlers
+    socket.emit('start-bot', token);
 
     socket.on('status', (status) => {
-      document.getElementById('statusText').innerText = status;
+      const statusText = document.getElementById('statusText');
+      statusText.innerText = status;
+
       if (status === 'Connected') {
+        document.getElementById('qrLoading').classList.add('hidden');
         document.getElementById('qrContainer').classList.add('hidden');
-        document.getElementById('statusPlaceholder').classList.remove('hidden');
-        document.getElementById('statusPlaceholder').innerHTML = `<i data-lucide="wifi" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><span class="text-emerald-400 font-semibold">Terhubung</span>`;
-        lucide.createIcons();
+        document.getElementById('qrConnected').classList.remove('hidden');
       }
     });
 
-    // Realtime Chat Log
-    socket.on('chat-log', (chat) => {
-      const list = document.getElementById('chatLogList');
-      if (list.querySelector('.italic')) list.innerHTML = '';
-
-      const isIncoming = chat.type === 'in';
-      const item = document.createElement('div');
-      item.className = `p-2 rounded-lg border ${isIncoming ? 'bg-slate-900 border-indigo-500/30 text-indigo-200' : 'bg-slate-900/80 border-emerald-500/30 text-emerald-200'}`;
-      item.innerHTML = `
-        <div class="flex justify-between items-center text-[10px] text-slate-400 mb-1">
-          <span class="font-bold ${isIncoming ? 'text-indigo-400' : 'text-emerald-400'}">${isIncoming ? '📥 ' + chat.sender : '📤 Bot (Balasan)'}</span>
-          <span>${chat.time}</span>
-        </div>
-        <p class="text-xs text-slate-200">${chat.text}</p>
-      `;
-      list.prepend(item);
-      loadConfig();
+    socket.on('qr', (qrUrl) => {
+      document.getElementById('qrLoading').classList.add('hidden');
+      document.getElementById('qrConnected').classList.add('hidden');
+      document.getElementById('qrContainer').classList.remove('hidden');
+      document.getElementById('qrCodeImg').src = qrUrl;
     });
 
-    // Realtime Error Log
+    socket.on('chat-log', (log) => {
+      const p = document.createElement('p');
+      p.className = log.type === 'in' ? 'text-indigo-400' : 'text-emerald-400';
+      p.innerText = `[${log.time}] ${log.sender}: ${log.text}`;
+      appendLogElement(p);
+    });
+
     socket.on('error-log', (log) => {
-      const logList = document.getElementById('logList');
-      if (logList.querySelector('.italic')) logList.innerHTML = '';
-
-      const item = document.createElement('div');
-      item.className = 'text-rose-400 border-b border-slate-800/80 pb-1.5';
-      item.innerHTML = `<span class="text-slate-500">[${log.time}]</span> <span class="font-bold text-slate-300">${log.from}:</span> ${log.message}`;
-      logList.prepend(item);
+      const p = document.createElement('p');
+      p.className = 'text-rose-400 font-semibold';
+      p.innerText = `[${log.time}] ERROR (${log.from}): ${log.message}`;
+      appendLogElement(p);
     });
 
-    function clearChatLogs() {
-      document.getElementById('chatLogList').innerHTML = '<p class="text-slate-500 italic">Belum ada obrolan masuk...</p>';
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
     }
-
-    function clearLogs() {
-      document.getElementById('logList').innerHTML = '<p class="text-slate-500 italic">Belum ada riwayat error...</p>';
-    }
-
-    function openModal() { document.getElementById('paymentModal').classList.remove('hidden'); }
-    function closeModal() { document.getElementById('paymentModal').classList.add('hidden'); }
-    function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
 
     loadConfig();
   </script>
