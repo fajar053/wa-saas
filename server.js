@@ -110,7 +110,7 @@ function resolveAIConfig(user) {
   return { provider, key: key ? key.trim() : "" };
 }
 
-// --- HELPER MULTI-PROVIDER AI DENGAN TIMEOUT 60 DETIK ---
+// --- HELPER MULTI-PROVIDER AI ---
 async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "", timeoutMs = 60000) {
   let apiBaseUrl = "https://openrouter.ai/api/v1/chat/completions";
   let defaultModels = [
@@ -813,15 +813,22 @@ async function autoStartAllSessions() {
 async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, targetSocket) {
   try {
     const user = await User.findById(strUserId);
-    if (!user || !user.isBotActive) return;
+    if (!user) {
+      console.warn(`⚠️ User ID ${strUserId} tidak ditemukan di DB.`);
+      return;
+    }
 
-    // Gunakan resolveAIConfig untuk menentukan key dan provider secara fleksibel
+    if (!user.isBotActive) {
+      console.log(`ℹ️ Bot status untuk User ID ${strUserId} sedang NONAKTIF.`);
+      return;
+    }
+
     const { provider, key: activeKey } = resolveAIConfig(user);
 
     if (!activeKey) {
-      const errorMsg = `API Key belum diisi di dashboard. Pembalasan otomatis dilewati.`;
+      const errorMsg = `API Key belum dikonfigurasi di dashboard.`;
+      console.warn(`⚠️ ${errorMsg}`);
       targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
-      // CATATAN: Pesan error [Sistem] DITETAPKAN TIDAK DIKIRIM ke obrolan WhatsApp pengguna
       return;
     }
 
@@ -884,6 +891,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 
     const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
+    console.log(`🚀 [AI Processing] Mengirim prompt ke provider [${provider}] model [${selectedModel}]...`);
     const reply = await fetchAIResponse(
       provider,
       activeKey, 
@@ -896,7 +904,10 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
+    console.log(`📤 [WA Sending] Mengirim balasan ke ${senderNumber}...`);
     await sock.sendMessage(remoteJid, { text: reply });
+    console.log(`✅ [WA Success] Balasan berhasil terkirim ke ${senderNumber}!`);
+
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
     targetSocket?.emit("chat-log", {
@@ -908,7 +919,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     });
 
   } catch (err) {
-    console.error("AI Complete Error:", err.message);
+    console.error("❌ AI Handle Reply Error:", err.message);
     targetSocket?.emit("error-log", { 
       time: new Date().toLocaleTimeString(), 
       message: `Koneksi AI gagal: ${err.message}`, 
@@ -1036,25 +1047,31 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
+          // FITUR DEBOUNCE & AGGREGATION (6 DETIK DELAY)
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
-            messageBuffers.set(bufferKey, { messages: [], timer: null });
+            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid });
           }
 
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
+          buf.remoteJid = msg.key.remoteJid;
 
           if (buf.timer) {
             clearTimeout(buf.timer);
           }
 
+          console.log(`💬 Chat masuk dari [${senderNumber}]: "${text}". Menunggu 6 detik untuk agregasi...`);
+
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
+            const targetJid = buf.remoteJid;
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, msg.key.remoteJid, combinedText, sock, targetSocket);
-          }, 25000);
+            console.log(`⚡ Memproses pembalasan AI untuk [${senderNumber}]...`);
+            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetSocket);
+          }, 6000); // 6 detik jeda yang responsif
 
         }
       } catch (upsertErr) {
