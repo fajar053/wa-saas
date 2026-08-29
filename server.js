@@ -59,7 +59,6 @@ function rotateApiKey() {
   console.warn(`🔄 [ROTASI API KEY] Berpindah ke Key #${currentKeyIndex + 1}`);
 }
 
-// HELPER SLEEP JEDA SMART RATE LIMIT
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 app.use(express.json());
@@ -107,82 +106,82 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- HELPER CALL ORCAROUTER API (AUTO ROTASI API KEY, MODEL FAILOVER & ANTI-RATE LIMIT) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 20000) {
+// --- HELPER CALL ORCAROUTER API (FAILOVER MODEL & SMART ROTATION) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 15000) {
   const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
 
   for (const model of FALLBACK_MODELS) {
-    for (let keyAttempt = 0; keyAttempt < ORCAROUTER_API_KEYS.length; keyAttempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      try {
-        const apiKey = getActiveApiKey();
-        const response = await fetch(apiBaseUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-            "X-Title": "OrcaRouter Gateway"
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: messages,
-            route: "fallback"
-          }),
-          signal: controller.signal
-        });
+    try {
+      const apiKey = getActiveApiKey();
+      const response = await fetch(apiBaseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+          "X-Title": "OrcaRouter Gateway"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages
+        }),
+        signal: controller.signal
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          const errText = await response.text();
-          console.warn(`⚠️ [API ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal: ${errText}`);
-          
-          rotateApiKey();
+      if (!response.ok) {
+        console.warn(`⚠️ [API ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal.`);
+        rotateApiKey(); // Pindah ke API key berikutnya untuk percobaan model berikutnya
 
-          // Jeda eksekusi jika terkena Rate Limit 429
-          if (response.status === 429) {
-            await sleep(1500);
-          } else {
-            await sleep(500);
-          }
-          continue;
+        if (response.status === 429) {
+          await sleep(800);
         }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
-        if (content) {
-          console.log(`✅ Respon AI Berhasil via Model: ${model} (Key #${currentKeyIndex + 1})`);
-          return content;
-        }
-
-      } catch (err) {
-        clearTimeout(timeoutId);
-        console.warn(`⚠️ [FAILOVER TIMEOUT] Model "${model}" Key #${currentKeyIndex + 1}: ${err.message}`);
-        rotateApiKey();
-        await sleep(1000);
+        continue;
       }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        console.log(`✅ Respon AI Berhasil via Model: ${model} (Key #${currentKeyIndex + 1})`);
+        return content;
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`⚠️ [FAILOVER TIMEOUT] Model "${model}": ${err.message}`);
+      rotateApiKey();
+      await sleep(500);
     }
   }
 
-  throw new Error("Server AI sedang sibuk (Rate Limit / Timeout). Silakan coba beberapa saat lagi.");
+  throw new Error("Seluruh kombinasi model & API key OrcaRouter sedang tidak merespon/rate limit.");
 }
 
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
+// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP (LEBIH LENGKAP) ---
 function extractMessageText(msg) {
   if (!msg.message) return "";
-  const m = msg.message;
+  let m = msg.message;
+
+  // Un-nest wrappers (ephemeral, viewOnce, document, edited)
+  if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
+  if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
+  if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
+  if (m.documentWithCaptionMessage) m = m.documentWithCaptionMessage.message || m;
+  if (m.editedMessage) m = m.editedMessage.message?.protocolMessage?.editedMessage || m;
+
   return (
     m.conversation ||
     m.extendedTextMessage?.text ||
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
-    m.ephemeralMessage?.message?.conversation ||
-    m.ephemeralMessage?.message?.extendedTextMessage?.text ||
-    m.viewOnceMessage?.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    m.documentMessage?.caption ||
+    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
     m.buttonsResponseMessage?.selectedButtonId ||
+    m.templateButtonReplyMessage?.selectedId ||
     ""
   );
 }
@@ -604,7 +603,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       console.error(`❌ [ALL RETRIES FAILED] ${err.message}`);
       io.to(strUserId).emit("error-log", {
         time: new Date().toLocaleTimeString(),
-        message: `Gagal merespon: Seluruh kombinasi API key & model mengalami error/timeout.`,
+        message: `Gagal merespon: Server AI sedang sibuk/rate limit. Coba pesan lagi.`,
         from: senderNumber
       });
       return;
@@ -697,8 +696,8 @@ async function startUserBot(userId) {
 
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
-        const { messages, type } = chatUpdate;
-        if (type !== "notify") return;
+        const { messages } = chatUpdate;
+        if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
@@ -716,6 +715,7 @@ async function startUserBot(userId) {
             await sock.readMessages([{ remoteJid: msg.key.remoteJid, id: msg.key.id, participant: msg.key.participant }]);
           } catch {}
 
+          // Emit log ke dashboard realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -741,7 +741,7 @@ async function startUserBot(userId) {
 
             const combinedText = aggregatedTexts.join("\n");
             await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock);
-          }, 2500);
+          }, 2000);
         }
       } catch (err) {
         console.error("Upsert Error:", err.message);
