@@ -85,6 +85,7 @@ const activeSessions = new Map();
 const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
+const processedMsgIds = new Set(); // Cache ID pesan untuk mencegah pesan diproses 2x
 
 // --- HELPER MULTI-PROVIDER AI (OPENROUTER & ORCAROUTER) ---
 async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "") {
@@ -530,7 +531,7 @@ app.post("/api/config", verifyToken, async (req, res) => {
 
     if (openrouterApiKey !== undefined && openrouterApiKey.trim() !== "") {
       user.openrouterApiKey = openrouterApiKey.trim();
-      user.apiKey = openrouterApiKey.trim(); // simpan ke legacy field juga untuk fallback
+      user.apiKey = openrouterApiKey.trim();
     }
     if (orcarouterApiKey !== undefined && orcarouterApiKey.trim() !== "") {
       user.orcarouterApiKey = orcarouterApiKey.trim();
@@ -773,18 +774,18 @@ async function startUserBot(userId, socket = null) {
   const strUserId = String(userId);
   if (socket) userSockets.set(strUserId, socket);
 
+  // FIX 1: Hentikan pembuatan koneksi ganda jika sesi WA sudah aktif di memori
   if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
     const currentSocket = userSockets.get(strUserId);
     currentSocket?.emit("status", "Connected");
     currentSocket?.emit("ready");
-    return;
+    return; // <-- Menghentikan eksekusi ganda saat dashboard di-refresh
   }
 
   if (isStartingSession.has(strUserId)) return;
   isStartingSession.add(strUserId);
 
   try {
-    // Bersihkan sesi lama jika ada sebelum membuka socket baru
     if (activeSessions.has(strUserId)) {
       try { activeSessions.get(strUserId)?.end(); } catch (e) {}
       activeSessions.delete(strUserId);
@@ -847,10 +848,17 @@ async function startUserBot(userId, socket = null) {
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
         const { messages, type } = chatUpdate;
-        if (type !== "notify" && type !== "append") return;
+        
+        // FIX 2: Hanya tangani pesan bertipe notify (bukan append/sync)
+        if (type !== "notify") return;
 
         for (const msg of messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
+
+          // FIX 3: Deduplikasi ID pesan agar tidak diproses lebih dari 1x
+          if (processedMsgIds.has(msg.key.id)) continue;
+          processedMsgIds.add(msg.key.id);
+          if (processedMsgIds.size > 1000) processedMsgIds.clear();
 
           const user = await User.findById(strUserId);
           if (!user || !user.isBotActive) continue;
@@ -884,7 +892,6 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
-          // Pengecekan API Key dengan fallback otomatis ke user.apiKey jika field provider belum terisi
           const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
           if (!activeKey || !activeKey.trim()) {
             const errorMsg = `API Key untuk provider ${user.aiProvider || 'OpenRouter'} belum diisi.`;
@@ -1021,9 +1028,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// Graceful Shutdown Handling untuk mencegah SIGTERM error / crash di Railway
 const gracefulShutdown = () => {
-  console.log("⚠️ Termination signal received. Closing active WhatsApp sockets & connections...");
+  console.log("⚠️ Termination signal received. Closing active WhatsApp sockets...");
   for (const [userId, sock] of activeSessions.entries()) {
     try {
       sock.end();
