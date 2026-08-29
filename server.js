@@ -504,7 +504,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     nickname: user.nickname,
     username: user.username,
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
-    openrouterApiKey: user.openrouterApiKey || "",
+    openrouterApiKey: user.openrouterApiKey || user.apiKey || "",
     orcarouterApiKey: user.orcarouterApiKey || "",
     aiProvider: user.aiProvider || "openrouter",
     modelName: user.modelName,
@@ -523,16 +523,17 @@ app.post("/api/config", verifyToken, async (req, res) => {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
-    user.aiProvider = aiProvider;
+    user.aiProvider = aiProvider || "openrouter";
     user.modelName = modelName;
     user.systemPrompt = systemPrompt;
     user.isBotActive = isBotActive;
 
     if (openrouterApiKey !== undefined && openrouterApiKey.trim() !== "") {
-      user.openrouterApiKey = openrouterApiKey;
+      user.openrouterApiKey = openrouterApiKey.trim();
+      user.apiKey = openrouterApiKey.trim(); // simpan ke legacy field juga untuk fallback
     }
     if (orcarouterApiKey !== undefined && orcarouterApiKey.trim() !== "") {
-      user.orcarouterApiKey = orcarouterApiKey;
+      user.orcarouterApiKey = orcarouterApiKey.trim();
     }
 
     await user.save();
@@ -559,8 +560,8 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
     }
 
-    const activeKey = user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
-    if (!activeKey) {
+    const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
+    if (!activeKey || !activeKey.trim()) {
       return res.status(400).json({ 
         success: false, 
         message: `API Key untuk provider ${user.aiProvider} belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!` 
@@ -678,7 +679,7 @@ app.post("/api/whatsapp/reset", verifyToken, async (req, res) => {
     
     if (activeSessions.has(strUserId)) {
       try {
-        activeSessions.get(strUserId).logout();
+        activeSessions.get(strUserId).end();
       } catch (e) {}
       activeSessions.delete(strUserId);
     }
@@ -776,12 +777,19 @@ async function startUserBot(userId, socket = null) {
     const currentSocket = userSockets.get(strUserId);
     currentSocket?.emit("status", "Connected");
     currentSocket?.emit("ready");
+    return;
   }
 
   if (isStartingSession.has(strUserId)) return;
   isStartingSession.add(strUserId);
 
   try {
+    // Bersihkan sesi lama jika ada sebelum membuka socket baru
+    if (activeSessions.has(strUserId)) {
+      try { activeSessions.get(strUserId)?.end(); } catch (e) {}
+      activeSessions.delete(strUserId);
+    }
+
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -831,7 +839,7 @@ async function startUserBot(userId, socket = null) {
         } else {
           setTimeout(() => {
             startUserBot(strUserId, currentSocket);
-          }, 3000);
+          }, 5000);
         }
       }
     });
@@ -876,9 +884,10 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
-          const activeKey = user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
-          if (!activeKey) {
-            const errorMsg = `API Key untuk provider ${user.aiProvider} belum diisi.`;
+          // Pengecekan API Key dengan fallback otomatis ke user.apiKey jika field provider belum terisi
+          const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
+          if (!activeKey || !activeKey.trim()) {
+            const errorMsg = `API Key untuk provider ${user.aiProvider || 'OpenRouter'} belum diisi.`;
             targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
             await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
             continue;
@@ -989,6 +998,7 @@ async function startUserBot(userId, socket = null) {
   }
 }
 
+// SOCKET.IO REALTIME
 io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
@@ -1010,6 +1020,24 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// Graceful Shutdown Handling untuk mencegah SIGTERM error / crash di Railway
+const gracefulShutdown = () => {
+  console.log("⚠️ Termination signal received. Closing active WhatsApp sockets & connections...");
+  for (const [userId, sock] of activeSessions.entries()) {
+    try {
+      sock.end();
+    } catch (e) {}
+  }
+  server.close(() => {
+    mongoose.connection.close(false, () => {
+      process.exit(0);
+    });
+  });
+};
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
