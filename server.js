@@ -33,6 +33,10 @@ const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// KONFIGURASI TERKUNCI ORCAROUTER & MODEL
+const ORCAROUTER_API_KEY = "sk-orca-o4Nup6z4W6q4bJ4PqG56F0O4MWYEoos1WYDYRfJt2mA";
+const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-free";
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -78,101 +82,58 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- HELPER DEDUKSI PROVIDER & API KEY ---
-function resolveAIConfig(user) {
-  let provider = user.aiProvider || "openrouter";
-  let key = provider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
+// --- HELPER CALL ORCAROUTER API ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 60000) {
+  const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!key || !key.trim()) {
-    if (user.openrouterApiKey && user.openrouterApiKey.trim()) {
-      key = user.openrouterApiKey;
-      provider = "openrouter";
-    } else if (user.orcarouterApiKey && user.orcarouterApiKey.trim()) {
-      key = user.orcarouterApiKey;
-      provider = "orcarouter";
-    } else if (user.apiKey && user.apiKey.trim()) {
-      key = user.apiKey;
-      provider = "openrouter";
-    }
-  }
+  try {
+    const response = await fetch(apiBaseUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${ORCAROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+        "X-Title": "OrcaRouter Gateway"
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: messages,
+        route: "fallback"
+      }),
+      signal: controller.signal
+    });
 
-  return { provider, key: key ? key.trim() : "" };
-}
-
-// --- HELPER CALL AI API ---
-async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", strUserId = "", senderNumber = "", timeoutMs = 60000) {
-  let apiBaseUrl = "https://openrouter.ai/api/v1/chat/completions";
-  let defaultModels = [
-    modelCandidate,
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "poolside/laguna-s-2.1:free",
-    "minimax/minimax-m3:free"
-  ];
-  let siteTitle = "WA AutoBot AI";
-
-  if (provider === "orcarouter") {
-    apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
-    defaultModels = [
-      modelCandidate,
-      "deepseek/deepseek-v4-flash-free",
-      "orcarouter/free",
-      "qwen/qwen3.8-27b-free"
-    ];
-    siteTitle = "OrcaRouter Gateway";
-  }
-
-  const uniqueModels = [...new Set(defaultModels)].filter(Boolean);
-
-  for (const model of uniqueModels) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(apiBaseUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": siteTitle
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages,
-          route: "fallback"
-        }),
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Gagal (${response.status}): ${errText}`);
-        
-        if (model === modelCandidate && strUserId) {
-          io.to(strUserId).emit("error-log", {
-            time: new Date().toLocaleTimeString(),
-            message: `[${provider.toUpperCase()}] Model "${modelCandidate}" gagal (${response.status}). Menggunakan model cadangan...`,
-            from: senderNumber || "Sistem"
-          });
-        }
-        continue;
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`⚠️ [ORCAROUTER] Model ${DEFAULT_MODEL} Gagal (${response.status}): ${errText}`);
+      
+      if (strUserId) {
+        io.to(strUserId).emit("error-log", {
+          time: new Date().toLocaleTimeString(),
+          message: `[ORCAROUTER] Model "${DEFAULT_MODEL}" gagal (${response.status}).`,
+          from: senderNumber || "Sistem"
+        });
       }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        console.log(`✅ Respon AI via [${provider.toUpperCase()}]: ${model}`);
-        return content;
-      }
-
-    } catch (err) {
-      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection Error: ${err.message}`);
-    } finally {
-      clearTimeout(timeoutId);
+      throw new Error(`API Error Status: ${response.status}`);
     }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (content) {
+      console.log(`✅ Respon AI via OrcaRouter: ${DEFAULT_MODEL}`);
+      return content;
+    }
+
+  } catch (err) {
+    console.warn(`⚠️ [ORCAROUTER] Connection Error: ${err.message}`);
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  throw new Error(`Semua server AI pada provider ${provider.toUpperCase()} sedang sibuk/tidak merespon.`);
+  throw new Error("Server AI OrcaRouter tidak merespon.");
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -306,10 +267,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
     nickname: user.nickname,
     username: user.username,
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
-    openrouterApiKey: user.openrouterApiKey || user.apiKey || "",
-    orcarouterApiKey: user.orcarouterApiKey || "",
-    aiProvider: user.aiProvider || "openrouter",
-    modelName: user.modelName,
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive ?? true,
     plan: user.plan || "free",
@@ -320,22 +277,12 @@ app.get("/api/config", verifyToken, async (req, res) => {
 
 app.post("/api/config", verifyToken, async (req, res) => {
   try {
-    const { aiProvider, openrouterApiKey, orcarouterApiKey, modelName, systemPrompt, isBotActive } = req.body;
+    const { systemPrompt, isBotActive } = req.body;
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
-    user.aiProvider = aiProvider || "openrouter";
-    user.modelName = modelName;
     user.systemPrompt = systemPrompt;
     user.isBotActive = isBotActive;
-
-    if (openrouterApiKey !== undefined && openrouterApiKey.trim() !== "") {
-      user.openrouterApiKey = openrouterApiKey.trim();
-      user.apiKey = openrouterApiKey.trim();
-    }
-    if (orcarouterApiKey !== undefined && orcarouterApiKey.trim() !== "") {
-      user.orcarouterApiKey = orcarouterApiKey.trim();
-    }
 
     await user.save();
     res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
@@ -357,11 +304,6 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
-    const { provider: activeProvider, key: activeKey } = resolveAIConfig(user);
-
-    if (!activeKey) {
-      return res.status(400).json({ success: false, message: "API Key belum diatur di dashboard!" });
-    }
 
     const wordTarget = mode === "very_detailed" ? "700" : "100";
     const systemInstruction = `Kamu adalah AI Prompt Engineer. Kembangkan instruksi singkat menjadi System Prompt/Pelatihan Bot WhatsApp dalam Bahasa Indonesia (~${wordTarget} kata). Langsung keluarkan teks prompt-nya tanpa kata pembuka/penutup.`;
@@ -371,7 +313,7 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       { role: "user", content: promptText }
     ];
 
-    const generatedPrompt = await fetchAIResponse(activeProvider, activeKey, messages, user.modelName, String(user._id));
+    const generatedPrompt = await fetchAIResponse(messages, String(user._id));
     res.json({ success: true, generatedPrompt });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -456,16 +398,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       return;
     }
 
-    const { provider, key: activeKey } = resolveAIConfig(user);
-    if (!activeKey) {
-      io.to(strUserId).emit("error-log", {
-        time: new Date().toLocaleTimeString(),
-        message: "API Key belum diisi di dashboard!",
-        from: senderNumber
-      });
-      return;
-    }
-
     const today = new Date().toISOString().split("T")[0];
     if (user.dailyUsageDate !== today) {
       user.dailyUsageDate = today;
@@ -499,18 +431,16 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       ...historyForAI
     ];
 
-    const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
     let reply = "";
 
     try {
-      reply = await fetchAIResponse(provider, activeKey, messagesPayload, selectedModel, strUserId, senderNumber);
+      reply = await fetchAIResponse(messagesPayload, strUserId, senderNumber);
     } catch {
-      // Auto-Recovery: Hapus riwayat jika model error/tidak sesuai context
       conv.messages = [{ role: "user", content: combinedText }];
-      reply = await fetchAIResponse(provider, activeKey, [
+      reply = await fetchAIResponse([
         { role: "system", content: user.systemPrompt || "Kamu adalah asisten AI yang ramah." },
         { role: "user", content: combinedText }
-      ], selectedModel, strUserId, senderNumber);
+      ], strUserId, senderNumber);
     }
 
     conv.messages.push({ role: "assistant", content: reply });
@@ -519,7 +449,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     await sock.sendMessage(remoteJid, { text: reply });
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-    // Emit Log Keluar ke Dashboard
     io.to(strUserId).emit("chat-log", {
       time: new Date().toLocaleTimeString(),
       sender: senderNumber,
@@ -616,12 +545,10 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
-          // Auto read
           try {
             await sock.readMessages([{ remoteJid: msg.key.remoteJid, id: msg.key.id, participant: msg.key.participant }]);
           } catch {}
 
-          // Emit Log Masuk langsung ke Dashboard
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -629,7 +556,6 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // Debounce / Buffer Pesan (2.5 Detik Delay)
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid });

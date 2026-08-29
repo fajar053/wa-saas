@@ -56,7 +56,7 @@
     <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
       <div>
         <h2 class="text-xl font-bold text-slate-100">Pengaturan & Koneksi Bot</h2>
-        <p class="text-xs text-slate-400">Kelola kuesioner bot, model AI, dan pantau aktivitas kirim pesan</p>
+        <p class="text-xs text-slate-400">Kelola instruksi AI bot dan pantau aktivitas kirim pesan</p>
       </div>
 
       <!-- Connection Badge Status -->
@@ -72,7 +72,7 @@
       <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Konfigurasi AI Bot
+            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Pelatihan & Instuksi Bot AI
           </h3>
 
           <button 
@@ -85,33 +85,6 @@
         </div>
 
         <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Platform Provider AI</label>
-              <select id="aiProvider" onchange="onProviderChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 mb-3">
-                <option value="openrouter">OpenRouter</option>
-                <option value="orcarouter">OrcaRouter</option>
-              </select>
-
-              <label id="apiKeyLabel" class="block text-xs font-medium text-slate-300 mb-1">API Key</label>
-              <div class="relative">
-                <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-xs focus:outline-none focus:border-indigo-500">
-                <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-slate-200 transition">
-                  <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
-                </button>
-              </div>
-              
-              <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
-                <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Cara mendapatkan API Key?
-              </button>
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
-              <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-              </select>
-            </div>
-          </div>
-
           <!-- System Prompt -->
           <div class="space-y-3">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -145,7 +118,7 @@
 
             <textarea 
               id="systemPrompt" 
-              rows="6" 
+              rows="8" 
               placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu klik tombol Auto Generate di atas..." 
               class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
             ></textarea>
@@ -214,59 +187,6 @@
 
   </main>
 
-  <!-- Modal Tutorial API Key -->
-  <div id="apiKeyModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> Panduan Mendapatkan API Key
-        </h3>
-        <button onclick="closeApiKeyTutorial()" class="text-slate-400 hover:text-slate-200 transition">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <div class="space-y-4 text-xs text-slate-300 leading-relaxed max-h-[65vh] overflow-y-auto pr-1">
-        
-        <!-- OpenRouter Guide -->
-        <div class="space-y-2">
-          <div class="flex items-center gap-2 font-bold text-indigo-400 text-xs">
-            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> 1. Penyedia OpenRouter
-          </div>
-          <ol class="space-y-2 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl text-slate-300">
-            <li>Buka situs resmi OpenRouter di <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">openrouter.ai</a>.</li>
-            <li>Klik tombol <strong>Sign In</strong> di pojok kanan atas, lalu masuk menggunakan akun Google atau GitHub kamu.</li>
-            <li>Jika ada konfirmasi persyaratan, klik <strong>Continue</strong> dan selesaikan instruksi awal.</li>
-            <li>Masuk ke menu API Keys atau buka langsung di <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">openrouter.ai/keys</a>.</li>
-            <li>Klik tombol <strong>"Create Key"</strong>.</li>
-            <li>Beri nama key tersebut (misal: <em>WA AutoBot AI</em>), lalu klik <strong>Create</strong>.</li>
-            <li>Salin (copy) Kunci API yang muncul (diawali <code class="bg-slate-800 px-1 py-0.5 rounded text-amber-300">sk-or-v1-...</code>).</li>
-            <li>Tempelkan (paste) Kunci API tersebut pada form <strong>OpenRouter API Key</strong> di halaman Dashboard WA AutoBot AI kamu, lalu simpan.</li>
-          </ol>
-        </div>
-
-        <!-- OrcaRouter Guide -->
-        <div class="space-y-2 pt-2 border-t border-slate-800">
-          <div class="flex items-center gap-2 font-bold text-indigo-400 text-xs">
-            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> 2. Penyedia OrcaRouter
-          </div>
-          <ol class="space-y-2 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl text-slate-300">
-            <li>Buka situs resmi OrcaRouter di <a href="https://orcarouter.ai" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">orcarouter.ai</a>.</li>
-            <li>Lakukan registrasi atau Sign In menggunakan akun kamu.</li>
-            <li>Masuk ke dashboard akun OrcaRouter dan buka menu <strong>API Keys</strong>.</li>
-            <li>Buat kunci baru (*Create New Key*), lalu salin kunci API yang dihasilkan.</li>
-            <li>Ubah dropdown provider di Dashboard menjadi <strong>OrcaRouter</strong>, tempelkan kunci ke kolom API Key, lalu klik simpan.</li>
-          </ol>
-        </div>
-
-      </div>
-
-      <button onclick="closeApiKeyTutorial()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-2.5 rounded-xl transition">
-        Saya Mengerti
-      </button>
-    </div>
-  </div>
-
   <script>
     lucide.createIcons();
     const token = localStorage.getItem('token');
@@ -274,90 +194,6 @@
 
     const socket = io();
     let currentUserPlan = 'free';
-    let userDataCache = {
-      aiProvider: 'openrouter',
-      openrouterApiKey: '',
-      orcarouterApiKey: '',
-      modelName: ''
-    };
-
-    const openRouterModels = [
-      { id: "cohere/north-mini-code:free", name: "Cohere North Mini Code (Free)" },
-      { id: "dots-studio/dots-3-note-preview:free", name: "Dots Studio Dots 3 Note (Free)" },
-      { id: "inclusionai/ling-3.0-flash-fin:free", name: "InclusionAI Ling 3.0 Flash Fin (Free)" },
-      { id: "minimax/minimax-m2.7:free", name: "MiniMax M2.7 (Free)" },
-      { id: "minimax/minimax-m3:free", name: "MiniMax M3 (Free)" },
-      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", name: "NVIDIA Nemotron 3 Nano Omni (Free)" },
-      { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "NVIDIA Nemotron 3 Super 120B (Free)" },
-      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "NVIDIA Nemotron 3 Ultra 550B (Free)" }
-    ];
-
-    const orcaRouterModels = [
-      { id: "deepseek/deepseek-v4-flash-free", name: "DeepSeek V4 Flash (Free)" },
-      { id: "orcarouter/free", name: "OrcaRouter Free Default" },
-      { id: "qwen/qwen3.8-27b-free", name: "Qwen 3.8 27B (Free)" }
-    ];
-
-    function populateModels(provider, selectedModel = "") {
-      const select = document.getElementById('modelName');
-      select.innerHTML = "";
-      const models = provider === "orcarouter" ? orcaRouterModels : openRouterModels;
-      
-      models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.innerText = m.name;
-        if (m.id === selectedModel) opt.selected = true;
-        select.appendChild(opt);
-      });
-    }
-
-    function onProviderChange() {
-      const provider = document.getElementById('aiProvider').value;
-      const label = document.getElementById('apiKeyLabel');
-      const apiKeyInput = document.getElementById('apiKey');
-
-      if (userDataCache.aiProvider === 'openrouter') {
-        userDataCache.openrouterApiKey = apiKeyInput.value;
-      } else {
-        userDataCache.orcarouterApiKey = apiKeyInput.value;
-      }
-
-      userDataCache.aiProvider = provider;
-
-      if (provider === 'orcarouter') {
-        label.innerText = 'OrcaRouter API Key';
-        apiKeyInput.placeholder = 'orcarouter-key-...';
-        apiKeyInput.value = userDataCache.orcarouterApiKey || '';
-      } else {
-        label.innerText = 'OpenRouter API Key';
-        apiKeyInput.placeholder = 'sk-or-v1-...';
-        apiKeyInput.value = userDataCache.openrouterApiKey || '';
-      }
-
-      populateModels(provider, userDataCache.modelName);
-    }
-
-    function toggleApiKeyVisibility() {
-      const input = document.getElementById('apiKey');
-      const icon = document.getElementById('eyeIcon');
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.setAttribute('data-lucide', 'eye-off');
-      } else {
-        input.type = 'password';
-        icon.setAttribute('data-lucide', 'eye');
-      }
-      lucide.createIcons();
-    }
-
-    function openApiKeyTutorial() {
-      document.getElementById('apiKeyModal').classList.remove('hidden');
-    }
-
-    function closeApiKeyTutorial() {
-      document.getElementById('apiKeyModal').classList.add('hidden');
-    }
 
     async function loadConfig() {
       try {
@@ -366,28 +202,15 @@
         });
         const data = await res.json();
         
-        userDataCache = {
-          aiProvider: data.aiProvider || 'openrouter',
-          openrouterApiKey: data.openrouterApiKey || '',
-          orcarouterApiKey: data.orcarouterApiKey || '',
-          modelName: data.modelName || ''
-        };
-
         currentUserPlan = data.plan || 'free';
 
         document.getElementById('userNickname').innerText = data.nickname;
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
         document.getElementById('userAvatar').src = data.profilePicture;
 
-        document.getElementById('aiProvider').value = userDataCache.aiProvider;
-        document.getElementById('apiKey').value = userDataCache.aiProvider === 'orcarouter' 
-          ? userDataCache.orcarouterApiKey 
-          : userDataCache.openrouterApiKey;
-
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
-        populateModels(userDataCache.aiProvider, data.modelName);
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
 
       } catch (err) {
@@ -397,23 +220,10 @@
 
     async function saveConfig(e) {
       e.preventDefault();
-      const aiProvider = document.getElementById('aiProvider').value;
-      const apiKeyValue = document.getElementById('apiKey').value;
-      const modelName = document.getElementById('modelName').value;
       const systemPrompt = document.getElementById('systemPrompt').value;
       const isBotActive = document.getElementById('isBotActive').checked;
 
-      if (aiProvider === 'openrouter') {
-        userDataCache.openrouterApiKey = apiKeyValue;
-      } else {
-        userDataCache.orcarouterApiKey = apiKeyValue;
-      }
-
       const payload = {
-        aiProvider,
-        openrouterApiKey: userDataCache.openrouterApiKey,
-        orcarouterApiKey: userDataCache.orcarouterApiKey,
-        modelName,
         systemPrompt,
         isBotActive
       };
