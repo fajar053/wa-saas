@@ -241,7 +241,12 @@
 
     const socket = io();
     let currentUserPlan = 'free';
-    let userDataCache = {};
+    let userDataCache = {
+      aiProvider: 'openrouter',
+      openrouterApiKey: '',
+      orcarouterApiKey: '',
+      modelName: ''
+    };
 
     const openRouterModels = [
       { id: "cohere/north-mini-code:free", name: "Cohere North Mini Code (Free)" },
@@ -268,7 +273,6 @@
     function populateModels(provider, selectedModel = "") {
       const select = document.getElementById('modelName');
       select.innerHTML = "";
-      
       const models = provider === "orcarouter" ? orcaRouterModels : openRouterModels;
       
       models.forEach(m => {
@@ -285,11 +289,13 @@
       const label = document.getElementById('apiKeyLabel');
       const apiKeyInput = document.getElementById('apiKey');
 
-      // Simpan input key saat ini ke cache sebelum berpindah tampilan input
-      if (userDataCache.aiProvider) {
-        if (userDataCache.aiProvider === 'openrouter') userDataCache.openrouterApiKey = apiKeyInput.value;
-        else userDataCache.orcarouterApiKey = apiKeyInput.value;
+      if (userDataCache.aiProvider === 'openrouter') {
+        userDataCache.openrouterApiKey = apiKeyInput.value;
+      } else {
+        userDataCache.orcarouterApiKey = apiKeyInput.value;
       }
+
+      userDataCache.aiProvider = provider;
 
       if (provider === 'orcarouter') {
         label.innerText = 'OrcaRouter API Key';
@@ -301,7 +307,6 @@
         apiKeyInput.value = userDataCache.openrouterApiKey || '';
       }
 
-      userDataCache.aiProvider = provider;
       populateModels(provider, userDataCache.modelName);
     }
 
@@ -332,7 +337,13 @@
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        userDataCache = data;
+        
+        userDataCache = {
+          aiProvider: data.aiProvider || 'openrouter',
+          openrouterApiKey: data.openrouterApiKey || '',
+          orcarouterApiKey: data.orcarouterApiKey || '',
+          modelName: data.modelName || ''
+        };
 
         currentUserPlan = data.plan || 'free';
 
@@ -340,15 +351,16 @@
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
         document.getElementById('userAvatar').src = data.profilePicture;
 
-        const provider = data.aiProvider || 'openrouter';
-        document.getElementById('aiProvider').value = provider;
-        document.getElementById('apiKey').value = provider === 'orcarouter' ? (data.orcarouterApiKey || '') : (data.openrouterApiKey || '');
+        document.getElementById('aiProvider').value = userDataCache.aiProvider;
+        document.getElementById('apiKey').value = userDataCache.aiProvider === 'orcarouter' 
+          ? userDataCache.orcarouterApiKey 
+          : userDataCache.openrouterApiKey;
+
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
-        populateModels(provider, data.modelName);
+        populateModels(userDataCache.aiProvider, data.modelName);
 
-        // Update Kuota Stat
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
 
         if (currentUserPlan !== 'premium') {
@@ -370,10 +382,18 @@
       const systemPrompt = document.getElementById('systemPrompt').value;
       const isBotActive = document.getElementById('isBotActive').checked;
 
+      if (aiProvider === 'openrouter') {
+        userDataCache.openrouterApiKey = apiKeyValue;
+      } else {
+        userDataCache.orcarouterApiKey = apiKeyValue;
+      }
+      userDataCache.aiProvider = aiProvider;
+      userDataCache.modelName = modelName;
+
       const payload = {
         aiProvider,
-        openrouterApiKey: aiProvider === 'openrouter' ? apiKeyValue : userDataCache.openrouterApiKey,
-        orcarouterApiKey: aiProvider === 'orcarouter' ? apiKeyValue : userDataCache.orcarouterApiKey,
+        openrouterApiKey: userDataCache.openrouterApiKey,
+        orcarouterApiKey: userDataCache.orcarouterApiKey,
         modelName,
         systemPrompt,
         isBotActive
@@ -398,7 +418,7 @@
 
     async function generatePrompt(mode) {
       if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
-        alert("🔒 Fitur Auto-Generate 'Sangat Detail (~700 kata)' khusus untuk pengguna Premium Plan!\n\nSilakan klik menu 'Upgrade Premium' di sidebar untuk berlangganan 49rb/bulan.");
+        alert("🔒 Fitur Auto-Generate 'Sangat Detail (~700 kata)' khusus untuk pengguna Premium Plan!");
         return;
       }
 
@@ -446,12 +466,10 @@
       }
     }
 
-    // Helper Auto Delete Chat Log > 5 Menit
     const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
     function appendLogElement(element) {
       const box = document.getElementById('chatLogBox');
-      
       const emptyNotice = box.querySelector('p.italic');
       if (emptyNotice) emptyNotice.remove();
 
@@ -466,7 +484,6 @@
       }, FIVE_MINUTES_MS);
     }
 
-    // Socket.io Handlers
     socket.emit('start-bot', token);
 
     socket.on('status', (status) => {

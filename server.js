@@ -101,8 +101,8 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
     apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
     defaultModels = [
       modelCandidate,
+      "deepseek/deepseek-v4-flash-free",
       "orcarouter/free",
-      "orcarouter/auto",
       "qwen/qwen3.8-27b-free"
     ];
     siteTitle = "OrcaRouter Gateway";
@@ -112,7 +112,7 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
 
   for (const model of uniqueModels) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
       const response = await fetch(apiBaseUrl, {
@@ -518,17 +518,28 @@ app.get("/api/config", verifyToken, async (req, res) => {
 });
 
 app.post("/api/config", verifyToken, async (req, res) => {
-  const { aiProvider, openrouterApiKey, orcarouterApiKey, modelName, systemPrompt, isBotActive } = req.body;
-  
-  const updateData = { aiProvider, modelName, systemPrompt, isBotActive };
-  if (aiProvider === "openrouter") {
-    updateData.openrouterApiKey = openrouterApiKey;
-  } else {
-    updateData.orcarouterApiKey = orcarouterApiKey;
-  }
+  try {
+    const { aiProvider, openrouterApiKey, orcarouterApiKey, modelName, systemPrompt, isBotActive } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
-  await User.findByIdAndUpdate(req.user.userId, updateData);
-  res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
+    user.aiProvider = aiProvider;
+    user.modelName = modelName;
+    user.systemPrompt = systemPrompt;
+    user.isBotActive = isBotActive;
+
+    if (openrouterApiKey !== undefined && openrouterApiKey.trim() !== "") {
+      user.openrouterApiKey = openrouterApiKey;
+    }
+    if (orcarouterApiKey !== undefined && orcarouterApiKey.trim() !== "") {
+      user.orcarouterApiKey = orcarouterApiKey;
+    }
+
+    await user.save();
+    res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // 8. AUTO GENERATE SYSTEM PROMPT VIA NATIVE FETCH
@@ -680,7 +691,7 @@ app.post("/api/whatsapp/reset", verifyToken, async (req, res) => {
   }
 });
 
-// --- MONGODB AUTH STATE BAILEYS (FIX BAD MAC & SESSION CORRUPTION) ---
+// --- MONGODB AUTH STATE BAILEYS ---
 async function useMongoDBAuthState(userId) {
   let session = await Session.findOne({ userId: String(userId) });
   let creds;
@@ -692,7 +703,6 @@ async function useMongoDBAuthState(userId) {
       creds = parsed.creds || initAuthCreds();
       keys = parsed.keys || {};
     } catch (e) {
-      console.warn(`⚠️ Session data corrupt for user ${userId}, re-initializing...`);
       creds = initAuthCreds();
       keys = {};
     }
@@ -749,7 +759,6 @@ async function autoStartAllSessions() {
     const sessions = await Session.find({});
     for (const session of sessions) {
       if (!activeSessions.has(String(session.userId)) && !isStartingSession.has(String(session.userId))) {
-        console.log(`🔄 Restoring WA Session for User ID: ${session.userId}`);
         startUserBot(session.userId);
       }
     }
@@ -827,7 +836,6 @@ async function startUserBot(userId, socket = null) {
       }
     });
 
-    // EVENT LISTENER PESAN MASUK
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
         const { messages, type } = chatUpdate;
@@ -836,7 +844,6 @@ async function startUserBot(userId, socket = null) {
         for (const msg of messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
 
-          // 1. CEK BOT ACTIVE
           const user = await User.findById(strUserId);
           if (!user || !user.isBotActive) continue;
 
@@ -848,7 +855,6 @@ async function startUserBot(userId, socket = null) {
 
           if (!text) continue;
 
-          // 2. KARENA BOT ACTIVE = ON -> Tandai Centang Biru (Read)
           try {
             await sock.readMessages([{
               remoteJid: msg.key.remoteJid,
@@ -862,7 +868,6 @@ async function startUserBot(userId, socket = null) {
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
           const targetSocket = userSockets.get(strUserId);
 
-          // Realtime Chat Log Pesan Masuk
           targetSocket?.emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             timestamp: Date.now(),
@@ -893,7 +898,6 @@ async function startUserBot(userId, socket = null) {
             continue;
           }
 
-          // 3. KELOLA MEMORI PERCAKAPAN (3-Day Reset Policy)
           let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
           if (!conv) {
             conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
@@ -909,7 +913,6 @@ async function startUserBot(userId, socket = null) {
             wasMemoryReset = true;
           }
 
-          // Deteksi Otomatis Nama Pengirim jika belum pernah tersimpan
           if (!conv.knownName) {
             const nameMatch = text.match(/(?:nama aku|namaku|aku|panggil aku|nama saya)\s+([a-zA-Z]+)/i);
             if (nameMatch && nameMatch[1]) {
@@ -917,10 +920,8 @@ async function startUserBot(userId, socket = null) {
             }
           }
 
-          // Catat pesan pengguna ke memori
           conv.messages.push({ role: "user", content: text });
 
-          // Susun Konteks Dynamic Prompt
           let dynamicSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
 
           if (conv.knownName) {
@@ -928,7 +929,7 @@ async function startUserBot(userId, socket = null) {
           }
 
           if (wasMemoryReset) {
-            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar. Jika pengguna menanyakan obrolan atau topik masa lalu yang tidak ada di konteks, sampaikan dengan ramah dan santai sesuai gaya bahasamu bahwa riwayat chat sebelumnya telah diperbarui/direset agar sistem berjalan dengan lancar.`;
+            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar.`;
           }
 
           const historyForAI = conv.messages.slice(-20).map(m => ({
@@ -941,7 +942,6 @@ async function startUserBot(userId, socket = null) {
             ...historyForAI
           ];
 
-          // 4. PEMROSESAN BALASAN AI VIA MULTI-PROVIDER FETCH
           try {
             const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
             const provider = user.aiProvider || "openrouter";
@@ -955,11 +955,9 @@ async function startUserBot(userId, socket = null) {
               senderNumber
             );
 
-            // Simpan balasan AI ke riwayat
             conv.messages.push({ role: "assistant", content: reply });
             await conv.save();
 
-            // Kirim pesan balasan ke WA
             await sock.sendMessage(msg.key.remoteJid, { text: reply });
             await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
@@ -991,7 +989,6 @@ async function startUserBot(userId, socket = null) {
   }
 }
 
-// SOCKET.IO REALTIME
 io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
