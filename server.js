@@ -86,12 +86,10 @@ const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 const processedMsgIds = new Set();
+const messageBuffers = new Map();
 
-// QUEUE MAP UNTUK MENAMPUNG PESAN BERUNTUN & MEMBERIKAN DELAY (DEBOUNCE)
-const messageBuffers = new Map(); 
-
-// --- HELPER MULTI-PROVIDER AI (OPENROUTER & ORCAROUTER) ---
-async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "") {
+// --- HELPER MULTI-PROVIDER AI DENGAN TIMEOUT 60 DETIK ---
+async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "", timeoutMs = 60000) {
   let apiBaseUrl = "https://openrouter.ai/api/v1/chat/completions";
   let defaultModels = [
     modelCandidate,
@@ -107,7 +105,8 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
       modelCandidate,
       "deepseek/deepseek-v4-flash-free",
       "orcarouter/free",
-      "qwen/qwen3.8-27b-free"
+      "qwen/qwen3.8-27b-free",
+      "tencent/hy3-free"
     ];
     siteTitle = "OrcaRouter Gateway";
   }
@@ -116,7 +115,7 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
 
   for (const model of uniqueModels) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs); // Timeout dinaikkan ke 60 detik
 
     try {
       const response = await fetch(apiBaseUrl, {
@@ -157,7 +156,7 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
       }
 
     } catch (err) {
-      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection Error: ${err.message}`);
+      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection/Timeout Error: ${err.message}`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -547,7 +546,7 @@ app.post("/api/config", verifyToken, async (req, res) => {
   }
 });
 
-// 8. AUTO GENERATE SYSTEM PROMPT VIA NATIVE FETCH
+// 8. AUTO GENERATE SYSTEM PROMPT DENGAN CROSS-PROVIDER FALLBACK & 60s TIMEOUT
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
@@ -564,11 +563,13 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
     }
 
-    const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
-    if (!activeKey || !activeKey.trim()) {
+    const primaryProvider = user.aiProvider || "openrouter";
+    const primaryKey = (primaryProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
+
+    if (!primaryKey || !primaryKey.trim()) {
       return res.status(400).json({ 
         success: false, 
-        message: `API Key untuk provider ${user.aiProvider} belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!` 
+        message: `API Key untuk provider ${primaryProvider} belum diisi. Masukkan API Key kamu terlebih dahulu!` 
       });
     }
 
@@ -588,7 +589,25 @@ Aturan Pembuatan:
       { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
     ];
 
-    const generatedPrompt = await fetchAIResponse(user.aiProvider || "openrouter", activeKey, messages, user.modelName);
+    let generatedPrompt = "";
+
+    try {
+      // Coba provider utama dengan timeout 60 detik
+      generatedPrompt = await fetchAIResponse(primaryProvider, primaryKey, messages, user.modelName, null, "", 60000);
+    } catch (primaryErr) {
+      console.warn(`⚠️ Primary Provider [${primaryProvider}] failed for generate-prompt. Trying fallback provider...`);
+      
+      // Jika OrcaRouter gagal, otomatis coba OpenRouter (dan sebaliknya)
+      const fallbackProvider = primaryProvider === "orcarouter" ? "openrouter" : "orcarouter";
+      const fallbackKey = fallbackProvider === "orcarouter" ? user.orcarouterApiKey : (user.openrouterApiKey || user.apiKey);
+
+      if (fallbackKey && fallbackKey.trim()) {
+        generatedPrompt = await fetchAIResponse(fallbackProvider, fallbackKey, messages, "", null, "", 60000);
+      } else {
+        throw primaryErr; // Lempar error jika provider cadangan tidak memiliki API Key
+      }
+    }
+
     res.json({ success: true, generatedPrompt });
 
   } catch (err) {
@@ -772,7 +791,7 @@ async function autoStartAllSessions() {
   }
 }
 
-// --- PEMROSESAN PEMBALASAN AI (EXECUTIVE WORKER) ---
+// --- PEMROSESAN PEMBALASAN AI ---
 async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, targetSocket) {
   try {
     const user = await User.findById(strUserId);
@@ -822,7 +841,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       }
     }
 
-    // Catat seluruh teks gabungan sebagai 1 masukan pengguna
     conv.messages.push({ role: "user", content: combinedText });
 
     let dynamicSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
@@ -860,7 +878,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim 1 balasan tunggal ke pengirim
     await sock.sendMessage(remoteJid, { text: reply });
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
@@ -993,7 +1010,6 @@ async function startUserBot(userId, socket = null) {
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
           const targetSocket = userSockets.get(strUserId);
 
-          // Tampilkan log pesan masuk di dashboard secara realtime
           targetSocket?.emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             timestamp: Date.now(),
@@ -1002,7 +1018,6 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
-          // FITUR DEBOUNCE & AGGREGATION: Gabungkan chat beruntun & berikan delay 25 detik
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { messages: [], timer: null });
@@ -1011,21 +1026,17 @@ async function startUserBot(userId, socket = null) {
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
 
-          // Reset timer jika ada pesan baru masuk dari orang yang sama
           if (buf.timer) {
             clearTimeout(buf.timer);
           }
 
-          // Set timer untuk menunggu 25 detik setelah pesan TERAKHIR masuk
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            
-            // Eksekusi pembalasan AI dengan 1 teks gabungan
             await handleAIBotReply(strUserId, senderNumber, msg.key.remoteJid, combinedText, sock, targetSocket);
-          }, 25000); // Jeda 25 detik (menutupi batas 20 detik chat beruntun + delay balasan)
+          }, 25000);
 
         }
       } catch (upsertErr) {
