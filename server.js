@@ -23,6 +23,7 @@ import pino from "pino";
 import User from "./models/User.js";
 import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
+import Transaction from "./models/Transaction.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -317,6 +318,107 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     res.json({ success: true, generatedPrompt });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA (RP 15.000) ---
+
+// 1. ENDPOINT BUAT TAGIHAN TRANSFER + KODE UNIK
+app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const baseAmount = 15000;
+
+    // Cek apakah user sudah punya tagihan pending
+    let existingTx = await Transaction.findOne({ userId, status: "pending" });
+    if (existingTx) {
+      return res.json({
+        success: true,
+        data: {
+          orderId: existingTx.orderId,
+          totalAmount: existingTx.totalAmount,
+          uniqueCode: existingTx.uniqueCode,
+          bankName: "BCA",
+          accountNumber: "1234567890", // Ganti dengan No Rekening kamu
+          accountHolder: "Muhammad Fajar Firdaus" // Ganti Nama Pemilik Rekening
+        }
+      });
+    }
+
+    // Generate 3 digit kode unik acak (100 - 999) yang tidak sedang digunakan
+    let uniqueCode;
+    let isCodeTaken = true;
+    while (isCodeTaken) {
+      uniqueCode = Math.floor(100 + Math.random() * 900);
+      const checkTx = await Transaction.findOne({ totalAmount: baseAmount + uniqueCode, status: "pending" });
+      if (!checkTx) isCodeTaken = false;
+    }
+
+    const totalAmount = baseAmount + uniqueCode;
+    const orderId = `INV-${Date.now()}`;
+
+    await Transaction.create({
+      userId,
+      orderId,
+      baseAmount,
+      uniqueCode,
+      totalAmount
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orderId,
+        totalAmount,
+        uniqueCode,
+        bankName: "BCA", // Ganti dengan Bank kamu
+        accountNumber: "1234567890", // Ganti No Rekening
+        accountHolder: "Muhammad Fajar Firdaus"
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. WEBHOOK RECEIVER DARI MOOTA
+app.post("/api/subscribe/moota-webhook", async (req, res) => {
+  try {
+    const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
+    const incomingSignature = req.headers["signature"] || req.headers["secret-token"];
+
+    if (mootaSecret && incomingSignature !== mootaSecret) {
+      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
+    }
+
+    const mutations = Array.isArray(req.body) ? req.body : [req.body];
+
+    for (const item of mutations) {
+      if (item.type === "CR" || item.type === "credit") {
+        const amountReceived = Number(item.amount);
+
+        const tx = await Transaction.findOne({ totalAmount: amountReceived, status: "pending" });
+
+        if (tx) {
+          tx.status = "completed";
+          await tx.save();
+
+          await User.findByIdAndUpdate(tx.userId, {
+            plan: "premium",
+            dailyLimit: "Unlimited"
+          });
+
+          console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} diupgrade ke Premium.`);
+        }
+      }
+    }
+
+    res.status(200).json({ status: "success" });
+
+  } catch (err) {
+    console.error("❌ Moota Webhook Error:", err.message);
+    res.status(500).json({ status: "error", message: err.message });
   }
 });
 
