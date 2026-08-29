@@ -338,8 +338,8 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
           orderId: existingTx.orderId,
           totalAmount: existingTx.totalAmount,
           uniqueCode: existingTx.uniqueCode,
-          bankName: "BCA",
-          accountNumber: "1234567890", // Silakan sesuaikan nomor rekening
+          bankName: "BNI",
+          accountNumber: "1275951171",
           accountHolder: "Muhammad Fajar Firdaus"
         }
       });
@@ -371,8 +371,8 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
         orderId,
         totalAmount,
         uniqueCode,
-        bankName: "BCA",
-        accountNumber: "1234567890", // Silakan sesuaikan nomor rekening
+        bankName: "BNI",
+        accountNumber: "1275951171",
         accountHolder: "Muhammad Fajar Firdaus"
       }
     });
