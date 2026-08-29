@@ -118,11 +118,14 @@
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
           <div class="flex justify-between items-center">
             <span class="text-slate-400">Bank Tujuan:</span>
-            <span id="modalBank" class="font-bold text-slate-100">BCA</span>
+            <div class="flex items-center gap-2">
+              <img src="https://upload.wikimedia.org/wikipedia/id/5/55/BNI_logo.svg" alt="BNI Logo" class="h-4 object-contain bg-white px-1.5 py-0.5 rounded">
+              <span id="modalBank" class="font-bold text-slate-100">BNI</span>
+            </div>
           </div>
           <div class="flex justify-between items-center">
             <span class="text-slate-400">No. Rekening:</span>
-            <span id="modalAccountNum" class="font-bold text-indigo-400 text-sm">1234567890</span>
+            <span id="modalAccountNum" class="font-bold text-indigo-400 text-sm">1275951171</span>
           </div>
           <div class="flex justify-between items-center">
             <span class="text-slate-400">Atas Nama:</span>
@@ -177,9 +180,9 @@
         const data = await res.json();
         
         if (data.success) {
-          document.getElementById('modalBank').innerText = data.data.bankName;
-          document.getElementById('modalAccountNum').innerText = data.data.accountNumber;
-          document.getElementById('modalAccountHolder').innerText = data.data.accountHolder;
+          document.getElementById('modalBank').innerText = data.data.bankName || 'BNI';
+          document.getElementById('modalAccountNum').innerText = data.data.accountNumber || '1275951171';
+          document.getElementById('modalAccountHolder').innerText = data.data.accountHolder || 'Muhammad Fajar Firdaus';
           document.getElementById('modalTotalAmount').innerText = `Rp ${data.data.totalAmount.toLocaleString('id-ID')}`;
           
           document.getElementById('paymentModal').classList.remove('hidden');
