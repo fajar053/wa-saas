@@ -56,15 +56,12 @@
       <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
         <i data-lucide="graduation-cap" class="w-6 h-6 text-indigo-400"></i> Pusat Panduan & Tutorial
       </h2>
-      <p class="text-xs text-slate-400 mt-1">Pelajari cara mengoperasikan WA AutoBot AI mulai dari konfigurasi dasar hingga pengoperasian fitur lanjutan.</p>
+      <p class="text-xs text-slate-400 mt-1">Pelajari cara mengoperasikan WA AutoBot AI mulai dari penautan WhatsApp hingga pelatihan instruksi AI.</p>
     </div>
 
     <!-- Navigation Tabs -->
     <div class="flex items-center gap-2 border-b border-slate-800 overflow-x-auto pb-1">
-      <button onclick="switchTab('openrouter')" id="tab-openrouter" class="tab-btn active border-b-2 border-indigo-500 text-indigo-400 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
-        <i data-lucide="key" class="w-4 h-4"></i> API Key OpenRouter
-      </button>
-      <button onclick="switchTab('connect-wa')" id="tab-connect-wa" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
+      <button onclick="switchTab('connect-wa')" id="tab-connect-wa" class="tab-btn active border-b-2 border-indigo-500 text-indigo-400 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
         <i data-lucide="qr-code" class="w-4 h-4"></i> Koneksi WhatsApp
       </button>
       <button onclick="switchTab('prompt-ai')" id="tab-prompt-ai" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
@@ -75,47 +72,8 @@
       </button>
     </div>
 
-    <!-- TAB 1: OpenRouter API Key -->
-    <div id="content-openrouter" class="tab-content space-y-6">
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="video" class="w-4 h-4 text-indigo-400"></i> Video Tutorial: Cara Mendapatkan API Key OpenRouter
-        </h3>
-        
-        <!-- Slot Video YouTube -->
-        <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
-          <iframe 
-            class="w-full h-full" 
-            src="https://www.youtube.com/embed/dQw4w9WgXcQ" 
-            title="Tutorial API Key OpenRouter" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-          </iframe>
-        </div>
-        <p class="text-[11px] text-slate-400 italic text-center">*Ganti URL video embed di atas dengan link video tutorial YouTube milikmu.</p>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="list-checks" class="w-4 h-4 text-indigo-400"></i> Langkah-Langkah Tertulis
-        </h3>
-
-        <ol class="space-y-3 text-xs text-slate-300 list-decimal list-inside leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <li>Buka situs resmi OpenRouter di <a href="https://openrouter.ai/" target="_blank" class="text-indigo-400 font-bold hover:underline">openrouter.ai</a>.</li>
-          <li>Klik tombol <strong>Sign In</strong> di pojok kanan atas, lalu masuk menggunakan akun <strong>Google</strong> atau <strong>GitHub</strong> kamu.</li>
-          <li>Jika ada konfirmasi persyaratan, klik <strong>Continue</strong> dan selesaikan instruksi awal.</li>
-          <li>Masuk ke menu <strong>API Keys</strong> atau buka langsung di <a href="https://openrouter.ai/keys" target="_blank" class="text-indigo-400 font-bold hover:underline">openrouter.ai/keys</a>.</li>
-          <li>Klik tombol <strong class="text-indigo-300">"Create Key"</strong>.</li>
-          <li>Beri nama key tersebut (misal: <em>WA AutoBot AI</em>), lalu klik <strong>Create</strong>.</li>
-          <li>Salin (copy) Kunci API yang muncul (diawali <code class="bg-slate-800 text-amber-300 px-1 py-0.5 rounded">sk-or-v1-...</code>).</li>
-          <li>Tempelkan (paste) Kunci API tersebut pada form <strong>OpenRouter API Key</strong> di halaman Dashboard WA AutoBot AI kamu, lalu simpan.</li>
-        </ol>
-      </div>
-    </div>
-
-    <!-- TAB 2: Koneksi WhatsApp -->
-    <div id="content-connect-wa" class="tab-content hidden space-y-6">
+    <!-- TAB 1: Koneksi WhatsApp -->
+    <div id="content-connect-wa" class="tab-content space-y-6">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
         <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
           <i data-lucide="video" class="w-4 h-4 text-indigo-400"></i> Video Tutorial: Menghubungkan Nomor WhatsApp
@@ -152,7 +110,7 @@
       </div>
     </div>
 
-    <!-- TAB 3: Prompt AI & Auto Generate -->
+    <!-- TAB 2: Prompt AI & Auto Generate -->
     <div id="content-prompt-ai" class="tab-content hidden space-y-6">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
         <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
@@ -183,7 +141,7 @@
           
           <p><strong>Cara Menggunakan Fitur Auto-Generate:</strong></p>
           <ul class="list-disc list-inside space-y-1.5 pl-2 text-slate-400">
-            <li>Ketikkan draf ringkas mengenai peran bot kamu di kolom textarea (misal: <em>"Kamu adalah CS toko online batik di Palangkaraya yang ramah"</em>).</li>
+            <li>Ketikkan draf ringkas mengenai peran bot kamu di kolom textarea (misal: <em>"Kamu adalah CS toko online batik yang ramah"</em>).</li>
             <li>Klik tombol <strong class="text-indigo-400">Detail (~100 kata)</strong> untuk pengguna Free/Premium.</li>
             <li>Khusus pengguna <strong class="text-amber-400">Premium Plan</strong>, kamu bisa klik tombol <strong class="text-purple-400">Sangat Detail (~700 kata)</strong> untuk menghasilkan instruksi komprehensif lengkap dengan peran, gaya bahasa, batasan, dan contoh respon.</li>
             <li>Setelah Prompt terisi otomatis, klik <strong>Simpan Pengaturan</strong>.</li>
@@ -192,7 +150,7 @@
       </div>
     </div>
 
-    <!-- TAB 4: Fitur Lainnya -->
+    <!-- TAB 3: Fitur Lainnya -->
     <div id="content-other-features" class="tab-content hidden space-y-6">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
         <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
@@ -221,17 +179,17 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
             <h4 class="font-bold text-indigo-400 flex items-center gap-1.5"><i data-lucide="power" class="w-4 h-4"></i> Switch Aktifkan Respon Otomatis</h4>
-            <p class="text-slate-400 leading-relaxed">Jika sakelar ini dimatikan (Off), bot secara otomatis nonaktif: <strong>tidak akan membaca chat (tidak centang biru)</strong>, tidak merespon AI, dan tidak memuat log.</p>
+            <p class="text-slate-400 leading-relaxed">Jika sakelar ini dimatikan (Off), bot secara otomatis nonaktif: <strong>tidak akan membaca chat</strong>, tidak merespon AI, dan tidak memuat log.</p>
           </div>
 
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-emerald-400 flex items-center gap-1.5"><i data-lucide="history" class="w-4 h-4"></i> Memori & Reset Chat 3 Hari</h4>
-            <p class="text-slate-400 leading-relaxed">Bot menyimpan riwayat percakapan agar obrolan bersambung. Setiap 3 hari sekali riwayat chat lama akan direset otomatis, namun <strong>nama pengguna tetap diikat</strong> sehingga bot tidak akan menanyakan nama lagi.</p>
+            <h4 class="font-bold text-emerald-400 flex items-center gap-1.5"><i data-lucide="history" class="w-4 h-4"></i> Memori & Reset Chat</h4>
+            <p class="text-slate-400 leading-relaxed">Bot menyimpan riwayat percakapan agar obrolan bersambung secara alami. Riwayat disinkronkan secara realtime dengan model AI.</p>
           </div>
 
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-purple-400 flex items-center gap-1.5"><i data-lucide="bot" class="w-4 h-4"></i> Pemilihan Model AI</h4>
-            <p class="text-slate-400 leading-relaxed">Kamu dapat memilih model AI bawaan OpenRouter di dropdown dashboard. Jika model pilihan kamu mengalami gangguan, sistem secara otomatis mengalihkan ke model cadangan gratis terstabil.</p>
+            <h4 class="font-bold text-purple-400 flex items-center gap-1.5"><i data-lucide="bot" class="w-4 h-4"></i> Mesin AI Berkecepatan Tinggi</h4>
+            <p class="text-slate-400 leading-relaxed">Sistem secara otomatis terhubung ke engine AI super cepat DeepSeek V4 Flash untuk menjamin respon singkat dan akurat.</p>
           </div>
 
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
@@ -264,15 +222,12 @@
     }
 
     function switchTab(tabId) {
-      // Sembunyikan semua tab content
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      // Reset style tombol tab
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('border-b-2', 'border-indigo-500', 'text-indigo-400');
         btn.classList.add('text-slate-400');
       });
 
-      // Tampilkan tab aktif
       document.getElementById(`content-${tabId}`).classList.remove('hidden');
       const activeBtn = document.getElementById(`tab-${tabId}`);
       activeBtn.classList.remove('text-slate-400');
