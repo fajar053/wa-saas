@@ -59,6 +59,9 @@ function rotateApiKey() {
   console.warn(`🔄 [ROTASI API KEY] Berpindah ke Key #${currentKeyIndex + 1}`);
 }
 
+// HELPER SLEEP JEDA SMART RATE LIMIT
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -104,12 +107,11 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- HELPER CALL ORCAROUTER API (AUTO ROTASI API KEY & MODEL FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 25000) {
+// --- HELPER CALL ORCAROUTER API (AUTO ROTASI API KEY, MODEL FAILOVER & ANTI-RATE LIMIT) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 20000) {
   const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
 
   for (const model of FALLBACK_MODELS) {
-    // Mencoba seluruh API key yang ada per model jika terjadi error/timeout
     for (let keyAttempt = 0; keyAttempt < ORCAROUTER_API_KEYS.length; keyAttempt++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -136,16 +138,15 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
 
         if (!response.ok) {
           const errText = await response.text();
-          console.warn(`⚠️ [API ERROR ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal: ${errText}`);
+          console.warn(`⚠️ [API ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal: ${errText}`);
           
-          rotateApiKey(); // Rotasi otomatis ke API Key berikutnya
-          
-          if (strUserId) {
-            io.to(strUserId).emit("error-log", {
-              time: new Date().toLocaleTimeString(),
-              message: `[Failover] Model "${model}" error (${response.status}). Rotasi ke Key #${currentKeyIndex + 1}...`,
-              from: senderNumber || "Sistem"
-            });
+          rotateApiKey();
+
+          // Jeda eksekusi jika terkena Rate Limit 429
+          if (response.status === 429) {
+            await sleep(1500);
+          } else {
+            await sleep(500);
           }
           continue;
         }
@@ -159,13 +160,14 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
 
       } catch (err) {
         clearTimeout(timeoutId);
-        console.warn(`⚠️ [FAILOVER] Model "${model}" Key #${currentKeyIndex + 1} Error/Timeout: ${err.message}. Rotasi Key...`);
-        rotateApiKey(); // Rotasi jika request timeout / jaringan bermasalah
+        console.warn(`⚠️ [FAILOVER TIMEOUT] Model "${model}" Key #${currentKeyIndex + 1}: ${err.message}`);
+        rotateApiKey();
+        await sleep(1000);
       }
     }
   }
 
-  throw new Error("Seluruh kombinasi API Key dan Model AI sedang tidak merespon.");
+  throw new Error("Server AI sedang sibuk (Rate Limit / Timeout). Silakan coba beberapa saat lagi.");
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
