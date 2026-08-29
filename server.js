@@ -87,19 +87,14 @@ const connectedFlags = new Set();
 const userSockets = new Map();
 
 // --- HELPER OPENROUTER API VIA NATIVE FETCH (OPTIMIZED MEMORY & FAST FALLBACK) ---
-async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "openrouter/auto", targetSocket = null, senderNumber = "") {
+async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "nvidia/nemotron-3-ultra-550b-a55b:free", targetSocket = null, senderNumber = "") {
   
   const modelsToTry = [
     modelCandidate,
-    "openrouter/auto",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
     "openrouter/free",
-    "openrouter/auto-beta",
-    "openrouter/fusion",
-    "dots-studio/dots-3-note-preview:free",
-    "inclusionai/ling-3.0-flash-fin:free",
-    "z-ai/glm-5.2:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "minimax/minimax-m3:free"
+    "minimax/minimax-m3:free",
+    "cohere/north-mini-code:free"
   ];
 
   const uniqueModels = [...new Set(modelsToTry)];
@@ -563,7 +558,7 @@ Aturan Pembuatan:
       { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
     ];
 
-    const generatedPrompt = await fetchOpenRouterAI(user.apiKey, messages, "openrouter/auto");
+    const generatedPrompt = await fetchOpenRouterAI(user.apiKey, messages, "nvidia/nemotron-3-ultra-550b-a55b:free");
     res.json({ success: true, generatedPrompt });
 
   } catch (err) {
@@ -933,7 +928,7 @@ async function startUserBot(userId, socket = null) {
 
           // 4. PEMROSESAN BALASAN AI VIA NATIVE FETCH
           try {
-            const selectedModel = user.modelName || "openrouter/auto";
+            const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
             const reply = await fetchOpenRouterAI(
               user.apiKey, 

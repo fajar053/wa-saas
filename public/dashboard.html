@@ -87,30 +87,19 @@
             <div>
               <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
               <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-                <optgroup label="✨ OpenRouter System Models">
-                  <option value="openrouter/auto">OpenRouter Auto Router (Sangat Direkomendasikan)</option>
-                  <option value="openrouter/free">OpenRouter Free Tier Default</option>
-                  <option value="openrouter/auto-beta">OpenRouter Auto (Beta)</option>
-                  <option value="openrouter/fusion">OpenRouter Fusion</option>
-                  <option value="openrouter/pareto-code">OpenRouter Pareto Code</option>
-                  <option value="openrouter/bodybuilder">OpenRouter Bodybuilder</option>
-                </optgroup>
-                <optgroup label="⚡ Free Models">
-                  <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI Ling 3.0 Flash Fin (Free)</option>
+                <optgroup label="⚡ Free Models (Diurutkan)">
+                  <option value="cohere/north-mini-code:free">Cohere North Mini Code (Free)</option>
                   <option value="dots-studio/dots-3-note-preview:free">Dots Studio Dots 3 Note (Free)</option>
-                  <option value="liquid/lfm-2.5-2.6b:free">Liquid LFM 2.5 2.6B (Free)</option>
-                  <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free)</option>
-                  <option value="thinkingmachines/inkling-small:free">ThinkingMachines Inkling Small (Free)</option>
-                  <option value="thinkingmachines/inkling:free">ThinkingMachines Inkling (Free)</option>
-                  <option value="poolside/laguna-xs-2.1:free">Poolside Laguna XS 2.1 (Free)</option>
-                  <option value="poolside/laguna-s-2.1:free">Poolside Laguna S 2.1 (Free)</option>
-                  <option value="z-ai/glm-5.2:free">Z-AI GLM 5.2 (Free)</option>
-                  <option value="nvidia/nemotron-3.5-content-safety:free">NVIDIA Nemotron 3.5 Content Safety (Free)</option>
-                  <option value="nvidia/nemotron-3-ultra-550b-a55b:free">NVIDIA Nemotron 3 Ultra 550B (Free)</option>
+                  <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI Ling 3.0 Flash Fin (Free)</option>
+                  <option value="minimax/minimax-m2.7:free">MiniMax M2.7 (Free)</option>
                   <option value="minimax/minimax-m3:free">MiniMax M3 (Free)</option>
                   <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">NVIDIA Nemotron 3 Nano Omni (Free)</option>
-                  <option value="minimax/minimax-m2.7:free">MiniMax M2.7 (Free)</option>
                   <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B (Free)</option>
+                  <option value="nvidia/nemotron-3-ultra-550b-a55b:free">NVIDIA Nemotron 3 Ultra 550B (Free)</option>
+                  <option value="nvidia/nemotron-3.5-content-safety:free">NVIDIA Nemotron 3.5 Content Safety (Free)</option>
+                  <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free)</option>
+                  <option value="poolside/laguna-s-2.1:free">Poolside Laguna S 2.1 (Free)</option>
+                  <option value="poolside/laguna-xs-2.1:free">Poolside Laguna XS 2.1 (Free)</option>
                 </optgroup>
               </select>
             </div>
@@ -297,7 +286,7 @@
         document.getElementById('userAvatar').src = data.profilePicture;
 
         document.getElementById('apiKey').value = data.apiKey || '';
-        document.getElementById('modelName').value = data.modelName || 'openrouter/auto';
+        document.getElementById('modelName').value = data.modelName || 'nvidia/nemotron-3-ultra-550b-a55b:free';
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
