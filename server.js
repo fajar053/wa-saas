@@ -88,6 +88,28 @@ const userSockets = new Map();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
+// --- HELPER DEDUKSI PROVIDER & API KEY TERSEDIA ---
+function resolveAIConfig(user) {
+  let provider = user.aiProvider || "openrouter";
+  let key = provider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
+
+  // Fallback otomatis jika key untuk provider aktif kosong
+  if (!key || !key.trim()) {
+    if (user.openrouterApiKey && user.openrouterApiKey.trim()) {
+      key = user.openrouterApiKey;
+      provider = "openrouter";
+    } else if (user.orcarouterApiKey && user.orcarouterApiKey.trim()) {
+      key = user.orcarouterApiKey;
+      provider = "orcarouter";
+    } else if (user.apiKey && user.apiKey.trim()) {
+      key = user.apiKey;
+      provider = "openrouter";
+    }
+  }
+
+  return { provider, key: key ? key.trim() : "" };
+}
+
 // --- HELPER MULTI-PROVIDER AI DENGAN TIMEOUT 60 DETIK ---
 async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "", timeoutMs = 60000) {
   let apiBaseUrl = "https://openrouter.ai/api/v1/chat/completions";
@@ -115,7 +137,7 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
 
   for (const model of uniqueModels) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs); // Timeout dinaikkan ke 60 detik
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(apiBaseUrl, {
@@ -156,7 +178,7 @@ async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", 
       }
 
     } catch (err) {
-      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection/Timeout Error: ${err.message}`);
+      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection Error: ${err.message}`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -546,7 +568,7 @@ app.post("/api/config", verifyToken, async (req, res) => {
   }
 });
 
-// 8. AUTO GENERATE SYSTEM PROMPT DENGAN CROSS-PROVIDER FALLBACK & 60s TIMEOUT
+// 8. AUTO GENERATE SYSTEM PROMPT
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
@@ -563,13 +585,12 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
     }
 
-    const primaryProvider = user.aiProvider || "openrouter";
-    const primaryKey = (primaryProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
+    const { provider: activeProvider, key: activeKey } = resolveAIConfig(user);
 
-    if (!primaryKey || !primaryKey.trim()) {
+    if (!activeKey) {
       return res.status(400).json({ 
         success: false, 
-        message: `API Key untuk provider ${primaryProvider} belum diisi. Masukkan API Key kamu terlebih dahulu!` 
+        message: `API Key belum dikonfigurasi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!` 
       });
     }
 
@@ -592,19 +613,16 @@ Aturan Pembuatan:
     let generatedPrompt = "";
 
     try {
-      // Coba provider utama dengan timeout 60 detik
-      generatedPrompt = await fetchAIResponse(primaryProvider, primaryKey, messages, user.modelName, null, "", 60000);
+      generatedPrompt = await fetchAIResponse(activeProvider, activeKey, messages, user.modelName, null, "", 60000);
     } catch (primaryErr) {
-      console.warn(`⚠️ Primary Provider [${primaryProvider}] failed for generate-prompt. Trying fallback provider...`);
-      
-      // Jika OrcaRouter gagal, otomatis coba OpenRouter (dan sebaliknya)
-      const fallbackProvider = primaryProvider === "orcarouter" ? "openrouter" : "orcarouter";
+      console.warn(`⚠️ Primary Provider [${activeProvider}] failed for generate-prompt. Trying fallback provider...`);
+      const fallbackProvider = activeProvider === "orcarouter" ? "openrouter" : "orcarouter";
       const fallbackKey = fallbackProvider === "orcarouter" ? user.orcarouterApiKey : (user.openrouterApiKey || user.apiKey);
 
       if (fallbackKey && fallbackKey.trim()) {
         generatedPrompt = await fetchAIResponse(fallbackProvider, fallbackKey, messages, "", null, "", 60000);
       } else {
-        throw primaryErr; // Lempar error jika provider cadangan tidak memiliki API Key
+        throw primaryErr;
       }
     }
 
@@ -797,11 +815,13 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     const user = await User.findById(strUserId);
     if (!user || !user.isBotActive) return;
 
-    const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
-    if (!activeKey || !activeKey.trim()) {
-      const errorMsg = `API Key untuk provider ${user.aiProvider || 'OpenRouter'} belum diisi.`;
+    // Gunakan resolveAIConfig untuk menentukan key dan provider secara fleksibel
+    const { provider, key: activeKey } = resolveAIConfig(user);
+
+    if (!activeKey) {
+      const errorMsg = `API Key belum diisi di dashboard. Pembalasan otomatis dilewati.`;
       targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
-      await sock.sendMessage(remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
+      // CATATAN: Pesan error [Sistem] DITETAPKAN TIDAK DIKIRIM ke obrolan WhatsApp pengguna
       return;
     }
 
@@ -815,7 +835,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     if (user.plan === "free" && user.dailyUsageCount >= 50) {
       const limitMsg = "Batas kuota gratis harian (50 chat) telah tercapai.";
       targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
-      await sock.sendMessage(remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (50/50)." });
       return;
     }
 
@@ -864,7 +883,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     ];
 
     const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
-    const provider = user.aiProvider || "openrouter";
 
     const reply = await fetchAIResponse(
       provider,
