@@ -108,12 +108,11 @@
             <div>
               <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
               <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-                <!-- Opsi model akan diisi dinamis via JavaScript sesuai provider -->
               </select>
             </div>
           </div>
 
-          <!-- System Prompt / Pelatihan Bot dengan Tombol Auto Generate -->
+          <!-- System Prompt -->
           <div class="space-y-3">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label class="block text-xs font-medium text-slate-300">
@@ -229,12 +228,11 @@
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
         <p class="text-slate-400">Ikuti langkah mudah di bawah ini untuk membuat API Key:</p>
-        
         <ol class="space-y-2.5 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-4 rounded-xl">
           <li>Buka situs penyedia pilihan kamu (OpenRouter atau OrcaRouter).</li>
-          <li>Login atau buat akun baru menggunakan akun Anda.</li>
+          <li>Login atau buat akun baru.</li>
           <li>Masuk ke menu API Keys lalu buat key baru (*Create Key*).</li>
-          <li>Salin dan tempelkan (paste) kode kunci tersebut ke kolom API Key di dashboard ini.</li>
+          <li>Salin dan tempelkan kode kunci tersebut ke kolom API Key di dashboard.</li>
         </ol>
       </div>
 
@@ -266,18 +264,13 @@
       { id: "minimax/minimax-m3:free", name: "MiniMax M3 (Free)" },
       { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", name: "NVIDIA Nemotron 3 Nano Omni (Free)" },
       { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "NVIDIA Nemotron 3 Super 120B (Free)" },
-      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "NVIDIA Nemotron 3 Ultra 550B (Free)" },
-      { id: "nvidia/nemotron-3.5-content-safety:free", name: "NVIDIA Nemotron 3.5 Content Safety (Free)" },
-      { id: "nvidia/nemotron-3.5-lightning:free", name: "NVIDIA Nemotron 3.5 Lightning (Free)" },
-      { id: "poolside/laguna-s-2.1:free", name: "Poolside Laguna S 2.1 (Free)" },
-      { id: "poolside/laguna-xs-2.1:free", name: "Poolside Laguna XS 2.1 (Free)" }
+      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "NVIDIA Nemotron 3 Ultra 550B (Free)" }
     ];
 
     const orcaRouterModels = [
       { id: "deepseek/deepseek-v4-flash-free", name: "DeepSeek V4 Flash (Free)" },
       { id: "orcarouter/free", name: "OrcaRouter Free Default" },
-      { id: "qwen/qwen3.8-27b-free", name: "Qwen 3.8 27B (Free)" },
-      { id: "tencent/hy3-free", name: "Tencent HY3 (Free)" }
+      { id: "qwen/qwen3.8-27b-free", name: "Qwen 3.8 27B (Free)" }
     ];
 
     function populateModels(provider, selectedModel = "") {
@@ -370,14 +363,7 @@
         document.getElementById('isBotActive').checked = data.isBotActive;
 
         populateModels(userDataCache.aiProvider, data.modelName);
-
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
-
-        if (currentUserPlan !== 'premium') {
-          document.getElementById('lockIcon').classList.remove('hidden');
-        } else {
-          document.getElementById('lockIcon').classList.add('hidden');
-        }
 
       } catch (err) {
         console.error("Load Config Error:", err);
@@ -397,8 +383,6 @@
       } else {
         userDataCache.orcarouterApiKey = apiKeyValue;
       }
-      userDataCache.aiProvider = aiProvider;
-      userDataCache.modelName = modelName;
 
       const payload = {
         aiProvider,
@@ -421,14 +405,13 @@
         const data = await res.json();
         alert(data.message);
         loadConfig();
-      } catch (err) {
+      } catch {
         alert("Gagal menyimpan pengaturan.");
       }
     }
 
     async function clearAllHistory() {
-      if (!confirm("Apakah Anda yakin ingin menghapus seluruh riwayat percakapan percakapan bot di database? Ini berguna jika bot mengalami macet saat ganti model.")) return;
-
+      if (!confirm("Hapus semua riwayat percakapan di database?")) return;
       try {
         const res = await fetch('/api/history/clear', {
           method: 'POST',
@@ -436,33 +419,22 @@
         });
         const data = await res.json();
         alert(data.message);
-      } catch (err) {
-        alert("Gagal menghapus riwayat percakapan.");
+      } catch {
+        alert("Gagal menghapus riwayat.");
       }
     }
 
     async function generatePrompt(mode) {
-      if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
-        alert("🔒 Fitur Auto-Generate 'Sangat Detail (~700 kata)' khusus untuk pengguna Premium Plan!");
-        return;
-      }
-
       const promptInput = document.getElementById('systemPrompt');
       const text = promptInput.value;
 
       if (!text.trim()) {
-        alert("Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!");
+        alert("Ketikkan instruksi singkat terlebih dahulu!");
         return;
       }
 
-      const btnDetailed = document.getElementById('btnGenDetailed');
-      const btnVeryDetailed = document.getElementById('btnGenVeryDetailed');
-
-      btnDetailed.disabled = true;
-      btnVeryDetailed.disabled = true;
-
       const originalText = promptInput.value;
-      promptInput.value = "🤖 Mengisi & mengembangkan System Prompt menggunakan AI, mohon tunggu sebentar...";
+      promptInput.value = "🤖 Mengisi & mengembangkan System Prompt...";
 
       try {
         const res = await fetch('/api/generate-prompt', {
@@ -475,23 +447,17 @@
         });
 
         const data = await res.json();
-
         if (data.success) {
           promptInput.value = data.generatedPrompt;
         } else {
           alert(data.message);
           promptInput.value = originalText;
         }
-      } catch (err) {
+      } catch {
         alert("Gagal terhubung ke server.");
         promptInput.value = originalText;
-      } finally {
-        btnDetailed.disabled = false;
-        btnVeryDetailed.disabled = false;
       }
     }
-
-    const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
     function appendLogElement(element) {
       const box = document.getElementById('chatLogBox');
@@ -506,7 +472,7 @@
         if (box.children.length === 0) {
           box.innerHTML = '<p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>';
         }
-      }, FIVE_MINUTES_MS);
+      }, 300000);
     }
 
     socket.emit('start-bot', token);
