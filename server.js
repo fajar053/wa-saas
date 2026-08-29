@@ -34,9 +34,30 @@ const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// KONFIGURASI TERKUNCI ORCAROUTER & MODEL
-const ORCAROUTER_API_KEY = "sk-orca-o4Nup6z4W6q4bJ4PqG56F0O4MWYEoos1WYDYRfJt2mA";
-const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-free";
+// DAFTAR MODEL AUTO-FAILOVER & ROTASI API KEY
+const FALLBACK_MODELS = [
+  "deepseek/deepseek-v4-flash-free",
+  "qwen/qwen3.8-27b-free",
+  "orcarouter/free",
+  "tencent/hy3-free"
+];
+
+const ORCAROUTER_API_KEYS = [
+  "sk-orca-oyko9wktmhBn0r6jNScwdZwa5dWuB1XF0WAcXF7IkhP",
+  "sk-orca-gSqaVtc3MQss7xh53pxks4NJ5c9Z87ScWWm9tok0EHr",
+  "sk-orca-iOrMlZVWkpKUE2WIM0LttuwRQSmXaH0yDbIo7Ajyrnq"
+];
+
+let currentKeyIndex = 0;
+
+function getActiveApiKey() {
+  return ORCAROUTER_API_KEYS[currentKeyIndex % ORCAROUTER_API_KEYS.length];
+}
+
+function rotateApiKey() {
+  currentKeyIndex = (currentKeyIndex + 1) % ORCAROUTER_API_KEYS.length;
+  console.warn(`🔄 [ROTASI API KEY] Berpindah ke Key #${currentKeyIndex + 1}`);
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -83,58 +104,68 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- HELPER CALL ORCAROUTER API ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 60000) {
+// --- HELPER CALL ORCAROUTER API (AUTO ROTASI API KEY & MODEL FAILOVER) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 25000) {
   const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetch(apiBaseUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${ORCAROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-        "X-Title": "OrcaRouter Gateway"
-      },
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        messages: messages,
-        route: "fallback"
-      }),
-      signal: controller.signal
-    });
+  for (const model of FALLBACK_MODELS) {
+    // Mencoba seluruh API key yang ada per model jika terjadi error/timeout
+    for (let keyAttempt = 0; keyAttempt < ORCAROUTER_API_KEYS.length; keyAttempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`⚠️ [ORCAROUTER] Model ${DEFAULT_MODEL} Gagal (${response.status}): ${errText}`);
-      
-      if (strUserId) {
-        io.to(strUserId).emit("error-log", {
-          time: new Date().toLocaleTimeString(),
-          message: `[ORCAROUTER] Model "${DEFAULT_MODEL}" gagal (${response.status}).`,
-          from: senderNumber || "Sistem"
+      try {
+        const apiKey = getActiveApiKey();
+        const response = await fetch(apiBaseUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+            "X-Title": "OrcaRouter Gateway"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages,
+            route: "fallback"
+          }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`⚠️ [API ERROR ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal: ${errText}`);
+          
+          rotateApiKey(); // Rotasi otomatis ke API Key berikutnya
+          
+          if (strUserId) {
+            io.to(strUserId).emit("error-log", {
+              time: new Date().toLocaleTimeString(),
+              message: `[Failover] Model "${model}" error (${response.status}). Rotasi ke Key #${currentKeyIndex + 1}...`,
+              from: senderNumber || "Sistem"
+            });
+          }
+          continue;
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          console.log(`✅ Respon AI Berhasil via Model: ${model} (Key #${currentKeyIndex + 1})`);
+          return content;
+        }
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn(`⚠️ [FAILOVER] Model "${model}" Key #${currentKeyIndex + 1} Error/Timeout: ${err.message}. Rotasi Key...`);
+        rotateApiKey(); // Rotasi jika request timeout / jaringan bermasalah
       }
-      throw new Error(`API Error Status: ${response.status}`);
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      console.log(`✅ Respon AI via OrcaRouter: ${DEFAULT_MODEL}`);
-      return content;
-    }
-
-  } catch (err) {
-    console.warn(`⚠️ [ORCAROUTER] Connection Error: ${err.message}`);
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
 
-  throw new Error("Server AI OrcaRouter tidak merespon.");
+  throw new Error("Seluruh kombinasi API Key dan Model AI sedang tidak merespon.");
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -182,7 +213,7 @@ app.post("/api/register", async (req, res) => {
       profilePicture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`
     });
 
-    const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/api/verify-email?token=${verificationToken}`;
+    const verifyLink = `${process.env.APP_URL || 'https://wasaas.my.id'}/api/verify-email?token=${verificationToken}`;
     
     try {
       await resend.emails.send({
@@ -263,7 +294,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
     await user.save();
   }
 
-  // Cek Status Kadaluarsa Premium & Hitung Sisa Hari
   let remainingDays = 0;
   if (user.plan === "premium" && user.expiredAt) {
     const now = new Date();
@@ -335,13 +365,11 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA (1 BULAN & 1 TAHUN) ---
-
-// 1. ENDPOINT BUAT TAGIHAN TRANSFER + KODE UNIK
+// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA ---
 app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { planType } = req.body; // "1_month" atau "1_year"
+    const { planType } = req.body;
 
     let baseAmount = 15000;
     let durationDays = 30;
@@ -351,7 +379,6 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
       durationDays = 365;
     }
 
-    // Cek apakah user sudah punya tagihan pending
     let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
     if (existingTx) {
       return res.json({
@@ -367,7 +394,6 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
       });
     }
 
-    // Generate 3 digit kode unik acak (100 - 999)
     let uniqueCode;
     let isCodeTaken = true;
     while (isCodeTaken) {
@@ -406,7 +432,6 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
   }
 });
 
-// 2. WEBHOOK RECEIVER DARI MOOTA (AKUMULASI SISA HARI)
 app.post("/api/subscribe/moota-webhook", async (req, res) => {
   try {
     const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
@@ -434,10 +459,9 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
             const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
 
             let newExpiredAt;
-            // Jika akun masih aktif Premium, akumulasi durasi ke tanggal expired saat ini
             if (user.plan === "premium" && user.expiredAt && user.expiredAt > now) {
               newExpiredAt = new Date(user.expiredAt.getTime() + durationMs);
-            } else { // Jika baru pertama kali / sudah expired
+            } else {
               newExpiredAt = new Date(now.getTime() + durationMs);
             }
 
@@ -445,7 +469,7 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
             user.expiredAt = newExpiredAt;
             await user.save();
 
-            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} diperbarui aktif hingga ${newExpiredAt.toISOString()}`);
+            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} aktif hingga ${newExpiredAt.toISOString()}`);
           }
         }
       }
@@ -574,12 +598,14 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 
     try {
       reply = await fetchAIResponse(messagesPayload, strUserId, senderNumber);
-    } catch {
-      conv.messages = [{ role: "user", content: combinedText }];
-      reply = await fetchAIResponse([
-        { role: "system", content: user.systemPrompt || "Kamu adalah asisten AI yang ramah." },
-        { role: "user", content: combinedText }
-      ], strUserId, senderNumber);
+    } catch (err) {
+      console.error(`❌ [ALL RETRIES FAILED] ${err.message}`);
+      io.to(strUserId).emit("error-log", {
+        time: new Date().toLocaleTimeString(),
+        message: `Gagal merespon: Seluruh kombinasi API key & model mengalami error/timeout.`,
+        from: senderNumber
+      });
+      return;
     }
 
     conv.messages.push({ role: "assistant", content: reply });
