@@ -86,31 +86,42 @@ const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
 
-// --- HELPER OPENROUTER API VIA NATIVE FETCH (OPTIMIZED MEMORY & FAST FALLBACK) ---
-async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "nvidia/nemotron-3-ultra-550b-a55b:free", targetSocket = null, senderNumber = "") {
-  
-  const modelsToTry = [
+// --- HELPER MULTI-PROVIDER AI (OPENROUTER & ORCAROUTER) ---
+async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "") {
+  let apiBaseUrl = "https://openrouter.ai/api/v1/chat/completions";
+  let defaultModels = [
     modelCandidate,
     "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "openrouter/free",
-    "minimax/minimax-m3:free",
-    "cohere/north-mini-code:free"
+    "poolside/laguna-s-2.1:free",
+    "minimax/minimax-m3:free"
   ];
+  let siteTitle = "WA AutoBot AI";
 
-  const uniqueModels = [...new Set(modelsToTry)];
+  if (provider === "orcarouter") {
+    apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
+    defaultModels = [
+      modelCandidate,
+      "orcarouter/free",
+      "orcarouter/auto",
+      "qwen/qwen3.8-27b-free"
+    ];
+    siteTitle = "OrcaRouter Gateway";
+  }
+
+  const uniqueModels = [...new Set(defaultModels)].filter(Boolean);
 
   for (const model of uniqueModels) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 detik max per request
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const response = await fetch(apiBaseUrl, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": "WA AutoBot AI"
+          "X-Title": siteTitle
         },
         body: JSON.stringify({
           model: model,
@@ -122,41 +133,33 @@ async function fetchOpenRouterAI(apiKey, messages, modelCandidate = "nvidia/nemo
 
       if (!response.ok) {
         const errText = await response.text();
-        console.warn(`⚠️ OpenRouter Model ${model} Failed (${response.status}): ${errText}`);
+        console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Failed (${response.status}): ${errText}`);
         
         if (model === modelCandidate && targetSocket) {
           targetSocket.emit("error-log", {
             time: new Date().toLocaleTimeString(),
-            message: `Model "${modelCandidate}" gagal/error (${response.status}). Otomatis menggunakan model cadangan. Disarankan mengganti Model AI di Dashboard.`,
+            message: `[${provider.toUpperCase()}] Model "${modelCandidate}" error (${response.status}). Berpindah ke model cadangan.`,
             from: senderNumber || "Sistem"
           });
         }
-
         continue;
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
       if (content) {
-        console.log(`✅ AI Response Generated via Model: ${model}`);
+        console.log(`✅ AI Response Generated via [${provider.toUpperCase()}]: ${model}`);
         return content;
       }
 
     } catch (err) {
-      console.warn(`⚠️ OpenRouter Model ${model} Connection Error: ${err.message}`);
-      if (model === modelCandidate && targetSocket) {
-        targetSocket.emit("error-log", {
-          time: new Date().toLocaleTimeString(),
-          message: `Koneksi ke "${modelCandidate}" terputus (${err.message}). Disarankan memilih Model AI lain di Dashboard.`,
-          from: senderNumber || "Sistem"
-        });
-      }
+      console.warn(`⚠️ [${provider.toUpperCase()}] Model ${model} Connection Error: ${err.message}`);
     } finally {
-      clearTimeout(timeoutId); // Bersihkan timer untuk mencegah memory leak
+      clearTimeout(timeoutId);
     }
   }
 
-  throw new Error("Semua server AI cadangan sedang sibuk. Silakan ganti Model AI di dropdown Dashboard.");
+  throw new Error(`Semua server AI pada provider ${provider.toUpperCase()} sedang sibuk.`);
 }
 
 // --- AUTHENTICATION & ACCOUNT API ---
@@ -502,6 +505,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     username: user.username,
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     apiKey: user.apiKey,
+    aiProvider: user.aiProvider || "openrouter",
     modelName: user.modelName,
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive,
@@ -513,8 +517,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
 });
 
 app.post("/api/config", verifyToken, async (req, res) => {
-  const { apiKey, modelName, systemPrompt, isBotActive } = req.body;
-  await User.findByIdAndUpdate(req.user.userId, { apiKey, modelName, systemPrompt, isBotActive });
+  const { apiKey, aiProvider, modelName, systemPrompt, isBotActive } = req.body;
+  await User.findByIdAndUpdate(req.user.userId, { apiKey, aiProvider, modelName, systemPrompt, isBotActive });
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
@@ -538,7 +542,7 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     if (!user || !user.apiKey) {
       return res.status(400).json({ 
         success: false, 
-        message: "API Key OpenRouter belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!" 
+        message: "API Key belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!" 
       });
     }
 
@@ -558,7 +562,7 @@ Aturan Pembuatan:
       { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
     ];
 
-    const generatedPrompt = await fetchOpenRouterAI(user.apiKey, messages, "nvidia/nemotron-3-ultra-550b-a55b:free");
+    const generatedPrompt = await fetchAIResponse(user.aiProvider || "openrouter", user.apiKey, messages, user.modelName);
     res.json({ success: true, generatedPrompt });
 
   } catch (err) {
@@ -858,7 +862,7 @@ async function startUserBot(userId, socket = null) {
           });
 
           if (!user.apiKey) {
-            const errorMsg = "API Key OpenRouter belum diisi.";
+            const errorMsg = "API Key belum diisi.";
             targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
             await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
             continue;
@@ -926,11 +930,13 @@ async function startUserBot(userId, socket = null) {
             ...historyForAI
           ];
 
-          // 4. PEMROSESAN BALASAN AI VIA NATIVE FETCH
+          // 4. PEMROSESAN BALASAN AI VIA MULTI-PROVIDER FETCH
           try {
             const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
+            const provider = user.aiProvider || "openrouter";
 
-            const reply = await fetchOpenRouterAI(
+            const reply = await fetchAIResponse(
+              provider,
               user.apiKey, 
               messagesPayload, 
               selectedModel,

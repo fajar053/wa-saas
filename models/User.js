@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
   apiKey: { type: String, default: "" },
+  aiProvider: { type: String, enum: ["openrouter", "orcarouter"], default: "openrouter" },
   modelName: { type: String, default: "nvidia/nemotron-3-ultra-550b-a55b:free" },
   systemPrompt: { type: String, default: "Kamu adalah asisten AI yang ramah." },
   isBotActive: { type: Boolean, default: true },

@@ -77,7 +77,13 @@
         <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">OpenRouter API Key</label>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Platform Provider AI</label>
+              <select id="aiProvider" onchange="onProviderChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 mb-3">
+                <option value="openrouter">OpenRouter</option>
+                <option value="orcarouter">OrcaRouter</option>
+              </select>
+
+              <label id="apiKeyLabel" class="block text-xs font-medium text-slate-300 mb-1">API Key</label>
               <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
               
               <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
@@ -87,20 +93,7 @@
             <div>
               <label class="block text-xs font-medium text-slate-300 mb-1">Model AI</label>
               <select id="modelName" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-                <optgroup label="⚡ Free Models (Diurutkan)">
-                  <option value="cohere/north-mini-code:free">Cohere North Mini Code (Free)</option>
-                  <option value="dots-studio/dots-3-note-preview:free">Dots Studio Dots 3 Note (Free)</option>
-                  <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI Ling 3.0 Flash Fin (Free)</option>
-                  <option value="minimax/minimax-m2.7:free">MiniMax M2.7 (Free)</option>
-                  <option value="minimax/minimax-m3:free">MiniMax M3 (Free)</option>
-                  <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">NVIDIA Nemotron 3 Nano Omni (Free)</option>
-                  <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B (Free)</option>
-                  <option value="nvidia/nemotron-3-ultra-550b-a55b:free">NVIDIA Nemotron 3 Ultra 550B (Free)</option>
-                  <option value="nvidia/nemotron-3.5-content-safety:free">NVIDIA Nemotron 3.5 Content Safety (Free)</option>
-                  <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free)</option>
-                  <option value="poolside/laguna-s-2.1:free">Poolside Laguna S 2.1 (Free)</option>
-                  <option value="poolside/laguna-xs-2.1:free">Poolside Laguna XS 2.1 (Free)</option>
-                </optgroup>
+                <!-- Opsi model akan diisi dinamis via JavaScript sesuai provider -->
               </select>
             </div>
           </div>
@@ -212,7 +205,7 @@
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
         <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> Panduan Mendapatkan API Key OpenRouter
+          <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> Panduan Mendapatkan API Key
         </h3>
         <button onclick="closeApiKeyTutorial()" class="text-slate-400 hover:text-slate-200 transition">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -220,34 +213,14 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p class="text-slate-400">Ikuti langkah mudah di bawah ini untuk membuat API Key gratis di OpenRouter:</p>
+        <p class="text-slate-400">Ikuti langkah mudah di bawah ini untuk membuat API Key:</p>
         
         <ol class="space-y-2.5 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-4 rounded-xl">
-          <li>
-            Buka situs resmi 
-            <a href="https://openrouter.ai/" target="_blank" class="text-indigo-400 font-bold hover:underline inline-flex items-center gap-1">
-              OpenRouter<i data-lucide="external-link" class="w-3 h-3"></i>
-            </a>
-          </li>
-          <li>Login atau buat akun baru menggunakan akun <strong>Google / GitHub</strong> kamu.</li>
-          <li>Jika muncul "Legal consent" centang bagian I agree to the Terms of Service, Privacy Policy, and Model Terms. lalu <strong class="text-indigo-300">"Continue"</strong></li>
-          <li>Selanjutnya Pilih "Individual" lalu Klik Next, Continue, I'll do this later dan Pilih apa aja dan klik Continue</li>
-          <li>
-            Pilih Menu API Keys atau klik  
-            <a href="https://openrouter.ai/keys" target="_blank" class="text-indigo-400 font-bold hover:underline inline-flex items-center gap-1">
-              (openrouter.ai/keys) <i data-lucide="external-link" class="w-3 h-3"></i>
-            </a>
-          </li>
-          <li>Klik tombol <strong class="text-indigo-300">"Create Key"</strong> di bagian kanan atas.</li>
-          <li>Beri nama kunci kamu (misal: <em>WA AutoBot AI</em>), lalu klik <strong>Create</strong>.</li>
-          <li>Salin (copy) kode kunci yang muncul (diawali dengan <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">sk-or-v1-...</code>).</li>
-          <li>Tempelkan (paste) kode kunci tersebut ke dalam kolom <strong>OpenRouter API Key</strong> di dashboard ini.</li>
+          <li>Buka situs penyedia pilihan kamu (OpenRouter atau OrcaRouter).</li>
+          <li>Login atau buat akun baru menggunakan akun Anda.</li>
+          <li>Masuk ke menu API Keys lalu buat key baru (*Create Key*).</li>
+          <li>Salin dan tempelkan (paste) kode kunci tersebut ke kolom API Key di dashboard ini.</li>
         </ol>
-
-        <p class="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg flex items-start gap-2">
-          <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0 mt-0.5"></i>
-          <span>Simpan API Key kamu dengan aman! Kunci ini hanya akan ditampilkan penuh satu kali oleh OpenRouter.</span>
-        </p>
       </div>
 
       <button onclick="closeApiKeyTutorial()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-2.5 rounded-xl transition">
@@ -263,6 +236,58 @@
 
     const socket = io();
     let currentUserPlan = 'free';
+
+    const openRouterModels = [
+      { id: "cohere/north-mini-code:free", name: "Cohere North Mini Code (Free)" },
+      { id: "dots-studio/dots-3-note-preview:free", name: "Dots Studio Dots 3 Note (Free)" },
+      { id: "inclusionai/ling-3.0-flash-fin:free", name: "InclusionAI Ling 3.0 Flash Fin (Free)" },
+      { id: "minimax/minimax-m2.7:free", name: "MiniMax M2.7 (Free)" },
+      { id: "minimax/minimax-m3:free", name: "MiniMax M3 (Free)" },
+      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", name: "NVIDIA Nemotron 3 Nano Omni (Free)" },
+      { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "NVIDIA Nemotron 3 Super 120B (Free)" },
+      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "NVIDIA Nemotron 3 Ultra 550B (Free)" },
+      { id: "nvidia/nemotron-3.5-content-safety:free", name: "NVIDIA Nemotron 3.5 Content Safety (Free)" },
+      { id: "nvidia/nemotron-3.5-lightning:free", name: "NVIDIA Nemotron 3.5 Lightning (Free)" },
+      { id: "poolside/laguna-s-2.1:free", name: "Poolside Laguna S 2.1 (Free)" },
+      { id: "poolside/laguna-xs-2.1:free", name: "Poolside Laguna XS 2.1 (Free)" }
+    ];
+
+    const orcaRouterModels = [
+      { id: "deepseek/deepseek-v4-flash-free", name: "DeepSeek V4 Flash (Free)" },
+      { id: "orcarouter/free", name: "OrcaRouter Free Default" },
+      { id: "qwen/qwen3.8-27b-free", name: "Qwen 3.8 27B (Free)" },
+      { id: "tencent/hy3-free", name: "Tencent HY3 (Free)" }
+    ];
+
+    function populateModels(provider, selectedModel = "") {
+      const select = document.getElementById('modelName');
+      select.innerHTML = "";
+      
+      const models = provider === "orcarouter" ? orcaRouterModels : openRouterModels;
+      
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.innerText = m.name;
+        if (m.id === selectedModel) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function onProviderChange() {
+      const provider = document.getElementById('aiProvider').value;
+      const label = document.getElementById('apiKeyLabel');
+      
+      if (provider === 'orcarouter') {
+        label.innerText = 'OrcaRouter API Key';
+        document.getElementById('apiKey').placeholder = 'orcarouter-key-...';
+      } else {
+        label.innerText = 'OpenRouter API Key';
+        document.getElementById('apiKey').placeholder = 'sk-or-v1-...';
+      }
+      
+      populateModels(provider);
+    }
 
     function openApiKeyTutorial() {
       document.getElementById('apiKeyModal').classList.remove('hidden');
@@ -285,8 +310,12 @@
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
         document.getElementById('userAvatar').src = data.profilePicture;
 
+        const provider = data.aiProvider || 'openrouter';
+        document.getElementById('aiProvider').value = provider;
+        onProviderChange();
+
         document.getElementById('apiKey').value = data.apiKey || '';
-        document.getElementById('modelName').value = data.modelName || 'nvidia/nemotron-3-ultra-550b-a55b:free';
+        document.getElementById('modelName').value = data.modelName || (provider === 'orcarouter' ? 'orcarouter/free' : 'nvidia/nemotron-3-ultra-550b-a55b:free');
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
@@ -306,6 +335,7 @@
 
     async function saveConfig(e) {
       e.preventDefault();
+      const aiProvider = document.getElementById('aiProvider').value;
       const apiKey = document.getElementById('apiKey').value;
       const modelName = document.getElementById('modelName').value;
       const systemPrompt = document.getElementById('systemPrompt').value;
@@ -318,7 +348,7 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ apiKey, modelName, systemPrompt, isBotActive })
+          body: JSON.stringify({ aiProvider, apiKey, modelName, systemPrompt, isBotActive })
         });
         const data = await res.json();
         alert(data.message);
