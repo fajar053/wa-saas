@@ -106,8 +106,8 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- HELPER CALL ORCAROUTER API (FAILOVER MODEL & SMART ROTATION) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 15000) {
+// --- HELPER CALL ORCAROUTER API (EXPONENTIAL BACKOFF ANTI-429) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 18000) {
   const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
 
   for (const model of FALLBACK_MODELS) {
@@ -133,13 +133,17 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
 
       clearTimeout(timeoutId);
 
+      if (response.status === 429) {
+        console.warn(`⚠️ [RATE LIMIT 429] Model "${model}" sibuk. Menunggu 2.5 detik & rotasi key...`);
+        rotateApiKey();
+        await sleep(2500);
+        continue;
+      }
+
       if (!response.ok) {
         console.warn(`⚠️ [API ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal.`);
-        rotateApiKey(); // Pindah ke API key berikutnya untuk percobaan model berikutnya
-
-        if (response.status === 429) {
-          await sleep(800);
-        }
+        rotateApiKey();
+        await sleep(1000);
         continue;
       }
 
@@ -154,19 +158,18 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
       clearTimeout(timeoutId);
       console.warn(`⚠️ [FAILOVER TIMEOUT] Model "${model}": ${err.message}`);
       rotateApiKey();
-      await sleep(500);
+      await sleep(1000);
     }
   }
 
-  throw new Error("Seluruh kombinasi model & API key OrcaRouter sedang tidak merespon/rate limit.");
+  throw new Error("Server AI OrcaRouter sedang padat. Silakan kirim ulang pesan beberapa saat lagi.");
 }
 
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP (LEBIH LENGKAP) ---
+// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
 function extractMessageText(msg) {
   if (!msg.message) return "";
   let m = msg.message;
 
-  // Un-nest wrappers (ephemeral, viewOnce, document, edited)
   if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
   if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
   if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
@@ -715,7 +718,6 @@ async function startUserBot(userId) {
             await sock.readMessages([{ remoteJid: msg.key.remoteJid, id: msg.key.id, participant: msg.key.participant }]);
           } catch {}
 
-          // Emit log ke dashboard realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
