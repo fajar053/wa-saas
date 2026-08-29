@@ -22,7 +22,7 @@
         </div>
       </div>
 
-      <!-- User Profile Badge -->
+      <!-- User Profile Badge & Status Sisa Hari -->
       <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-center gap-3">
         <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 object-cover">
         <div class="overflow-hidden">
@@ -58,42 +58,42 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
       
-      <!-- Free Plan -->
+      <!-- Premium 1 Bulan -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6">
         <div class="space-y-4">
           <div class="space-y-1">
-            <h3 class="font-bold text-lg text-slate-200">Free Plan</h3>
-            <p class="text-xs text-slate-400">Cocok untuk uji coba awal</p>
+            <h3 class="font-bold text-lg text-indigo-300 flex items-center gap-2"><i data-lucide="crown" class="w-5 h-5 text-amber-400"></i> Premium 1 Bulan</h3>
+            <p class="text-xs text-slate-400">Masa aktif 30 Hari (+Akumulasi)</p>
           </div>
-          <div class="text-2xl font-bold text-slate-100">Rp 0 <span class="text-xs font-normal text-slate-400">/ selamanya</span></div>
-          <ul class="space-y-2 text-xs text-slate-300">
-            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Kuota 50 Chat / Hari</li>
-            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Auto-Generate Prompt (Detail)</li>
-            <li class="flex items-center gap-2 text-slate-500 line-through"><i data-lucide="x" class="w-4 h-4"></i> Auto-Generate Prompt (Sangat Detail)</li>
-            <li class="flex items-center gap-2 text-slate-500 line-through"><i data-lucide="x" class="w-4 h-4"></i> Respon WhatsApp Unlimited</li>
+          <div class="text-3xl font-extrabold text-slate-100">Rp 15.000 <span class="text-xs font-normal text-slate-400">/ 30 hari</span></div>
+          <ul class="space-y-2.5 text-xs text-slate-200">
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat</strong></li>
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Auto-Generate Prompt Detail</li>
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prioritas Eksekusi Cepat</li>
           </ul>
         </div>
-        <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-3 rounded-xl cursor-not-allowed">Paket Saat Ini</button>
+        <button onclick="paySubscription('1_month')" id="btnMonth" class="w-full bg-slate-800 hover:bg-slate-700 font-bold text-xs py-3 rounded-xl transition">
+          Beli 1 Bulan (Rp 15.000)
+        </button>
       </div>
 
-      <!-- Premium Plan -->
+      <!-- Premium 1 Tahun -->
       <div class="bg-gradient-to-b from-indigo-900/40 to-slate-900 border-2 border-indigo-500 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl shadow-indigo-500/10 relative">
-        <span class="absolute -top-3 right-6 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">Rekomendasi</span>
+        <span class="absolute -top-3 right-6 bg-amber-500 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-md">Hemat BANYAK</span>
         <div class="space-y-4">
           <div class="space-y-1">
-            <h3 class="font-bold text-lg text-indigo-300 flex items-center gap-2"><i data-lucide="crown" class="w-5 h-5 text-amber-400"></i> Premium Unlimited</h3>
-            <p class="text-xs text-slate-400">Untuk profesional & pemilik toko online</p>
+            <h3 class="font-bold text-lg text-amber-300 flex items-center gap-2"><i data-lucide="crown" class="w-5 h-5 text-amber-400"></i> Premium 1 Tahun</h3>
+            <p class="text-xs text-slate-400">Masa aktif 365 Hari (+Akumulasi)</p>
           </div>
-          <div class="text-3xl font-extrabold text-slate-100">Rp 15.000 <span class="text-xs font-normal text-slate-400">/ bulan</span></div>
+          <div class="text-3xl font-extrabold text-slate-100">Rp 99.000 <span class="text-xs font-normal text-slate-400">/ tahun</span></div>
           <ul class="space-y-2.5 text-xs text-slate-200">
-            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat / Bulan</strong></li>
-            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Auto-Generate Prompt (Detail & <strong>Sangat Detail</strong>)</li>
-            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prioritas Eksekusi AI Cepat</li>
-            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Bebas Pilih Semua Model AI Gratis</li>
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> <strong>Unlimited Chat 1 Tahun Full</strong></li>
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Hemat Hingga Rp 81.000!</li>
+            <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Prioritas Server Utama</li>
           </ul>
         </div>
-        <button onclick="paySubscription()" id="payBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/30">
-          Bayar Otomatis Rp 15.000
+        <button onclick="paySubscription('1_year')" id="btnYear" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/30">
+          Beli 1 Tahun (Rp 99.000)
         </button>
       </div>
 
@@ -135,7 +135,7 @@
 
         <div class="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl text-center space-y-1">
           <p class="text-[11px] text-amber-300 font-semibold">Total Transfer (Wajib Sama Persis):</p>
-          <p id="modalTotalAmount" class="text-2xl font-black text-amber-400">Rp 15.237</p>
+          <p id="modalTotalAmount" class="text-2xl font-black text-amber-400">Rp 0</p>
         </div>
       </div>
 
@@ -157,15 +157,23 @@
         });
         const data = await res.json();
         document.getElementById('userNickname').innerText = data.nickname;
-        document.getElementById('userPlan').innerText = `${data.plan || 'free'} Plan`;
+        
+        if (data.plan === 'premium') {
+          document.getElementById('userPlan').innerText = `Premium (${data.remainingDays} Hari)`;
+        } else {
+          document.getElementById('userPlan').innerText = `Free Plan`;
+        }
+
         document.getElementById('userAvatar').src = data.profilePicture;
       } catch (e) {
         console.error("Profile load error:", e);
       }
     }
 
-    async function paySubscription() {
-      const btn = document.getElementById('payBtn');
+    async function paySubscription(planType = '1_month') {
+      const btnId = planType === '1_year' ? 'btnYear' : 'btnMonth';
+      const btn = document.getElementById(btnId);
+      const originalText = btn.innerText;
       btn.disabled = true;
       btn.innerText = "Membuat Invoice...";
 
@@ -175,14 +183,15 @@
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
-          }
+          },
+          body: JSON.stringify({ planType })
         });
         const data = await res.json();
         
         if (data.success) {
-          document.getElementById('modalBank').innerText = data.data.bankName || 'BNI';
-          document.getElementById('modalAccountNum').innerText = data.data.accountNumber || '1275951171';
-          document.getElementById('modalAccountHolder').innerText = data.data.accountHolder || 'Muhammad Fajar Firdaus';
+          document.getElementById('modalBank').innerText = data.data.bankName;
+          document.getElementById('modalAccountNum').innerText = data.data.accountNumber;
+          document.getElementById('modalAccountHolder').innerText = data.data.accountHolder;
           document.getElementById('modalTotalAmount').innerText = `Rp ${data.data.totalAmount.toLocaleString('id-ID')}`;
           
           document.getElementById('paymentModal').classList.remove('hidden');
@@ -193,7 +202,7 @@
         alert("Gagal memproses tagihan.");
       } finally {
         btn.disabled = false;
-        btn.innerText = "Bayar Otomatis Rp 15.000";
+        btn.innerText = originalText;
       }
     }
 

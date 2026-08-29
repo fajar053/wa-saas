@@ -263,6 +263,19 @@ app.get("/api/config", verifyToken, async (req, res) => {
     await user.save();
   }
 
+  // Cek Status Kadaluarsa Premium & Hitung Sisa Hari
+  let remainingDays = 0;
+  if (user.plan === "premium" && user.expiredAt) {
+    const now = new Date();
+    if (user.expiredAt < now) {
+      user.plan = "free";
+      await user.save();
+    } else {
+      const diffTime = user.expiredAt.getTime() - now.getTime();
+      remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+  }
+
   res.json({
     email: user.email,
     nickname: user.nickname,
@@ -271,6 +284,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive ?? true,
     plan: user.plan || "free",
+    remainingDays: remainingDays,
     dailyUsage: user.dailyUsageCount || 0,
     dailyLimit: user.plan === "premium" ? "Unlimited" : 50
   });
@@ -321,16 +335,24 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA (RP 15.000) ---
+// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA (1 BULAN & 1 TAHUN) ---
 
 // 1. ENDPOINT BUAT TAGIHAN TRANSFER + KODE UNIK
 app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const baseAmount = 15000;
+    const { planType } = req.body; // "1_month" atau "1_year"
+
+    let baseAmount = 15000;
+    let durationDays = 30;
+
+    if (planType === "1_year") {
+      baseAmount = 99000;
+      durationDays = 365;
+    }
 
     // Cek apakah user sudah punya tagihan pending
-    let existingTx = await Transaction.findOne({ userId, status: "pending" });
+    let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
     if (existingTx) {
       return res.json({
         success: true,
@@ -360,6 +382,8 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
     await Transaction.create({
       userId,
       orderId,
+      planType: planType || "1_month",
+      durationDays,
       baseAmount,
       uniqueCode,
       totalAmount
@@ -382,7 +406,7 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
   }
 });
 
-// 2. WEBHOOK RECEIVER DARI MOOTA
+// 2. WEBHOOK RECEIVER DARI MOOTA (AKUMULASI SISA HARI)
 app.post("/api/subscribe/moota-webhook", async (req, res) => {
   try {
     const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
@@ -404,12 +428,25 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
           tx.status = "completed";
           await tx.save();
 
-          await User.findByIdAndUpdate(tx.userId, {
-            plan: "premium",
-            dailyLimit: "Unlimited"
-          });
+          const user = await User.findById(tx.userId);
+          if (user) {
+            const now = new Date();
+            const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
 
-          console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} diupgrade ke Premium.`);
+            let newExpiredAt;
+            // Jika akun masih aktif Premium, akumulasi durasi ke tanggal expired saat ini
+            if (user.plan === "premium" && user.expiredAt && user.expiredAt > now) {
+              newExpiredAt = new Date(user.expiredAt.getTime() + durationMs);
+            } else { // Jika baru pertama kali / sudah expired
+              newExpiredAt = new Date(now.getTime() + durationMs);
+            }
+
+            user.plan = "premium";
+            user.expiredAt = newExpiredAt;
+            await user.save();
+
+            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} diperbarui aktif hingga ${newExpiredAt.toISOString()}`);
+          }
         }
       }
     }
