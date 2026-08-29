@@ -504,7 +504,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
     nickname: user.nickname,
     username: user.username,
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
-    apiKey: user.apiKey,
+    openrouterApiKey: user.openrouterApiKey || "",
+    orcarouterApiKey: user.orcarouterApiKey || "",
     aiProvider: user.aiProvider || "openrouter",
     modelName: user.modelName,
     systemPrompt: user.systemPrompt,
@@ -517,8 +518,16 @@ app.get("/api/config", verifyToken, async (req, res) => {
 });
 
 app.post("/api/config", verifyToken, async (req, res) => {
-  const { apiKey, aiProvider, modelName, systemPrompt, isBotActive } = req.body;
-  await User.findByIdAndUpdate(req.user.userId, { apiKey, aiProvider, modelName, systemPrompt, isBotActive });
+  const { aiProvider, openrouterApiKey, orcarouterApiKey, modelName, systemPrompt, isBotActive } = req.body;
+  
+  const updateData = { aiProvider, modelName, systemPrompt, isBotActive };
+  if (aiProvider === "openrouter") {
+    updateData.openrouterApiKey = openrouterApiKey;
+  } else {
+    updateData.orcarouterApiKey = orcarouterApiKey;
+  }
+
+  await User.findByIdAndUpdate(req.user.userId, updateData);
   res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
 });
 
@@ -539,10 +548,11 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!" });
     }
 
-    if (!user || !user.apiKey) {
+    const activeKey = user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
+    if (!activeKey) {
       return res.status(400).json({ 
         success: false, 
-        message: "API Key belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!" 
+        message: `API Key untuk provider ${user.aiProvider} belum diisi. Masukkan API Key kamu pada pengaturan di atas terlebih dahulu!` 
       });
     }
 
@@ -562,7 +572,7 @@ Aturan Pembuatan:
       { role: "user", content: `Kembangkan prompt singkat berikut menjadi System Prompt Pelatihan Bot WhatsApp (${wordTarget} kata):\n"${promptText}"` }
     ];
 
-    const generatedPrompt = await fetchAIResponse(user.aiProvider || "openrouter", user.apiKey, messages, user.modelName);
+    const generatedPrompt = await fetchAIResponse(user.aiProvider || "openrouter", activeKey, messages, user.modelName);
     res.json({ success: true, generatedPrompt });
 
   } catch (err) {
@@ -861,8 +871,9 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
-          if (!user.apiKey) {
-            const errorMsg = "API Key belum diisi.";
+          const activeKey = user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey;
+          if (!activeKey) {
+            const errorMsg = `API Key untuk provider ${user.aiProvider} belum diisi.`;
             targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
             await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
             continue;
@@ -937,7 +948,7 @@ async function startUserBot(userId, socket = null) {
 
             const reply = await fetchAIResponse(
               provider,
-              user.apiKey, 
+              activeKey, 
               messagesPayload, 
               selectedModel,
               targetSocket,

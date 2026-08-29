@@ -84,7 +84,12 @@
               </select>
 
               <label id="apiKeyLabel" class="block text-xs font-medium text-slate-300 mb-1">API Key</label>
-              <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+              <div class="relative">
+                <input type="password" id="apiKey" required placeholder="sk-or-v1-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-xs focus:outline-none focus:border-indigo-500">
+                <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-slate-200 transition">
+                  <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
+                </button>
+              </div>
               
               <button type="button" onclick="openApiKeyTutorial()" class="mt-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium hover:underline transition">
                 <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Cara mendapatkan API Key?
@@ -236,6 +241,7 @@
 
     const socket = io();
     let currentUserPlan = 'free';
+    let userDataCache = {};
 
     const openRouterModels = [
       { id: "cohere/north-mini-code:free", name: "Cohere North Mini Code (Free)" },
@@ -277,16 +283,39 @@
     function onProviderChange() {
       const provider = document.getElementById('aiProvider').value;
       const label = document.getElementById('apiKeyLabel');
-      
+      const apiKeyInput = document.getElementById('apiKey');
+
+      // Simpan input key saat ini ke cache sebelum berpindah tampilan input
+      if (userDataCache.aiProvider) {
+        if (userDataCache.aiProvider === 'openrouter') userDataCache.openrouterApiKey = apiKeyInput.value;
+        else userDataCache.orcarouterApiKey = apiKeyInput.value;
+      }
+
       if (provider === 'orcarouter') {
         label.innerText = 'OrcaRouter API Key';
-        document.getElementById('apiKey').placeholder = 'orcarouter-key-...';
+        apiKeyInput.placeholder = 'orcarouter-key-...';
+        apiKeyInput.value = userDataCache.orcarouterApiKey || '';
       } else {
         label.innerText = 'OpenRouter API Key';
-        document.getElementById('apiKey').placeholder = 'sk-or-v1-...';
+        apiKeyInput.placeholder = 'sk-or-v1-...';
+        apiKeyInput.value = userDataCache.openrouterApiKey || '';
       }
-      
-      populateModels(provider);
+
+      userDataCache.aiProvider = provider;
+      populateModels(provider, userDataCache.modelName);
+    }
+
+    function toggleApiKeyVisibility() {
+      const input = document.getElementById('apiKey');
+      const icon = document.getElementById('eyeIcon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        input.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
     }
 
     function openApiKeyTutorial() {
@@ -303,6 +332,7 @@
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
+        userDataCache = data;
 
         currentUserPlan = data.plan || 'free';
 
@@ -312,12 +342,11 @@
 
         const provider = data.aiProvider || 'openrouter';
         document.getElementById('aiProvider').value = provider;
-        onProviderChange();
-
-        document.getElementById('apiKey').value = data.apiKey || '';
-        document.getElementById('modelName').value = data.modelName || (provider === 'orcarouter' ? 'orcarouter/free' : 'nvidia/nemotron-3-ultra-550b-a55b:free');
+        document.getElementById('apiKey').value = provider === 'orcarouter' ? (data.orcarouterApiKey || '') : (data.openrouterApiKey || '');
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
+
+        populateModels(provider, data.modelName);
 
         // Update Kuota Stat
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
@@ -336,10 +365,19 @@
     async function saveConfig(e) {
       e.preventDefault();
       const aiProvider = document.getElementById('aiProvider').value;
-      const apiKey = document.getElementById('apiKey').value;
+      const apiKeyValue = document.getElementById('apiKey').value;
       const modelName = document.getElementById('modelName').value;
       const systemPrompt = document.getElementById('systemPrompt').value;
       const isBotActive = document.getElementById('isBotActive').checked;
+
+      const payload = {
+        aiProvider,
+        openrouterApiKey: aiProvider === 'openrouter' ? apiKeyValue : userDataCache.openrouterApiKey,
+        orcarouterApiKey: aiProvider === 'orcarouter' ? apiKeyValue : userDataCache.orcarouterApiKey,
+        modelName,
+        systemPrompt,
+        isBotActive
+      };
 
       try {
         const res = await fetch('/api/config', {
@@ -348,10 +386,11 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ aiProvider, apiKey, modelName, systemPrompt, isBotActive })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         alert(data.message);
+        loadConfig();
       } catch (err) {
         alert("Gagal menyimpan pengaturan.");
       }
