@@ -339,13 +339,13 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
           totalAmount: existingTx.totalAmount,
           uniqueCode: existingTx.uniqueCode,
           bankName: "BCA",
-          accountNumber: "1234567890", // Ganti dengan No Rekening kamu
-          accountHolder: "Muhammad Fajar Firdaus" // Ganti Nama Pemilik Rekening
+          accountNumber: "1234567890", // Silakan sesuaikan nomor rekening
+          accountHolder: "Muhammad Fajar Firdaus"
         }
       });
     }
 
-    // Generate 3 digit kode unik acak (100 - 999) yang tidak sedang digunakan
+    // Generate 3 digit kode unik acak (100 - 999)
     let uniqueCode;
     let isCodeTaken = true;
     while (isCodeTaken) {
@@ -371,8 +371,8 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
         orderId,
         totalAmount,
         uniqueCode,
-        bankName: "BCA", // Ganti dengan Bank kamu
-        accountNumber: "1234567890", // Ganti No Rekening
+        bankName: "BCA",
+        accountNumber: "1234567890", // Silakan sesuaikan nomor rekening
         accountHolder: "Muhammad Fajar Firdaus"
       }
     });
