@@ -216,7 +216,7 @@
 
   <!-- Modal Tutorial API Key -->
   <div id="apiKeyModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
         <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
           <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> Panduan Mendapatkan API Key
@@ -226,14 +226,39 @@
         </button>
       </div>
 
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p class="text-slate-400">Ikuti langkah mudah di bawah ini untuk membuat API Key:</p>
-        <ol class="space-y-2.5 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-4 rounded-xl">
-          <li>Buka situs penyedia pilihan kamu (OpenRouter atau OrcaRouter).</li>
-          <li>Login atau buat akun baru.</li>
-          <li>Masuk ke menu API Keys lalu buat key baru (*Create Key*).</li>
-          <li>Salin dan tempelkan kode kunci tersebut ke kolom API Key di dashboard.</li>
-        </ol>
+      <div class="space-y-4 text-xs text-slate-300 leading-relaxed max-h-[65vh] overflow-y-auto pr-1">
+        
+        <!-- OpenRouter Guide -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2 font-bold text-indigo-400 text-xs">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> 1. Penyedia OpenRouter
+          </div>
+          <ol class="space-y-2 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl text-slate-300">
+            <li>Buka situs resmi OpenRouter di <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">openrouter.ai</a>.</li>
+            <li>Klik tombol <strong>Sign In</strong> di pojok kanan atas, lalu masuk menggunakan akun Google atau GitHub kamu.</li>
+            <li>Jika ada konfirmasi persyaratan, klik <strong>Continue</strong> dan selesaikan instruksi awal.</li>
+            <li>Masuk ke menu API Keys atau buka langsung di <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">openrouter.ai/keys</a>.</li>
+            <li>Klik tombol <strong>"Create Key"</strong>.</li>
+            <li>Beri nama key tersebut (misal: <em>WA AutoBot AI</em>), lalu klik <strong>Create</strong>.</li>
+            <li>Salin (copy) Kunci API yang muncul (diawali <code class="bg-slate-800 px-1 py-0.5 rounded text-amber-300">sk-or-v1-...</code>).</li>
+            <li>Tempelkan (paste) Kunci API tersebut pada form <strong>OpenRouter API Key</strong> di halaman Dashboard WA AutoBot AI kamu, lalu simpan.</li>
+          </ol>
+        </div>
+
+        <!-- OrcaRouter Guide -->
+        <div class="space-y-2 pt-2 border-t border-slate-800">
+          <div class="flex items-center gap-2 font-bold text-indigo-400 text-xs">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> 2. Penyedia OrcaRouter
+          </div>
+          <ol class="space-y-2 list-decimal list-inside bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl text-slate-300">
+            <li>Buka situs resmi OrcaRouter di <a href="https://orcarouter.ai" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline font-semibold">orcarouter.ai</a>.</li>
+            <li>Lakukan registrasi atau Sign In menggunakan akun kamu.</li>
+            <li>Masuk ke dashboard akun OrcaRouter dan buka menu <strong>API Keys</strong>.</li>
+            <li>Buat kunci baru (*Create New Key*), lalu salin kunci API yang dihasilkan.</li>
+            <li>Ubah dropdown provider di Dashboard menjadi <strong>OrcaRouter</strong>, tempelkan kunci ke kolom API Key, lalu klik simpan.</li>
+          </ol>
+        </div>
+
       </div>
 
       <button onclick="closeApiKeyTutorial()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold text-xs py-2.5 rounded-xl transition">
