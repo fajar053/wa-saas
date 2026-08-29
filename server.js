@@ -85,7 +85,10 @@ const activeSessions = new Map();
 const isStartingSession = new Set();
 const connectedFlags = new Set();
 const userSockets = new Map();
-const processedMsgIds = new Set(); // Cache ID pesan untuk mencegah pesan diproses 2x
+const processedMsgIds = new Set();
+
+// QUEUE MAP UNTUK MENAMPUNG PESAN BERUNTUN & MEMBERIKAN DELAY (DEBOUNCE)
+const messageBuffers = new Map(); 
 
 // --- HELPER MULTI-PROVIDER AI (OPENROUTER & ORCAROUTER) ---
 async function fetchAIResponse(provider, apiKey, messages, modelCandidate = "", targetSocket = null, senderNumber = "") {
@@ -673,7 +676,7 @@ app.post("/api/profile/update", verifyToken, (req, res) => {
   });
 });
 
-// 11. RESET SESI WHATSAPP (MENGATASI BAD MAC ERROR)
+// 11. RESET SESI WHATSAPP
 app.post("/api/whatsapp/reset", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -769,17 +772,126 @@ async function autoStartAllSessions() {
   }
 }
 
+// --- PEMROSESAN PEMBALASAN AI (EXECUTIVE WORKER) ---
+async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, targetSocket) {
+  try {
+    const user = await User.findById(strUserId);
+    if (!user || !user.isBotActive) return;
+
+    const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
+    if (!activeKey || !activeKey.trim()) {
+      const errorMsg = `API Key untuk provider ${user.aiProvider || 'OpenRouter'} belum diisi.`;
+      targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
+      await sock.sendMessage(remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (user.dailyUsageDate !== today) {
+      user.dailyUsageDate = today;
+      user.dailyUsageCount = 0;
+      await user.save();
+    }
+
+    if (user.plan === "free" && user.dailyUsageCount >= 50) {
+      const limitMsg = "Batas kuota gratis harian (50 chat) telah tercapai.";
+      targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
+      await sock.sendMessage(remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (50/50)." });
+      return;
+    }
+
+    let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
+    if (!conv) {
+      conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
+    }
+
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    let wasMemoryReset = false;
+
+    if (Date.now() - new Date(conv.lastClearedAt).getTime() > THREE_DAYS_MS) {
+      conv.messages = [];
+      conv.lastClearedAt = new Date();
+      await conv.save();
+      wasMemoryReset = true;
+    }
+
+    if (!conv.knownName) {
+      const nameMatch = combinedText.match(/(?:nama aku|namaku|aku|panggil aku|nama saya)\s+([a-zA-Z]+)/i);
+      if (nameMatch && nameMatch[1]) {
+        conv.knownName = nameMatch[1];
+      }
+    }
+
+    // Catat seluruh teks gabungan sebagai 1 masukan pengguna
+    conv.messages.push({ role: "user", content: combinedText });
+
+    let dynamicSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
+
+    if (conv.knownName) {
+      dynamicSystemPrompt += `\n\n[INFO SISTEM]: Nama pengirim percakapan ini adalah "${conv.knownName}". Kamu SUDAH MENGETAHUI namanya. Jangan pernah menanyakan namanya lagi.`;
+    }
+
+    if (wasMemoryReset) {
+      dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar.`;
+    }
+
+    const historyForAI = conv.messages.slice(-20).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    const messagesPayload = [
+      { role: "system", content: dynamicSystemPrompt },
+      ...historyForAI
+    ];
+
+    const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
+    const provider = user.aiProvider || "openrouter";
+
+    const reply = await fetchAIResponse(
+      provider,
+      activeKey, 
+      messagesPayload, 
+      selectedModel,
+      targetSocket,
+      senderNumber
+    );
+
+    conv.messages.push({ role: "assistant", content: reply });
+    await conv.save();
+
+    // Kirim 1 balasan tunggal ke pengirim
+    await sock.sendMessage(remoteJid, { text: reply });
+    await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
+
+    targetSocket?.emit("chat-log", {
+      time: new Date().toLocaleTimeString(),
+      timestamp: Date.now(),
+      sender: senderNumber,
+      text: reply,
+      type: "out"
+    });
+
+  } catch (err) {
+    console.error("AI Complete Error:", err.message);
+    targetSocket?.emit("error-log", { 
+      time: new Date().toLocaleTimeString(), 
+      message: `Koneksi AI gagal: ${err.message}`, 
+      from: senderNumber 
+    });
+  }
+}
+
 // --- BOT WA ENGINE ---
 async function startUserBot(userId, socket = null) {
   const strUserId = String(userId);
   if (socket) userSockets.set(strUserId, socket);
 
-  // FIX 1: Hentikan pembuatan koneksi ganda jika sesi WA sudah aktif di memori
   if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
     const currentSocket = userSockets.get(strUserId);
     currentSocket?.emit("status", "Connected");
     currentSocket?.emit("ready");
-    return; // <-- Menghentikan eksekusi ganda saat dashboard di-refresh
+    return;
   }
 
   if (isStartingSession.has(strUserId)) return;
@@ -848,14 +960,11 @@ async function startUserBot(userId, socket = null) {
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
         const { messages, type } = chatUpdate;
-        
-        // FIX 2: Hanya tangani pesan bertipe notify (bukan append/sync)
         if (type !== "notify") return;
 
         for (const msg of messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
 
-          // FIX 3: Deduplikasi ID pesan agar tidak diproses lebih dari 1x
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 1000) processedMsgIds.clear();
@@ -884,6 +993,7 @@ async function startUserBot(userId, socket = null) {
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
           const targetSocket = userSockets.get(strUserId);
 
+          // Tampilkan log pesan masuk di dashboard secara realtime
           targetSocket?.emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             timestamp: Date.now(),
@@ -892,107 +1002,31 @@ async function startUserBot(userId, socket = null) {
             type: "in"
           });
 
-          const activeKey = (user.aiProvider === "orcarouter" ? user.orcarouterApiKey : user.openrouterApiKey) || user.apiKey;
-          if (!activeKey || !activeKey.trim()) {
-            const errorMsg = `API Key untuk provider ${user.aiProvider || 'OpenRouter'} belum diisi.`;
-            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: errorMsg, from: senderNumber });
-            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Layanan pembalas otomatis belum dikonfigurasi." });
-            continue;
+          // FITUR DEBOUNCE & AGGREGATION: Gabungkan chat beruntun & berikan delay 25 detik
+          const bufferKey = `${strUserId}_${senderNumber}`;
+          if (!messageBuffers.has(bufferKey)) {
+            messageBuffers.set(bufferKey, { messages: [], timer: null });
           }
 
-          const today = new Date().toISOString().split("T")[0];
-          if (user.dailyUsageDate !== today) {
-            user.dailyUsageDate = today;
-            user.dailyUsageCount = 0;
-            await user.save();
+          const buf = messageBuffers.get(bufferKey);
+          buf.messages.push(text);
+
+          // Reset timer jika ada pesan baru masuk dari orang yang sama
+          if (buf.timer) {
+            clearTimeout(buf.timer);
           }
 
-          if (user.plan === "free" && user.dailyUsageCount >= 50) {
-            const limitMsg = "Batas kuota gratis harian (50 chat) telah tercapai.";
-            targetSocket?.emit("error-log", { time: new Date().toLocaleTimeString(), message: limitMsg, from: senderNumber });
-            await sock.sendMessage(msg.key.remoteJid, { text: "[Sistem] Maaf, kuota pembalasan harian bot ini telah habis (50/50)." });
-            continue;
-          }
+          // Set timer untuk menunggu 25 detik setelah pesan TERAKHIR masuk
+          buf.timer = setTimeout(async () => {
+            const aggregatedTexts = [...buf.messages];
+            messageBuffers.delete(bufferKey);
 
-          let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
-          if (!conv) {
-            conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
-          }
+            const combinedText = aggregatedTexts.join("\n");
+            
+            // Eksekusi pembalasan AI dengan 1 teks gabungan
+            await handleAIBotReply(strUserId, senderNumber, msg.key.remoteJid, combinedText, sock, targetSocket);
+          }, 25000); // Jeda 25 detik (menutupi batas 20 detik chat beruntun + delay balasan)
 
-          const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-          let wasMemoryReset = false;
-
-          if (Date.now() - new Date(conv.lastClearedAt).getTime() > THREE_DAYS_MS) {
-            conv.messages = [];
-            conv.lastClearedAt = new Date();
-            await conv.save();
-            wasMemoryReset = true;
-          }
-
-          if (!conv.knownName) {
-            const nameMatch = text.match(/(?:nama aku|namaku|aku|panggil aku|nama saya)\s+([a-zA-Z]+)/i);
-            if (nameMatch && nameMatch[1]) {
-              conv.knownName = nameMatch[1];
-            }
-          }
-
-          conv.messages.push({ role: "user", content: text });
-
-          let dynamicSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
-
-          if (conv.knownName) {
-            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Nama pengirim percakapan ini adalah "${conv.knownName}". Kamu SUDAH MENGETAHUI namanya. Jangan pernah menanyakan namanya lagi.`;
-          }
-
-          if (wasMemoryReset) {
-            dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar.`;
-          }
-
-          const historyForAI = conv.messages.slice(-20).map(m => ({
-            role: m.role,
-            content: m.content
-          }));
-
-          const messagesPayload = [
-            { role: "system", content: dynamicSystemPrompt },
-            ...historyForAI
-          ];
-
-          try {
-            const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
-            const provider = user.aiProvider || "openrouter";
-
-            const reply = await fetchAIResponse(
-              provider,
-              activeKey, 
-              messagesPayload, 
-              selectedModel,
-              targetSocket,
-              senderNumber
-            );
-
-            conv.messages.push({ role: "assistant", content: reply });
-            await conv.save();
-
-            await sock.sendMessage(msg.key.remoteJid, { text: reply });
-            await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
-
-            targetSocket?.emit("chat-log", {
-              time: new Date().toLocaleTimeString(),
-              timestamp: Date.now(),
-              sender: senderNumber,
-              text: reply,
-              type: "out"
-            });
-
-          } catch (err) {
-            console.error("AI Complete Error:", err.message);
-            targetSocket?.emit("error-log", { 
-              time: new Date().toLocaleTimeString(), 
-              message: `Koneksi AI gagal: ${err.message}`, 
-              from: senderNumber 
-            });
-          }
         }
       } catch (upsertErr) {
         console.error("Upsert Event Error:", upsertErr.message);
