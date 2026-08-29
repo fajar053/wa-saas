@@ -70,9 +70,19 @@
 
       <!-- Column 1: Config Form -->
       <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
-        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-          <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Konfigurasi AI Bot
-        </h3>
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Konfigurasi AI Bot
+          </h3>
+
+          <button 
+            type="button" 
+            onclick="clearAllHistory()" 
+            class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-medium"
+          >
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Reset History Bot
+          </button>
+        </div>
 
         <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -413,6 +423,21 @@
         loadConfig();
       } catch (err) {
         alert("Gagal menyimpan pengaturan.");
+      }
+    }
+
+    async function clearAllHistory() {
+      if (!confirm("Apakah Anda yakin ingin menghapus seluruh riwayat percakapan percakapan bot di database? Ini berguna jika bot mengalami macet saat ganti model.")) return;
+
+      try {
+        const res = await fetch('/api/history/clear', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (err) {
+        alert("Gagal menghapus riwayat percakapan.");
       }
     }
 

@@ -568,6 +568,18 @@ app.post("/api/config", verifyToken, async (req, res) => {
   }
 });
 
+// --- FITUR BARU: HAPUS RIWAYAT CHAT ---
+app.post("/api/history/clear", verifyToken, async (req, res) => {
+  try {
+    const strUserId = String(req.user.userId);
+    await Conversation.deleteMany({ botUserId: strUserId });
+    console.log(`🧹 Semua riwayat percakapan dihapus untuk User ID: ${strUserId}`);
+    res.json({ success: true, message: "Semua riwayat percakapan berhasil dibersihkan!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // 8. AUTO GENERATE SYSTEM PROMPT
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
@@ -809,7 +821,7 @@ async function autoStartAllSessions() {
   }
 }
 
-// --- PEMROSESAN PEMBALASAN AI ---
+// --- PEMROSESAN PEMBALASAN AI DENGAN AUTO-RECOVERY ---
 async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, targetSocket) {
   try {
     const user = await User.findById(strUserId);
@@ -879,7 +891,8 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       dynamicSystemPrompt += `\n\n[INFO SISTEM]: Catatan percakapan sebelumnya dengan pengguna ini sudah dibersihkan secara otomatis (setiap 3 hari sekali) agar obrolan tetap lancar.`;
     }
 
-    const historyForAI = conv.messages.slice(-20).map(m => ({
+    // Ambil maksimal 10 riwayat percakapan terakhir
+    const historyForAI = conv.messages.slice(-10).map(m => ({
       role: m.role,
       content: m.content
     }));
@@ -891,15 +904,37 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 
     const selectedModel = user.modelName || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
-    console.log(`🚀 [AI Processing] Mengirim prompt ke provider [${provider}] model [${selectedModel}]...`);
-    const reply = await fetchAIResponse(
-      provider,
-      activeKey, 
-      messagesPayload, 
-      selectedModel,
-      targetSocket,
-      senderNumber
-    );
+    let reply = "";
+
+    try {
+      console.log(`🚀 [AI Processing] Mengirim prompt ke provider [${provider}] model [${selectedModel}]...`);
+      reply = await fetchAIResponse(
+        provider,
+        activeKey, 
+        messagesPayload, 
+        selectedModel,
+        targetSocket,
+        senderNumber
+      );
+    } catch (historyErr) {
+      console.warn(`⚠️ Error riwayat context/model tidak cocok (${historyErr.message}). Menjalankan Auto-Recovery...`);
+      
+      // Auto-Recovery: Reset riwayat untuk percakapan ini dan coba lagi hanya dengan pesan baru
+      conv.messages = [{ role: "user", content: combinedText }];
+      const freshPayload = [
+        { role: "system", content: dynamicSystemPrompt },
+        { role: "user", content: combinedText }
+      ];
+
+      reply = await fetchAIResponse(
+        provider,
+        activeKey, 
+        freshPayload, 
+        selectedModel,
+        targetSocket,
+        senderNumber
+      );
+    }
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
@@ -1071,7 +1106,7 @@ async function startUserBot(userId, socket = null) {
             const combinedText = aggregatedTexts.join("\n");
             console.log(`⚡ Memproses pembalasan AI untuk [${senderNumber}]...`);
             await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetSocket);
-          }, 6000); // 6 detik jeda yang responsif
+          }, 6000);
 
         }
       } catch (upsertErr) {
