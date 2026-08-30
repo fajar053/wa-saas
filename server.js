@@ -34,32 +34,161 @@ const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// DAFTAR MODEL AUTO-FAILOVER & ROTASI API KEY
-const FALLBACK_MODELS = [
-  "deepseek/deepseek-v4-flash-free",
-  "qwen/qwen3.8-27b-free",
-  "orcarouter/free",
-  "tencent/hy3-free"
+// --- KONFIGURASI MULTI-PROVIDER AI & ROUND-ROBIN ROTATION ENGINE ---
+const AI_PROVIDERS = [
+  {
+    name: "Orcarouter",
+    apiKey: "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
+    baseUrl: process.env.ORCAROUTER_API_URL || "https://api.orcarouter.ai/v1/chat/completions",
+    models: [
+      "qwen/qwen3.8-27b-free",
+      "orcarouter/free",
+      "tencent/hy3-free",
+      "deepseek/deepseek-v4-flash-free"
+    ]
+  },
+  {
+    name: "Teamrouter",
+    apiKey: "sk-teamo-0990530c5810e95c2433ee99def18de8f7b3d1dcb5ba6505",
+    baseUrl: process.env.TEAMROUTER_API_URL || "https://api.teamrouter.ai/v1/chat/completions",
+    models: [
+      "deepseek-v4-pro-free",
+      "glm-5.3-flash-free",
+      "deepseek-v4-flash-free"
+    ]
+  },
+  {
+    name: "Sambanova",
+    apiKey: "fc5715aa-7978-4005-9295-ce468f3c6fc2",
+    baseUrl: process.env.SAMBANOVA_API_URL || "https://api.sambanova.ai/v1/chat/completions",
+    models: [
+      "MiniMax-M2.7",
+      "Meta-Llama-3.3-70B-Instruct",
+      "gpt-oss-120b"
+    ]
+  },
+  {
+    name: "Xkiro",
+    apiKey: "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
+    baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
+    models: [
+      "qwen/qwen3.8-max:free",
+      "deepseek/deepseek-v4-flash",
+      "openai/gpt-5.3-codex-spark"
+    ]
+  }
 ];
 
-const ORCAROUTER_API_KEYS = [
-  "sk-orca-oyko9wktmhBn0r6jNScwdZwa5dWuB1XF0WAcXF7IkhP",
-  "sk-orca-gSqaVtc3MQss7xh53pxks4NJ5c9Z87ScWWm9tok0EHr",
-  "sk-orca-iOrMlZVWkpKUE2WIM0LttuwRQSmXaH0yDbIo7Ajyrnq"
-];
-
-let currentKeyIndex = 0;
-
-function getActiveApiKey() {
-  return ORCAROUTER_API_KEYS[currentKeyIndex % ORCAROUTER_API_KEYS.length];
-}
-
-function rotateApiKey() {
-  currentKeyIndex = (currentKeyIndex + 1) % ORCAROUTER_API_KEYS.length;
-  console.warn(`🔄 [ROTASI API KEY] Berpindah ke Key #${currentKeyIndex + 1}`);
-}
+// Indeks provider untuk perputaran/rotasi terus-menerus (round-robin)
+let activeProviderIndex = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// --- HELPER CALL MULTI-GATEWAY AI (ROTASI ROUND-ROBIN + FAILOVER AUTO-RETRY) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 18000) {
+  const totalProviders = AI_PROVIDERS.length;
+  
+  // Catat titik awal provider untuk request ini
+  const startProviderIndex = activeProviderIndex;
+
+  // Geser pointer provider ke giliran berikutnya untuk request selanjutnya (Round-Robin)
+  activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
+
+  // Coba giliran provider mulai dari startProviderIndex sampai melingkar balik ke awal jika terjadi error
+  for (let attempt = 0; attempt < totalProviders; attempt++) {
+    const currentIdx = (startProviderIndex + attempt) % totalProviders;
+    const provider = AI_PROVIDERS[currentIdx];
+
+    console.log(`📡 [ROTASI AI] Menggunakan Provider #${currentIdx + 1} (${provider.name}) | Key: ${provider.apiKey.substring(0, 10)}...`);
+
+    let providerFailed = false;
+
+    // Coba seluruh model yang dimiliki oleh provider yang sedang aktif di giliran ini
+    for (const model of provider.models) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(provider.baseUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+            "X-Title": "WA AutoBot Multi-Gateway"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 401 || response.status === 403) {
+          console.warn(`❌ [API KEY INVALID] Provider "${provider.name}" HTTP ${response.status}. Beralih ke provider berikutnya dalam antrean rotasi...`);
+          providerFailed = true;
+          break;
+        }
+
+        if (response.status === 429) {
+          console.warn(`⚠️ [RATE LIMIT 429] Provider "${provider.name}" Model "${model}" sibuk. Mencoba model berikutnya...`);
+          await sleep(1000);
+          continue;
+        }
+
+        if (!response.ok) {
+          console.warn(`⚠️ [API HTTP ${response.status}] Provider "${provider.name}" Model "${model}" gagal.`);
+          await sleep(1000);
+          continue;
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+
+        if (content) {
+          console.log(`✅ [RESPON BERHASIL] via Provider: ${provider.name} | Model: ${model}`);
+          return content;
+        }
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn(`⚠️ [ERROR/TIMEOUT] Provider "${provider.name}" Model "${model}": ${err.message}`);
+        await sleep(1000);
+      }
+    }
+
+    console.warn(`🚨 [FAILOVER PROVIDER] Provider "${provider.name}" gagal pada semua model. Mengalihkan ke provider berikutnya...`);
+    await sleep(1000);
+  }
+
+  throw new Error("Seluruh API Key & Model AI (Orcarouter, Teamrouter, Sambanova, Xkiro) sedang tidak dapat diakses.");
+}
+
+// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
+function extractMessageText(msg) {
+  if (!msg.message) return "";
+  let m = msg.message;
+
+  if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
+  if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
+  if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
+  if (m.documentWithCaptionMessage) m = m.documentWithCaptionMessage.message || m;
+  if (m.editedMessage) m = m.editedMessage.message?.protocolMessage?.editedMessage || m;
+
+  return (
+    m.conversation ||
+    m.extendedTextMessage?.text ||
+    m.imageMessage?.caption ||
+    m.videoMessage?.caption ||
+    m.documentMessage?.caption ||
+    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    m.buttonsResponseMessage?.selectedButtonId ||
+    m.templateButtonReplyMessage?.selectedId ||
+    ""
+  );
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -105,89 +234,6 @@ const activeSessions = new Map();
 const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
-
-// --- HELPER CALL ORCAROUTER API (EXPONENTIAL BACKOFF ANTI-429) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 18000) {
-  const apiBaseUrl = "https://api.orcarouter.ai/v1/chat/completions";
-
-  for (const model of FALLBACK_MODELS) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const apiKey = getActiveApiKey();
-      const response = await fetch(apiBaseUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-          "X-Title": "OrcaRouter Gateway"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.status === 429) {
-        console.warn(`⚠️ [RATE LIMIT 429] Model "${model}" sibuk. Menunggu 2.5 detik & rotasi key...`);
-        rotateApiKey();
-        await sleep(2500);
-        continue;
-      }
-
-      if (!response.ok) {
-        console.warn(`⚠️ [API ${response.status}] Model "${model}" & Key #${currentKeyIndex + 1} Gagal.`);
-        rotateApiKey();
-        await sleep(1000);
-        continue;
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        console.log(`✅ Respon AI Berhasil via Model: ${model} (Key #${currentKeyIndex + 1})`);
-        return content;
-      }
-
-    } catch (err) {
-      clearTimeout(timeoutId);
-      console.warn(`⚠️ [FAILOVER TIMEOUT] Model "${model}": ${err.message}`);
-      rotateApiKey();
-      await sleep(1000);
-    }
-  }
-
-  throw new Error("Server AI OrcaRouter sedang padat. Silakan kirim ulang pesan beberapa saat lagi.");
-}
-
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
-function extractMessageText(msg) {
-  if (!msg.message) return "";
-  let m = msg.message;
-
-  if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
-  if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
-  if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
-  if (m.documentWithCaptionMessage) m = m.documentWithCaptionMessage.message || m;
-  if (m.editedMessage) m = m.editedMessage.message?.protocolMessage?.editedMessage || m;
-
-  return (
-    m.conversation ||
-    m.extendedTextMessage?.text ||
-    m.imageMessage?.caption ||
-    m.videoMessage?.caption ||
-    m.documentMessage?.caption ||
-    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
-    m.buttonsResponseMessage?.selectedButtonId ||
-    m.templateButtonReplyMessage?.selectedId ||
-    ""
-  );
-}
 
 // --- AUTHENTICATION & API ---
 app.post("/api/register", async (req, res) => {
@@ -606,7 +652,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       console.error(`❌ [ALL RETRIES FAILED] ${err.message}`);
       io.to(strUserId).emit("error-log", {
         time: new Date().toLocaleTimeString(),
-        message: `Gagal merespon: Server AI sedang sibuk/rate limit. Coba pesan lagi.`,
+        message: `Gagal merespon: Seluruh Provider AI sedang sibuk/error. Coba pesan lagi nanti.`,
         from: senderNumber
       });
       return;
