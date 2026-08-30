@@ -44,99 +44,83 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- KONFIGURASI MULTI-GATEWAY AI ENGINE (OPENROUTER + XKIRO FAILOVER) ---
-const AI_PROVIDERS = [
-  {
-    name: "OpenRouter Free",
-    apiKey: process.env.OPENROUTER_API_KEY || "sk-or-v1-openrouter-free-key",
-    baseUrl: "https://openrouter.ai/api/v1/chat/completions",
-    models: [
-      "google/gemini-2.0-flash-lite-001",
-      "qwen/qwen-2.5-7b-instruct:free",
-      "meta-llama/llama-3.3-70b-instruct:free",
-      "deepseek/deepseek-r1:free"
-    ]
-  },
-  {
-    name: "Xkiro Engine",
-    apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
-    baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
-    models: [
-      "qwen/qwen3.8-max:free",
-      "deepseek/deepseek-v4-flash",
-      "openai/gpt-5.3-codex-spark"
-    ]
-  }
-];
+// --- KONFIGURASI SINGLE PROVIDER: ORCAROUTER AI ENGINE ---
+const ORCAROUTER_CONFIG = {
+  name: "Orcarouter",
+  apiKey: process.env.ORCAROUTER_API_KEY || "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
+  baseUrl: process.env.ORCAROUTER_API_URL || "https://api.orcarouter.ai/v1/chat/completions",
+  models: [
+    "qwen/qwen3.8-27b-free",
+    "orcarouter/free",
+    "tencent/hy3-free",
+    "deepseek/deepseek-v4-flash-free"
+  ]
+};
 
-let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (GUARANTEED RESPONSE) ---
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 7000) {
-  const totalProviders = AI_PROVIDERS.length;
-  const startProviderIndex = activeProviderIndex;
-  activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
+// --- HELPER CALL ORCAROUTER AI (ROBUST MODEL FAILOVER) ---
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
+  for (const model of ORCAROUTER_CONFIG.models) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  for (let attempt = 0; attempt < totalProviders; attempt++) {
-    const currentIdx = (startProviderIndex + attempt) % totalProviders;
-    const provider = AI_PROVIDERS[currentIdx];
+    console.log(`📡 [ORCAROUTER AI] Requesting model: ${model}`);
 
-    for (const model of provider.models) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(ORCAROUTER_CONFIG.baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${ORCAROUTER_CONFIG.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+          "X-Title": "WA AutoBot SaaS",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages
+        }),
+        signal: controller.signal
+      });
 
-      console.log(`📡 [AI REQUEST] Provider: ${provider.name} | Model: ${model}`);
+      clearTimeout(timeoutId);
 
-      try {
-        const response = await fetch(provider.baseUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-            "X-Title": "WA AutoBot SaaS",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: messages
-          }),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if ([400, 401, 403, 404].includes(response.status)) {
-          console.warn(`❌ [API HTTP ${response.status}] ${provider.name} (${model}). Lanjut model lain...`);
-          await sleep(300);
-          continue;
-        }
-
-        if (!response.ok) {
-          await sleep(300);
-          continue;
-        }
-
-        const data = await response.json().catch(() => null);
-        const content = data?.choices?.[0]?.message?.content;
-
-        if (content && content.trim()) {
-          console.log(`✅ [AI SUCCESS] Respon diterima dari ${provider.name} (${model})`);
-          return content.trim();
-        }
-
-      } catch (err) {
-        clearTimeout(timeoutId);
-        const errDetail = err.cause?.message || err.message;
-        console.warn(`⚠️ [AI TIMEOUT/FETCH FAILED] ${provider.name} (${model}): ${errDetail}`);
+      if ([400, 401, 403, 404].includes(response.status)) {
+        console.warn(`❌ [ORCAROUTER HTTP ${response.status}] Model ${model} ditolak. Mencoba model Orcarouter berikutnya...`);
         await sleep(300);
+        continue;
       }
+
+      if (response.status === 429) {
+        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk. Mencoba model Orcarouter berikutnya...`);
+        await sleep(500);
+        continue;
+      }
+
+      if (!response.ok) {
+        await sleep(300);
+        continue;
+      }
+
+      const data = await response.json().catch(() => null);
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (content && content.trim()) {
+        console.log(`✅ [ORCAROUTER SUCCESS] Berhasil merespon menggunakan model: ${model}`);
+        return content.trim();
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const errDetail = err.cause?.message || err.message;
+      console.warn(`⚠️ [ORCAROUTER TIMEOUT/ERR] Model ${model}: ${errDetail}`);
+      await sleep(300);
     }
   }
 
-  // Fallback cadangan jika seluruh koneksi API luar terblokir
-  return "Halo! Terima kasih telah menghubungi kami. Saat ini sistem balasan otomatis sedang dioptimasi, pesan Anda telah kami terima 🙏";
+  // Fallback cadangan jika seluruh model Orcarouter sibuk
+  return "Halo! Terima kasih telah menghubungi kami. Saat ini sistem balasan otomatis sedang diproses, mohon ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -403,7 +387,7 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR AUTO GENERATE PROMPT ---
+// --- FITUR AUTO GENERATE PROMPT (ORCAROUTER ENGINE) ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
