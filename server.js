@@ -25,7 +25,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- MENCEGAH SERVER CRASH / SIGTERM KARENA UNHANDLED ERROR ---
+// --- PREVENT SERVER CRASH / SIGTERM ---
 process.on("unhandledRejection", (reason, promise) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -43,7 +43,7 @@ const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// --- KONFIGURASI MULTI-PROVIDER AI & ROUND-ROBIN ROTATION ENGINE ---
+// --- KONFIGURASI MULTI-PROVIDER AI & ROTATING GATEWAYS ---
 const AI_PROVIDERS = [
   {
     name: "Orcarouter",
@@ -91,7 +91,7 @@ const AI_PROVIDERS = [
 let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (FAST FAILOVER & ANTI-FREEZE) ---
+// --- HELPER CALL MULTI-GATEWAY AI (FAST FAILOVER) ---
 async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 7000) {
   const totalProviders = AI_PROVIDERS.length;
   const startProviderIndex = activeProviderIndex;
@@ -127,7 +127,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
         clearTimeout(timeoutId);
 
         if ([400, 401, 403, 404].includes(response.status)) {
-          console.warn(`❌ [PROVIDER ERROR ${response.status}] ${provider.name} (Model: ${model}). Lanjut ke provider berikutnya...`);
+          console.warn(`❌ [PROVIDER ERROR ${response.status}] ${provider.name} (Model: ${model}). Lanjut...`);
           break; 
         }
 
@@ -160,7 +160,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
   throw new Error("Seluruh provider AI sedang sibuk atau tidak merespon.");
 }
 
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP (SANGAT LENGKAP) ---
+// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
 function extractMessageText(msg) {
   if (!msg || !msg.message) return "";
   let m = msg.message;
@@ -399,6 +399,21 @@ app.post("/api/profile/update", verifyToken, async (req, res) => {
   }
 });
 
+// --- API RESET SESI BA ILEYS (SOLUSI SESI CORRUPT) ---
+app.post("/api/session/reset", verifyToken, async (req, res) => {
+  try {
+    const strUserId = String(req.user.userId);
+    if (activeSessions.has(strUserId)) {
+      try { activeSessions.get(strUserId)?.end(); } catch {}
+      activeSessions.delete(strUserId);
+    }
+    await Session.deleteOne({ userId: strUserId });
+    res.json({ success: true, message: "Sesi berhasil direset. Silakan scan QR ulang di Dashboard!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.post("/api/history/clear", verifyToken, async (req, res) => {
   try {
     await Conversation.deleteMany({ botUserId: String(req.user.userId) });
@@ -425,124 +440,6 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     res.json({ success: true, generatedPrompt });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA ---
-app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { planType } = req.body;
-
-    let baseAmount = 15000;
-    let durationDays = 30;
-
-    if (planType === "1_year") {
-      baseAmount = 99000;
-      durationDays = 365;
-    }
-
-    let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
-    if (existingTx) {
-      return res.json({
-        success: true,
-        data: {
-          orderId: existingTx.orderId,
-          totalAmount: existingTx.totalAmount,
-          uniqueCode: existingTx.uniqueCode,
-          bankName: "BNI",
-          accountNumber: "1275951171",
-          accountHolder: "Muhammad Fajar Firdaus"
-        }
-      });
-    }
-
-    let uniqueCode;
-    let isCodeTaken = true;
-    while (isCodeTaken) {
-      uniqueCode = Math.floor(100 + Math.random() * 900);
-      const checkTx = await Transaction.findOne({ totalAmount: baseAmount + uniqueCode, status: "pending" });
-      if (!checkTx) isCodeTaken = false;
-    }
-
-    const totalAmount = baseAmount + uniqueCode;
-    const orderId = `INV-${Date.now()}`;
-
-    await Transaction.create({
-      userId,
-      orderId,
-      planType: planType || "1_month",
-      durationDays,
-      baseAmount,
-      uniqueCode,
-      totalAmount
-    });
-
-    res.json({
-      success: true,
-      data: {
-        orderId,
-        totalAmount,
-        uniqueCode,
-        bankName: "BNI",
-        accountNumber: "1275951171",
-        accountHolder: "Muhammad Fajar Firdaus"
-      }
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/subscribe/moota-webhook", async (req, res) => {
-  try {
-    const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
-    const incomingSignature = req.headers["signature"] || req.headers["secret-token"];
-
-    if (mootaSecret && incomingSignature !== mootaSecret) {
-      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
-    }
-
-    const mutations = Array.isArray(req.body) ? req.body : [req.body];
-
-    for (const item of mutations) {
-      if (item.type === "CR" || item.type === "credit") {
-        const amountReceived = Number(item.amount);
-
-        const tx = await Transaction.findOne({ totalAmount: amountReceived, status: "pending" });
-
-        if (tx) {
-          tx.status = "completed";
-          await tx.save();
-
-          const user = await User.findById(tx.userId);
-          if (user) {
-            const now = new Date();
-            const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
-
-            let newExpiredAt;
-            if (user.plan === "premium" && user.expiredAt && user.expiredAt > now) {
-              newExpiredAt = new Date(user.expiredAt.getTime() + durationMs);
-            } else {
-              newExpiredAt = new Date(now.getTime() + durationMs);
-            }
-
-            user.plan = "premium";
-            user.expiredAt = newExpiredAt;
-            await user.save();
-
-            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} aktif hingga ${newExpiredAt.toISOString()}`);
-          }
-        }
-      }
-    }
-
-    res.status(200).json({ status: "success" });
-
-  } catch (err) {
-    console.error("❌ Moota Webhook Error:", err.message);
-    res.status(500).json({ status: "error", message: err.message });
   }
 });
 
@@ -771,6 +668,8 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
+          console.log(`📩 [TRAFIK WA MASUK] JID: ${msg.key.remoteJid} | fromMe: ${msg.key.fromMe}`);
+
           if (
             !msg.message || 
             msg.key.fromMe || 
@@ -784,9 +683,13 @@ async function startUserBot(userId) {
           if (processedMsgIds.size > 1000) processedMsgIds.clear();
 
           const text = extractMessageText(msg);
-          if (!text) continue;
+          if (!text) {
+            console.warn(`⚠️ [PESAN KOSONG/GAGAL DEKRIPSI] ID: ${msg.key.id}`);
+            continue;
+          }
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
+          console.log(`💬 [PESAN TERUSKAN KE LOG] From: ${senderNumber} | Text: ${text}`);
 
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
