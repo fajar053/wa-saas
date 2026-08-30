@@ -82,8 +82,8 @@ const AI_PROVIDERS = [
 let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (ROUND-ROBIN + AUTO-FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 18000) {
+// --- HELPER CALL MULTI-GATEWAY AI (FAST FAILOVER & ANTI-FREEZE) ---
+async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 7000) {
   const totalProviders = AI_PROVIDERS.length;
   const startProviderIndex = activeProviderIndex;
 
@@ -93,7 +93,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
     const currentIdx = (startProviderIndex + attempt) % totalProviders;
     const provider = AI_PROVIDERS[currentIdx];
 
-    console.log(`📡 [ROTASI AI] Provider #${currentIdx + 1} (${provider.name}) | Key: ${provider.apiKey.substring(0, 10)}...`);
+    console.log(`📡 [MENCOBA AI] Provider #${currentIdx + 1}: ${provider.name}`);
 
     for (const model of provider.models) {
       const controller = new AbortController();
@@ -106,7 +106,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
             "Authorization": `Bearer ${provider.apiKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-            "X-Title": "WA AutoBot Multi-Gateway"
+            "X-Title": "WA AutoBot SaaS"
           },
           body: JSON.stringify({
             model: model,
@@ -117,20 +117,20 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
 
         clearTimeout(timeoutId);
 
-        if (response.status === 401 || response.status === 403) {
-          console.warn(`❌ [API KEY INVALID] Provider "${provider.name}" HTTP ${response.status}. Lanjut ke provider berikutnya...`);
-          break;
+        // Jika API Key/Endpoint Salah (400, 401, 403, 404), langsung lewati provider ini
+        if ([400, 401, 403, 404].includes(response.status)) {
+          console.warn(`❌ [PROVIDER ERROR ${response.status}] ${provider.name} (Model: ${model}). Lanjut ke provider berikutnya...`);
+          break; 
         }
 
         if (response.status === 429) {
-          console.warn(`⚠️ [RATE LIMIT 429] Provider "${provider.name}" Model "${model}" sibuk. Mencoba model berikutnya...`);
-          await sleep(1000);
+          console.warn(`⚠️ [RATE LIMIT 429] ${provider.name} (${model}). Coba model berikutnya...`);
+          await sleep(500);
           continue;
         }
 
         if (!response.ok) {
-          console.warn(`⚠️ [API HTTP ${response.status}] Provider "${provider.name}" Model "${model}" gagal.`);
-          await sleep(1000);
+          await sleep(500);
           continue;
         }
 
@@ -138,22 +138,18 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
         const content = data?.choices?.[0]?.message?.content;
 
         if (content) {
-          console.log(`✅ [RESPON BERHASIL] Provider: ${provider.name} | Model: ${model}`);
+          console.log(`✅ [BERHASIL] Provider: ${provider.name} | Model: ${model}`);
           return content;
         }
 
       } catch (err) {
         clearTimeout(timeoutId);
-        console.warn(`⚠️ [ERROR/TIMEOUT] Provider "${provider.name}" Model "${model}": ${err.message}`);
-        await sleep(1000);
+        console.warn(`⚠️ [TIMEOUT/FAIL] ${provider.name} (${model}): ${err.message}`);
       }
     }
-
-    console.warn(`🚨 [FAILOVER PROVIDER] Provider "${provider.name}" tidak merespon. Mengalihkan ke provider berikutnya...`);
-    await sleep(1000);
   }
 
-  throw new Error("Seluruh API Key & Model AI (Orcarouter, Teamrouter, Sambanova, Xkiro) sedang tidak dapat diakses.");
+  throw new Error("Seluruh provider AI sedang sibuk atau tidak merespon.");
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP (SANGAT LENGKAP) ---
@@ -161,7 +157,6 @@ function extractMessageText(msg) {
   if (!msg || !msg.message) return "";
   let m = msg.message;
 
-  // Un-nest wrappers (ephemeral, viewOnce, document, edited)
   if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
   if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
   if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
@@ -626,7 +621,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       return;
     }
 
-    // Tandai centang biru (read receipt) HANYA jika bot aktif
     try {
       await sock.readMessages([{ remoteJid, id: lastMsgId }]);
     } catch {}
@@ -753,7 +747,6 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          // Abaikan pesan dari diri sendiri, grup, status broadcast, atau newsletter
           if (
             !msg.message || 
             msg.key.fromMe || 
@@ -771,7 +764,6 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
-          // Emit log ke dashboard realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
