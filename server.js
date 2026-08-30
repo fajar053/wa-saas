@@ -79,31 +79,22 @@ const AI_PROVIDERS = [
   }
 ];
 
-// Indeks provider untuk perputaran/rotasi terus-menerus (round-robin)
 let activeProviderIndex = 0;
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (ROTASI ROUND-ROBIN + FAILOVER AUTO-RETRY) ---
+// --- HELPER CALL MULTI-GATEWAY AI (ROUND-ROBIN + AUTO-FAILOVER) ---
 async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 18000) {
   const totalProviders = AI_PROVIDERS.length;
-  
-  // Catat titik awal provider untuk request ini
   const startProviderIndex = activeProviderIndex;
 
-  // Geser pointer provider ke giliran berikutnya untuk request selanjutnya (Round-Robin)
   activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
 
-  // Coba giliran provider mulai dari startProviderIndex sampai melingkar balik ke awal jika terjadi error
   for (let attempt = 0; attempt < totalProviders; attempt++) {
     const currentIdx = (startProviderIndex + attempt) % totalProviders;
     const provider = AI_PROVIDERS[currentIdx];
 
-    console.log(`📡 [ROTASI AI] Menggunakan Provider #${currentIdx + 1} (${provider.name}) | Key: ${provider.apiKey.substring(0, 10)}...`);
+    console.log(`📡 [ROTASI AI] Provider #${currentIdx + 1} (${provider.name}) | Key: ${provider.apiKey.substring(0, 10)}...`);
 
-    let providerFailed = false;
-
-    // Coba seluruh model yang dimiliki oleh provider yang sedang aktif di giliran ini
     for (const model of provider.models) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -127,8 +118,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
         clearTimeout(timeoutId);
 
         if (response.status === 401 || response.status === 403) {
-          console.warn(`❌ [API KEY INVALID] Provider "${provider.name}" HTTP ${response.status}. Beralih ke provider berikutnya dalam antrean rotasi...`);
-          providerFailed = true;
+          console.warn(`❌ [API KEY INVALID] Provider "${provider.name}" HTTP ${response.status}. Lanjut ke provider berikutnya...`);
           break;
         }
 
@@ -148,7 +138,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
         const content = data.choices?.[0]?.message?.content;
 
         if (content) {
-          console.log(`✅ [RESPON BERHASIL] via Provider: ${provider.name} | Model: ${model}`);
+          console.log(`✅ [RESPON BERHASIL] Provider: ${provider.name} | Model: ${model}`);
           return content;
         }
 
@@ -159,7 +149,7 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
       }
     }
 
-    console.warn(`🚨 [FAILOVER PROVIDER] Provider "${provider.name}" gagal pada semua model. Mengalihkan ke provider berikutnya...`);
+    console.warn(`🚨 [FAILOVER PROVIDER] Provider "${provider.name}" tidak merespon. Mengalihkan ke provider berikutnya...`);
     await sleep(1000);
   }
 
@@ -601,13 +591,18 @@ async function autoStartAllSessions() {
 }
 
 // --- PEMROSESAN BALASAN AI ---
-async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock) {
+async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
   try {
     const user = await User.findById(strUserId);
     if (!user) return;
 
     if (user.isBotActive === false) {
       console.log(`ℹ️ Bot nonaktif untuk user ${strUserId}`);
+      io.to(strUserId).emit("error-log", {
+        time: new Date().toLocaleTimeString(),
+        message: "Pesan masuk tetapi Bot dalam status NONAKTIF.",
+        from: senderNumber
+      });
       return;
     }
 
@@ -626,6 +621,11 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       });
       return;
     }
+
+    // Tandai centang biru (read receipt) HANYA jika bot aktif
+    try {
+      await sock.readMessages([{ remoteJid, id: lastMsgId }]);
+    } catch {}
 
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
     if (!conv) {
@@ -652,7 +652,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       console.error(`❌ [ALL RETRIES FAILED] ${err.message}`);
       io.to(strUserId).emit("error-log", {
         time: new Date().toLocaleTimeString(),
-        message: `Gagal merespon: Seluruh Provider AI sedang sibuk/error. Coba pesan lagi nanti.`,
+        message: `Gagal merespon: Seluruh Provider AI sedang sibuk/error.`,
         from: senderNumber
       });
       return;
@@ -745,6 +745,8 @@ async function startUserBot(userId) {
 
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
+        if (chatUpdate.type !== "notify") return;
+
         const { messages } = chatUpdate;
         if (!messages || messages.length === 0) return;
 
@@ -760,10 +762,6 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
-          try {
-            await sock.readMessages([{ remoteJid: msg.key.remoteJid, id: msg.key.id, participant: msg.key.participant }]);
-          } catch {}
-
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -773,22 +771,24 @@ async function startUserBot(userId) {
 
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
-            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid });
+            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
           }
 
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
           buf.remoteJid = msg.key.remoteJid;
+          buf.lastMsgId = msg.key.id;
 
           if (buf.timer) clearTimeout(buf.timer);
 
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
             const targetJid = buf.remoteJid;
+            const targetMsgId = buf.lastMsgId;
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock);
+            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetMsgId);
           }, 2000);
         }
       } catch (err) {
