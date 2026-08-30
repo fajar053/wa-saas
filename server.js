@@ -449,6 +449,124 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
+// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA ---
+app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { planType } = req.body;
+
+    let baseAmount = 15000;
+    let durationDays = 30;
+
+    if (planType === "1_year") {
+      baseAmount = 99000;
+      durationDays = 365;
+    }
+
+    let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
+    if (existingTx) {
+      return res.json({
+        success: true,
+        data: {
+          orderId: existingTx.orderId,
+          totalAmount: existingTx.totalAmount,
+          uniqueCode: existingTx.uniqueCode,
+          bankName: "BNI",
+          accountNumber: "1275951171",
+          accountHolder: "Muhammad Fajar Firdaus"
+        }
+      });
+    }
+
+    let uniqueCode;
+    let isCodeTaken = true;
+    while (isCodeTaken) {
+      uniqueCode = Math.floor(100 + Math.random() * 900);
+      const checkTx = await Transaction.findOne({ totalAmount: baseAmount + uniqueCode, status: "pending" });
+      if (!checkTx) isCodeTaken = false;
+    }
+
+    const totalAmount = baseAmount + uniqueCode;
+    const orderId = `INV-${Date.now()}`;
+
+    await Transaction.create({
+      userId,
+      orderId,
+      planType: planType || "1_month",
+      durationDays,
+      baseAmount,
+      uniqueCode,
+      totalAmount
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orderId,
+        totalAmount,
+        uniqueCode,
+        bankName: "BNI",
+        accountNumber: "1275951171",
+        accountHolder: "Muhammad Fajar Firdaus"
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/subscribe/moota-webhook", async (req, res) => {
+  try {
+    const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
+    const incomingSignature = req.headers["signature"] || req.headers["secret-token"];
+
+    if (mootaSecret && incomingSignature !== mootaSecret) {
+      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
+    }
+
+    const mutations = Array.isArray(req.body) ? req.body : [req.body];
+
+    for (const item of mutations) {
+      if (item.type === "CR" || item.type === "credit") {
+        const amountReceived = Number(item.amount);
+
+        const tx = await Transaction.findOne({ totalAmount: amountReceived, status: "pending" });
+
+        if (tx) {
+          tx.status = "completed";
+          await tx.save();
+
+          const user = await User.findById(tx.userId);
+          if (user) {
+            const now = new Date();
+            const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
+
+            let newExpiredAt;
+            if (user.plan === "premium" && user.expiredAt && user.expiredAt > now) {
+              newExpiredAt = new Date(user.expiredAt.getTime() + durationMs);
+            } else {
+              newExpiredAt = new Date(now.getTime() + durationMs);
+            }
+
+            user.plan = "premium";
+            user.expiredAt = newExpiredAt;
+            await user.save();
+
+            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} aktif hingga ${newExpiredAt.toISOString()}`);
+          }
+        }
+      }
+    }
+
+    res.status(200).json({ status: "success" });
+
+  } catch (err) {
+    console.error("❌ Moota Webhook Error:", err.message);
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
   let session = await Session.findOne({ userId: String(userId) });
@@ -610,9 +728,13 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 async function startUserBot(userId) {
   const strUserId = String(userId);
 
-  if (activeSessions.has(strUserId) && activeSessions.get(strUserId)?.ws?.isOpen) {
-    io.to(strUserId).emit("status", "Connected");
-    return;
+  // FIX: Cek sock.user untuk memastikan koneksi WA memang sudah aktif & terikat
+  if (activeSessions.has(strUserId)) {
+    const existingSock = activeSessions.get(strUserId);
+    if (existingSock?.user) {
+      io.to(strUserId).emit("status", "Connected");
+      return;
+    }
   }
 
   if (isStartingSession.has(strUserId)) return;
@@ -633,7 +755,11 @@ async function startUserBot(userId) {
       auth: state,
       printQRInTerminal: false,
       markOnlineOnConnect: true,
-      syncFullHistory: false
+      syncFullHistory: false,
+      // FIX: Menangani retry dekripsi enkripsi Baileys
+      getMessage: async (key) => {
+        return { conversation: "bot" };
+      }
     });
 
     activeSessions.set(strUserId, sock);
