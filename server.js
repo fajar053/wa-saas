@@ -25,6 +25,15 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
+// --- MENCEGAH SERVER CRASH / SIGTERM KARENA UNHANDLED ERROR ---
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("⚠️ [UNHANDLED REJECTION]:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("⚠️ [UNCAUGHT EXCEPTION]:", err);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -117,7 +126,6 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
 
         clearTimeout(timeoutId);
 
-        // Jika API Key/Endpoint Salah (400, 401, 403, 404), langsung lewati provider ini
         if ([400, 401, 403, 404].includes(response.status)) {
           console.warn(`❌ [PROVIDER ERROR ${response.status}] ${provider.name} (Model: ${model}). Lanjut ke provider berikutnya...`);
           break; 
@@ -370,6 +378,22 @@ app.post("/api/config", verifyToken, async (req, res) => {
 
     await user.save();
     res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/profile/update", verifyToken, async (req, res) => {
+  try {
+    const { profilePicture, nickname } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
+
+    if (profilePicture) user.profilePicture = profilePicture;
+    if (nickname) user.nickname = nickname;
+
+    await user.save();
+    res.json({ success: true, message: "Profil berhasil diperbarui!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -702,7 +726,7 @@ async function startUserBot(userId) {
 
     const sock = makeWASocket({
       version,
-      logger: pino({ level: "silent" }),
+      logger: pino({ level: "fatal" }),
       auth: state,
       printQRInTerminal: false,
       markOnlineOnConnect: true,
@@ -818,21 +842,6 @@ io.on("connection", (socket) => {
     }
   });
 });
-// --- UPDATE PROFILE & AVATAR ---
-app.post("/api/profile/update", verifyToken, async (req, res) => {
-  try {
-    const { profilePicture, nickname } = req.body;
-    const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
-    if (profilePicture) user.profilePicture = profilePicture;
-    if (nickname) user.nickname = nickname;
-
-    await user.save();
-    res.json({ success: true, message: "Profil berhasil diperbarui!" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
