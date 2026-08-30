@@ -25,7 +25,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- PREVENT PROCESS CRASH ---
+// --- MENCEGAH PROCESS CRASH / SIGTERM ---
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -44,92 +44,77 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- KONFIGURASI MULTI-PROVIDER AI & ROTATING GATEWAYS ---
-const AI_PROVIDERS = [
-  {
-    name: "Orcarouter",
-    apiKey: process.env.ORCAROUTER_API_KEY || "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
-    baseUrl: process.env.ORCAROUTER_API_URL || "https://api.orcarouter.ai/v1/chat/completions",
-    models: ["qwen/qwen3.8-27b-free", "orcarouter/free", "deepseek/deepseek-v4-flash-free"]
-  },
-  {
-    name: "Teamrouter",
-    apiKey: process.env.TEAMROUTER_API_KEY || "sk-teamo-0990530c5810e95c2433ee99def18de8f7b3d1dcb5ba6505",
-    baseUrl: process.env.TEAMROUTER_API_URL || "https://api.teamrouter.ai/v1/chat/completions",
-    models: ["deepseek-v4-pro-free", "glm-5.3-flash-free"]
-  },
-  {
-    name: "Sambanova",
-    apiKey: process.env.SAMBANOVA_API_KEY || "fc5715aa-7978-4005-9295-ce468f3c6fc2",
-    baseUrl: process.env.SAMBANOVA_API_URL || "https://api.sambanova.ai/v1/chat/completions",
-    models: ["Meta-Llama-3.3-70B-Instruct"]
-  },
-  {
-    name: "Xkiro",
-    apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
-    baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
-    models: ["qwen/qwen3.8-max:free", "deepseek/deepseek-v4-flash"]
-  }
-];
+// --- KONFIGURASI SINGLE PROVIDER: XKIRO AI ENGINE ---
+const XKIRO_CONFIG = {
+  name: "Xkiro",
+  apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
+  baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
+  models: [
+    "qwen/qwen3.8-max:free",
+    "deepseek/deepseek-v4-flash",
+    "openai/gpt-5.3-codex-spark"
+  ]
+};
 
-let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (ROBUST FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 6000) {
-  const totalProviders = AI_PROVIDERS.length;
-  const startProviderIndex = activeProviderIndex;
-  activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
+// --- HELPER CALL XKIRO AI (MODEL ROTATION + FAILOVER) ---
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
+  for (const model of XKIRO_CONFIG.models) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  for (let attempt = 0; attempt < totalProviders; attempt++) {
-    const currentIdx = (startProviderIndex + attempt) % totalProviders;
-    const provider = AI_PROVIDERS[currentIdx];
+    console.log(`📡 [XKIRO AI] Mencoba request dengan model: ${model}`);
 
-    for (const model of provider.models) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(XKIRO_CONFIG.baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${XKIRO_CONFIG.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+          "X-Title": "WA AutoBot SaaS"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages
+        }),
+        signal: controller.signal
+      });
 
-      try {
-        const response = await fetch(provider.baseUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-            "X-Title": "WA AutoBot SaaS"
-          },
-          body: JSON.stringify({ model, messages }),
-          signal: controller.signal
-        });
+      clearTimeout(timeoutId);
 
-        clearTimeout(timeoutId);
-
-        if ([400, 401, 403, 404].includes(response.status)) {
-          console.warn(`❌ [AI HTTP ${response.status}] ${provider.name} (${model}). Lanjut provider lain...`);
-          break;
-        }
-
-        if (!response.ok) {
-          await sleep(300);
-          continue;
-        }
-
-        const data = await response.json().catch(() => null);
-        const content = data?.choices?.[0]?.message?.content;
-
-        if (content && content.trim()) {
-          console.log(`✅ [AI RESPONDED] Provider: ${provider.name} | Model: ${model}`);
-          return content.trim();
-        }
-      } catch (err) {
-        clearTimeout(timeoutId);
-        console.warn(`⚠️ [AI TIMEOUT/ERR] ${provider.name} (${model}): ${err.message}`);
+      if ([400, 401, 403, 404].includes(response.status)) {
+        console.warn(`❌ [XKIRO ${response.status}] Model ${model} ditolak. Mencoba model Xkiro berikutnya...`);
+        continue;
       }
+
+      if (response.status === 429) {
+        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk. Mencoba model Xkiro berikutnya...`);
+        await sleep(500);
+        continue;
+      }
+
+      if (!response.ok) {
+        await sleep(500);
+        continue;
+      }
+
+      const data = await response.json().catch(() => null);
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (content && content.trim()) {
+        console.log(`✅ [XKIRO SUCCESS] Berhasil merespon menggunakan model: ${model}`);
+        return content.trim();
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`⚠️ [XKIRO TIMEOUT/ERR] Model ${model}: ${err.message}`);
     }
   }
 
-  // Jika seluruh AI gagal, kembalikan pesan ramah agar bot TIDAK diam saja
-  return "Maaf, saat ini sistem AI sedang mengalami kepadatan lalu lintas pesan. Silakan ulangi pesan Anda beberapa saat lagi 🙏";
+  return "Maaf, saat ini layanan AI sedang mengalami kepadatan lalu lintas pesan. Silakan coba beberapa saat lagi 🙏";
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -371,7 +356,6 @@ app.post("/api/profile/update", verifyToken, async (req, res) => {
   }
 });
 
-// --- API PUTUSKAN KONEKSI / LOGOUT WHATSAPP ---
 app.post("/api/session/disconnect", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -397,13 +381,14 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
+// --- FITUR AUTO GENERATE PROMPT (XKIRO ENGINE) ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
 
     const wordTarget = mode === "very_detailed" ? "700" : "100";
-    const systemInstruction = `Kamu adalah AI Prompt Engineer. Kembangkan instruksi singkat menjadi System Prompt/Pelatihan Bot WhatsApp dalam Bahasa Indonesia (~${wordTarget} kata). Langsung keluarkan teks prompt-nya tanpa kata pembuka/penutup.`;
+    const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Tugasmu adalah mengubah dan menguraikan instruksi singkat dari user menjadi System Prompt/Instruksi Pelatihan Bot WhatsApp dalam Bahasa Indonesia yang terstruktur, jelas, dan profesional (~${wordTarget} kata). Cukup berikan teks prompt-nya saja tanpa kata pembuka atau penutup.`;
 
     const messages = [
       { role: "system", content: systemInstruction },
@@ -633,7 +618,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       return;
     }
 
-    // Centang biru pesan masuk
     try {
       await sock.readMessages([{ remoteJid, id: lastMsgId }]);
     } catch {}
@@ -684,7 +668,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 async function startUserBot(userId) {
   const strUserId = String(userId);
 
-  // Jika sesi sudah berjalan aktif, jangan buat koneksi ganda
   if (activeSessions.has(strUserId)) {
     const activeSock = activeSessions.get(strUserId);
     if (activeSock?.user) {
@@ -754,7 +737,6 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          // Abaikan pesan dari diri sendiri, grup, status, atau newsletter
           if (
             !msg.message || 
             msg.key.fromMe || 
@@ -772,7 +754,6 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
-          // LANGSUNG EMIT KE DASHBOARD REALTIME LOG (Pastikan Tampilan Dashboard Selalu Muncul)
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -780,7 +761,6 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // Aggregation buffer (2 detik) untuk menggabungkan pesan yang dikirim cepat berurutan
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
