@@ -134,8 +134,8 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
           continue;
         }
 
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
+        const data = await response.json().catch(() => null);
+        const content = data?.choices?.[0]?.message?.content;
 
         if (content) {
           console.log(`✅ [RESPON BERHASIL] Provider: ${provider.name} | Model: ${model}`);
@@ -156,14 +156,16 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
   throw new Error("Seluruh API Key & Model AI (Orcarouter, Teamrouter, Sambanova, Xkiro) sedang tidak dapat diakses.");
 }
 
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
+// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP (SANGAT LENGKAP) ---
 function extractMessageText(msg) {
-  if (!msg.message) return "";
+  if (!msg || !msg.message) return "";
   let m = msg.message;
 
+  // Un-nest wrappers (ephemeral, viewOnce, document, edited)
   if (m.ephemeralMessage) m = m.ephemeralMessage.message || m;
   if (m.viewOnceMessage) m = m.viewOnceMessage.message || m;
   if (m.viewOnceMessageV2) m = m.viewOnceMessageV2.message || m;
+  if (m.viewOnceMessageV2Extension) m = m.viewOnceMessageV2Extension.message || m;
   if (m.documentWithCaptionMessage) m = m.documentWithCaptionMessage.message || m;
   if (m.editedMessage) m = m.editedMessage.message?.protocolMessage?.editedMessage || m;
 
@@ -173,11 +175,13 @@ function extractMessageText(msg) {
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
     m.documentMessage?.caption ||
-    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
     m.buttonsResponseMessage?.selectedButtonId ||
+    m.buttonsResponseMessage?.selectedDisplayText ||
+    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
     m.templateButtonReplyMessage?.selectedId ||
+    m.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
     ""
-  );
+  ).trim();
 }
 
 app.use(express.json());
@@ -745,13 +749,18 @@ async function startUserBot(userId) {
 
     sock.ev.on("messages.upsert", async (chatUpdate) => {
       try {
-        if (chatUpdate.type !== "notify") return;
-
         const { messages } = chatUpdate;
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us")) continue;
+          // Abaikan pesan dari diri sendiri, grup, status broadcast, atau newsletter
+          if (
+            !msg.message || 
+            msg.key.fromMe || 
+            msg.key.remoteJid.endsWith("@g.us") ||
+            msg.key.remoteJid === "status@broadcast" ||
+            msg.key.remoteJid.endsWith("@newsletter")
+          ) continue;
 
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
@@ -762,6 +771,7 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
+          // Emit log ke dashboard realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
