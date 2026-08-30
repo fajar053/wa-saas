@@ -69,7 +69,7 @@
 
       <!-- Connection Badge Status -->
       <div id="statusBadge" class="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-xs flex items-center gap-2 self-start">
-        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
         <span id="statusText" class="font-medium text-amber-300">Menghubungkan...</span>
       </div>
     </div>
@@ -160,11 +160,19 @@
               <div class="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
               <p class="text-xs text-slate-400">Menyiapkan QR Code...</p>
             </div>
-            <div id="qrConnected" class="hidden space-y-2">
+            <div id="qrConnected" class="hidden space-y-3">
               <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
                 <i data-lucide="check-circle" class="w-6 h-6"></i>
               </div>
               <p class="text-xs font-bold text-emerald-400">Terhubung ke WhatsApp</p>
+              
+              <!-- Tombol Putuskan WA -->
+              <button 
+                onclick="disconnectWA()" 
+                class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5 mx-auto"
+              >
+                <i data-lucide="power" class="w-3.5 h-3.5"></i> Putuskan Koneksi WA
+              </button>
             </div>
           </div>
         </div>
@@ -265,6 +273,21 @@
       }
     }
 
+    async function disconnectWA() {
+      if (!confirm("Apakah Anda yakin ingin memutuskan koneksi WhatsApp dari bot ini?")) return;
+      try {
+        const res = await fetch('/api/session/disconnect', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        alert(data.message);
+        window.location.reload();
+      } catch {
+        alert("Gagal memutuskan koneksi WhatsApp.");
+      }
+    }
+
     async function clearAllHistory() {
       if (!confirm("Hapus semua riwayat percakapan di database?")) return;
       try {
@@ -334,12 +357,21 @@
 
     socket.on('status', (status) => {
       const statusText = document.getElementById('statusText');
+      const statusDot = document.getElementById('statusDot');
       statusText.innerText = status;
 
       if (status === 'Connected') {
         document.getElementById('qrLoading').classList.add('hidden');
         document.getElementById('qrContainer').classList.add('hidden');
         document.getElementById('qrConnected').classList.remove('hidden');
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+        statusText.className = "font-medium text-emerald-400";
+      } else if (status === 'Disconnected') {
+        document.getElementById('qrConnected').classList.add('hidden');
+        document.getElementById('qrContainer').classList.add('hidden');
+        document.getElementById('qrLoading').classList.remove('hidden');
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-400";
+        statusText.className = "font-medium text-rose-400";
       }
     });
 

@@ -399,16 +399,22 @@ app.post("/api/profile/update", verifyToken, async (req, res) => {
   }
 });
 
-// --- API RESET SESI BA ILEYS (SOLUSI SESI CORRUPT) ---
-app.post("/api/session/reset", verifyToken, async (req, res) => {
+// --- API PUTUSKAN KONEKSI / LOGOUT WHATSAPP ---
+app.post("/api/session/disconnect", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
     if (activeSessions.has(strUserId)) {
-      try { activeSessions.get(strUserId)?.end(); } catch {}
+      const sock = activeSessions.get(strUserId);
+      try {
+        await sock.logout();
+      } catch {
+        try { sock.end(); } catch {}
+      }
       activeSessions.delete(strUserId);
     }
     await Session.deleteOne({ userId: strUserId });
-    res.json({ success: true, message: "Sesi berhasil direset. Silakan scan QR ulang di Dashboard!" });
+    io.to(strUserId).emit("status", "Disconnected");
+    res.json({ success: true, message: "Koneksi WhatsApp berhasil diputuskan!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -683,13 +689,9 @@ async function startUserBot(userId) {
           if (processedMsgIds.size > 1000) processedMsgIds.clear();
 
           const text = extractMessageText(msg);
-          if (!text) {
-            console.warn(`⚠️ [PESAN KOSONG/GAGAL DEKRIPSI] ID: ${msg.key.id}`);
-            continue;
-          }
+          if (!text) continue;
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
-          console.log(`💬 [PESAN TERUSKAN KE LOG] From: ${senderNumber} | Text: ${text}`);
 
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
