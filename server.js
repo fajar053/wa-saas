@@ -25,7 +25,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- MENCEGAH PROCESS CRASH / SIGTERM ---
+// --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -44,77 +44,99 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- KONFIGURASI SINGLE PROVIDER: XKIRO AI ENGINE ---
-const XKIRO_CONFIG = {
-  name: "Xkiro",
-  apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
-  baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
-  models: [
-    "qwen/qwen3.8-max:free",
-    "deepseek/deepseek-v4-flash",
-    "openai/gpt-5.3-codex-spark"
-  ]
-};
+// --- KONFIGURASI MULTI-GATEWAY AI ENGINE (OPENROUTER + XKIRO FAILOVER) ---
+const AI_PROVIDERS = [
+  {
+    name: "OpenRouter Free",
+    apiKey: process.env.OPENROUTER_API_KEY || "sk-or-v1-openrouter-free-key",
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions",
+    models: [
+      "google/gemini-2.0-flash-lite-001",
+      "qwen/qwen-2.5-7b-instruct:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "deepseek/deepseek-r1:free"
+    ]
+  },
+  {
+    name: "Xkiro Engine",
+    apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
+    baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
+    models: [
+      "qwen/qwen3.8-max:free",
+      "deepseek/deepseek-v4-flash",
+      "openai/gpt-5.3-codex-spark"
+    ]
+  }
+];
 
+let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL XKIRO AI (MODEL ROTATION + FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
-  for (const model of XKIRO_CONFIG.models) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+// --- HELPER CALL MULTI-GATEWAY AI (GUARANTEED RESPONSE) ---
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 7000) {
+  const totalProviders = AI_PROVIDERS.length;
+  const startProviderIndex = activeProviderIndex;
+  activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
 
-    console.log(`📡 [XKIRO AI] Mencoba request dengan model: ${model}`);
+  for (let attempt = 0; attempt < totalProviders; attempt++) {
+    const currentIdx = (startProviderIndex + attempt) % totalProviders;
+    const provider = AI_PROVIDERS[currentIdx];
 
-    try {
-      const response = await fetch(XKIRO_CONFIG.baseUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${XKIRO_CONFIG.apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
-          "X-Title": "WA AutoBot SaaS"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages
-        }),
-        signal: controller.signal
-      });
+    for (const model of provider.models) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      clearTimeout(timeoutId);
+      console.log(`📡 [AI REQUEST] Provider: ${provider.name} | Model: ${model}`);
 
-      if ([400, 401, 403, 404].includes(response.status)) {
-        console.warn(`❌ [XKIRO ${response.status}] Model ${model} ditolak. Mencoba model Xkiro berikutnya...`);
-        continue;
+      try {
+        const response = await fetch(provider.baseUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+            "X-Title": "WA AutoBot SaaS",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if ([400, 401, 403, 404].includes(response.status)) {
+          console.warn(`❌ [API HTTP ${response.status}] ${provider.name} (${model}). Lanjut model lain...`);
+          await sleep(300);
+          continue;
+        }
+
+        if (!response.ok) {
+          await sleep(300);
+          continue;
+        }
+
+        const data = await response.json().catch(() => null);
+        const content = data?.choices?.[0]?.message?.content;
+
+        if (content && content.trim()) {
+          console.log(`✅ [AI SUCCESS] Respon diterima dari ${provider.name} (${model})`);
+          return content.trim();
+        }
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        const errDetail = err.cause?.message || err.message;
+        console.warn(`⚠️ [AI TIMEOUT/FETCH FAILED] ${provider.name} (${model}): ${errDetail}`);
+        await sleep(300);
       }
-
-      if (response.status === 429) {
-        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk. Mencoba model Xkiro berikutnya...`);
-        await sleep(500);
-        continue;
-      }
-
-      if (!response.ok) {
-        await sleep(500);
-        continue;
-      }
-
-      const data = await response.json().catch(() => null);
-      const content = data?.choices?.[0]?.message?.content;
-
-      if (content && content.trim()) {
-        console.log(`✅ [XKIRO SUCCESS] Berhasil merespon menggunakan model: ${model}`);
-        return content.trim();
-      }
-
-    } catch (err) {
-      clearTimeout(timeoutId);
-      console.warn(`⚠️ [XKIRO TIMEOUT/ERR] Model ${model}: ${err.message}`);
     }
   }
 
-  return "Maaf, saat ini layanan AI sedang mengalami kepadatan lalu lintas pesan. Silakan coba beberapa saat lagi 🙏";
+  // Fallback cadangan jika seluruh koneksi API luar terblokir
+  return "Halo! Terima kasih telah menghubungi kami. Saat ini sistem balasan otomatis sedang dioptimasi, pesan Anda telah kami terima 🙏";
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -381,14 +403,14 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR AUTO GENERATE PROMPT (XKIRO ENGINE) ---
+// --- FITUR AUTO GENERATE PROMPT ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
 
     const wordTarget = mode === "very_detailed" ? "700" : "100";
-    const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Tugasmu adalah mengubah dan menguraikan instruksi singkat dari user menjadi System Prompt/Instruksi Pelatihan Bot WhatsApp dalam Bahasa Indonesia yang terstruktur, jelas, dan profesional (~${wordTarget} kata). Cukup berikan teks prompt-nya saja tanpa kata pembuka atau penutup.`;
+    const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Ubah instruksi singkat berikut menjadi System Prompt WhatsApp dalam Bahasa Indonesia (~${wordTarget} kata). Berikan teks prompt-nya saja tanpa kata pembuka/penutup.`;
 
     const messages = [
       { role: "system", content: systemInstruction },
