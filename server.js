@@ -25,8 +25,8 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- PREVENT SERVER CRASH / SIGTERM ---
-process.on("unhandledRejection", (reason, promise) => {
+// --- PREVENT PROCESS CRASH ---
+process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
 
@@ -42,67 +42,48 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const globalLogger = pino({ level: "fatal" });
 
 // --- KONFIGURASI MULTI-PROVIDER AI & ROTATING GATEWAYS ---
 const AI_PROVIDERS = [
   {
     name: "Orcarouter",
-    apiKey: "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
+    apiKey: process.env.ORCAROUTER_API_KEY || "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
     baseUrl: process.env.ORCAROUTER_API_URL || "https://api.orcarouter.ai/v1/chat/completions",
-    models: [
-      "qwen/qwen3.8-27b-free",
-      "orcarouter/free",
-      "tencent/hy3-free",
-      "deepseek/deepseek-v4-flash-free"
-    ]
+    models: ["qwen/qwen3.8-27b-free", "orcarouter/free", "deepseek/deepseek-v4-flash-free"]
   },
   {
     name: "Teamrouter",
-    apiKey: "sk-teamo-0990530c5810e95c2433ee99def18de8f7b3d1dcb5ba6505",
+    apiKey: process.env.TEAMROUTER_API_KEY || "sk-teamo-0990530c5810e95c2433ee99def18de8f7b3d1dcb5ba6505",
     baseUrl: process.env.TEAMROUTER_API_URL || "https://api.teamrouter.ai/v1/chat/completions",
-    models: [
-      "deepseek-v4-pro-free",
-      "glm-5.3-flash-free",
-      "deepseek-v4-flash-free"
-    ]
+    models: ["deepseek-v4-pro-free", "glm-5.3-flash-free"]
   },
   {
     name: "Sambanova",
-    apiKey: "fc5715aa-7978-4005-9295-ce468f3c6fc2",
+    apiKey: process.env.SAMBANOVA_API_KEY || "fc5715aa-7978-4005-9295-ce468f3c6fc2",
     baseUrl: process.env.SAMBANOVA_API_URL || "https://api.sambanova.ai/v1/chat/completions",
-    models: [
-      "MiniMax-M2.7",
-      "Meta-Llama-3.3-70B-Instruct",
-      "gpt-oss-120b"
-    ]
+    models: ["Meta-Llama-3.3-70B-Instruct"]
   },
   {
     name: "Xkiro",
-    apiKey: "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
+    apiKey: process.env.XKIRO_API_KEY || "sk-xt-e591956b1e15545d7ef1eb4b0b69c96adc15d48799c9ac6f",
     baseUrl: process.env.XKIRO_API_URL || "https://api.xkiro.ai/v1/chat/completions",
-    models: [
-      "qwen/qwen3.8-max:free",
-      "deepseek/deepseek-v4-flash",
-      "openai/gpt-5.3-codex-spark"
-    ]
+    models: ["qwen/qwen3.8-max:free", "deepseek/deepseek-v4-flash"]
   }
 ];
 
 let activeProviderIndex = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL MULTI-GATEWAY AI (FAST FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", senderNumber = "", timeoutMs = 7000) {
+// --- HELPER CALL MULTI-GATEWAY AI (ROBUST FAILOVER) ---
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 6000) {
   const totalProviders = AI_PROVIDERS.length;
   const startProviderIndex = activeProviderIndex;
-
   activeProviderIndex = (activeProviderIndex + 1) % totalProviders;
 
   for (let attempt = 0; attempt < totalProviders; attempt++) {
     const currentIdx = (startProviderIndex + attempt) % totalProviders;
     const provider = AI_PROVIDERS[currentIdx];
-
-    console.log(`📡 [MENCOBA AI] Provider #${currentIdx + 1}: ${provider.name}`);
 
     for (const model of provider.models) {
       const controller = new AbortController();
@@ -117,47 +98,38 @@ async function fetchAIResponse(messages, strUserId = "", senderNumber = "", time
             "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
             "X-Title": "WA AutoBot SaaS"
           },
-          body: JSON.stringify({
-            model: model,
-            messages: messages
-          }),
+          body: JSON.stringify({ model, messages }),
           signal: controller.signal
         });
 
         clearTimeout(timeoutId);
 
         if ([400, 401, 403, 404].includes(response.status)) {
-          console.warn(`❌ [PROVIDER ERROR ${response.status}] ${provider.name} (Model: ${model}). Lanjut...`);
-          break; 
-        }
-
-        if (response.status === 429) {
-          console.warn(`⚠️ [RATE LIMIT 429] ${provider.name} (${model}). Coba model berikutnya...`);
-          await sleep(500);
-          continue;
+          console.warn(`❌ [AI HTTP ${response.status}] ${provider.name} (${model}). Lanjut provider lain...`);
+          break;
         }
 
         if (!response.ok) {
-          await sleep(500);
+          await sleep(300);
           continue;
         }
 
         const data = await response.json().catch(() => null);
         const content = data?.choices?.[0]?.message?.content;
 
-        if (content) {
-          console.log(`✅ [BERHASIL] Provider: ${provider.name} | Model: ${model}`);
-          return content;
+        if (content && content.trim()) {
+          console.log(`✅ [AI RESPONDED] Provider: ${provider.name} | Model: ${model}`);
+          return content.trim();
         }
-
       } catch (err) {
         clearTimeout(timeoutId);
-        console.warn(`⚠️ [TIMEOUT/FAIL] ${provider.name} (${model}): ${err.message}`);
+        console.warn(`⚠️ [AI TIMEOUT/ERR] ${provider.name} (${model}): ${err.message}`);
       }
     }
   }
 
-  throw new Error("Seluruh provider AI sedang sibuk atau tidak merespon.");
+  // Jika seluruh AI gagal, kembalikan pesan ramah agar bot TIDAK diam saja
+  return "Maaf, saat ini sistem AI sedang mengalami kepadatan lalu lintas pesan. Silakan ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
 // --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
@@ -182,7 +154,6 @@ function extractMessageText(msg) {
     m.buttonsResponseMessage?.selectedDisplayText ||
     m.listResponseMessage?.singleSelectReply?.selectedRowId ||
     m.templateButtonReplyMessage?.selectedId ||
-    m.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
     ""
   ).trim();
 }
@@ -333,8 +304,9 @@ const verifyToken = (req, res, next) => {
 
 app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
-  const today = new Date().toISOString().split("T")[0];
+  if (!user) return res.status(404).json({ message: "User not found" });
 
+  const today = new Date().toISOString().split("T")[0];
   if (user.dailyUsageDate !== today) {
     user.dailyUsageDate = today;
     user.dailyUsageCount = 0;
@@ -405,11 +377,7 @@ app.post("/api/session/disconnect", verifyToken, async (req, res) => {
     const strUserId = String(req.user.userId);
     if (activeSessions.has(strUserId)) {
       const sock = activeSessions.get(strUserId);
-      try {
-        await sock.logout();
-      } catch {
-        try { sock.end(); } catch {}
-      }
+      try { await sock.logout(); } catch { try { sock.end(); } catch {} }
       activeSessions.delete(strUserId);
     }
     await Session.deleteOne({ userId: strUserId });
@@ -553,7 +521,7 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
             user.expiredAt = newExpiredAt;
             await user.save();
 
-            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId} aktif hingga ${newExpiredAt.toISOString()}`);
+            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId}`);
           }
         }
       }
@@ -641,7 +609,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     if (!user) return;
 
     if (user.isBotActive === false) {
-      console.log(`ℹ️ Bot nonaktif untuk user ${strUserId}`);
       io.to(strUserId).emit("error-log", {
         time: new Date().toLocaleTimeString(),
         message: "Pesan masuk tetapi Bot dalam status NONAKTIF.",
@@ -666,6 +633,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       return;
     }
 
+    // Centang biru pesan masuk
     try {
       await sock.readMessages([{ remoteJid, id: lastMsgId }]);
     } catch {}
@@ -687,19 +655,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       ...historyForAI
     ];
 
-    let reply = "";
-
-    try {
-      reply = await fetchAIResponse(messagesPayload, strUserId, senderNumber);
-    } catch (err) {
-      console.error(`❌ [ALL RETRIES FAILED] ${err.message}`);
-      io.to(strUserId).emit("error-log", {
-        time: new Date().toLocaleTimeString(),
-        message: `Gagal merespon: Seluruh Provider AI sedang sibuk/error.`,
-        from: senderNumber
-      });
-      return;
-    }
+    const reply = await fetchAIResponse(messagesPayload, strUserId);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
@@ -728,10 +684,10 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
 async function startUserBot(userId) {
   const strUserId = String(userId);
 
-  // FIX: Cek sock.user untuk memastikan koneksi WA memang sudah aktif & terikat
+  // Jika sesi sudah berjalan aktif, jangan buat koneksi ganda
   if (activeSessions.has(strUserId)) {
-    const existingSock = activeSessions.get(strUserId);
-    if (existingSock?.user) {
+    const activeSock = activeSessions.get(strUserId);
+    if (activeSock?.user) {
       io.to(strUserId).emit("status", "Connected");
       return;
     }
@@ -741,25 +697,19 @@ async function startUserBot(userId) {
   isStartingSession.add(strUserId);
 
   try {
-    if (activeSessions.has(strUserId)) {
-      try { activeSessions.get(strUserId)?.end(); } catch {}
-      activeSessions.delete(strUserId);
-    }
-
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
       version,
-      logger: pino({ level: "fatal" }),
+      logger: globalLogger,
       auth: state,
       printQRInTerminal: false,
       markOnlineOnConnect: true,
       syncFullHistory: false,
-      // FIX: Menangani retry dekripsi enkripsi Baileys
-      getMessage: async (key) => {
-        return { conversation: "bot" };
-      }
+      generateHighQualityLinkPreview: false,
+      browser: ["WA AutoBot AI", "Chrome", "1.0.0"],
+      getMessage: async () => ({ conversation: "Bot Active" })
     });
 
     activeSessions.set(strUserId, sock);
@@ -785,11 +735,15 @@ async function startUserBot(userId) {
         activeSessions.delete(strUserId);
 
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        if (statusCode === DisconnectReason.loggedOut) {
-          await Session.deleteOne({ userId: strUserId });
-          io.to(strUserId).emit("status", "Disconnected");
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        console.log(`🔌 [WA CLOSED] User: ${strUserId} | Reason: ${statusCode} | Reconnect: ${shouldReconnect}`);
+
+        if (shouldReconnect) {
+          setTimeout(() => startUserBot(strUserId), 4000);
         } else {
-          setTimeout(() => startUserBot(strUserId), 5000);
+          await Session.deleteOne({ userId: strUserId }).catch(() => {});
+          io.to(strUserId).emit("status", "Disconnected");
         }
       }
     });
@@ -800,8 +754,7 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          console.log(`📩 [TRAFIK WA MASUK] JID: ${msg.key.remoteJid} | fromMe: ${msg.key.fromMe}`);
-
+          // Abaikan pesan dari diri sendiri, grup, status, atau newsletter
           if (
             !msg.message || 
             msg.key.fromMe || 
@@ -819,6 +772,7 @@ async function startUserBot(userId) {
 
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
 
+          // LANGSUNG EMIT KE DASHBOARD REALTIME LOG (Pastikan Tampilan Dashboard Selalu Muncul)
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -826,6 +780,7 @@ async function startUserBot(userId) {
             type: "in"
           });
 
+          // Aggregation buffer (2 detik) untuk menggabungkan pesan yang dikirim cepat berurutan
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
