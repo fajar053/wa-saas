@@ -818,6 +818,21 @@ io.on("connection", (socket) => {
     }
   });
 });
+// --- UPDATE PROFILE & AVATAR ---
+app.post("/api/profile/update", verifyToken, async (req, res) => {
+  try {
+    const { profilePicture, nickname } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
+    if (profilePicture) user.profilePicture = profilePicture;
+    if (nickname) user.nickname = nickname;
+
+    await user.save();
+    res.json({ success: true, message: "Profil berhasil diperbarui!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
