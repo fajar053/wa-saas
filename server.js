@@ -184,10 +184,21 @@ const upload = multer({
   }
 });
 
-// Database Connection
+// Database Connection & Auto-Assign Admin
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log("✅ DB Connected");
+
+    try {
+      await User.updateOne(
+        { email: "fajar.stmikplk@gmail.com" },
+        { $set: { role: "admin" } }
+      );
+      console.log("👑 Status Admin untuk fajar.stmikplk@gmail.com berhasil diaktifkan!");
+    } catch (err) {
+      console.error("⚠️ Gagal update status admin:", err.message);
+    }
+
     autoStartAllSessions();
   })
   .catch(err => console.error("❌ DB Error:", err));
