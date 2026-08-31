@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   verificationToken: { type: String, default: null },
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
+  role: { type: String, enum: ["user", "admin"], default: "user" },
   openrouterApiKey: { type: String, default: "" },
   orcarouterApiKey: { type: String, default: "" },
   aiProvider: { type: String, enum: ["openrouter", "orcarouter"], default: "openrouter" },

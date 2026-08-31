@@ -24,6 +24,7 @@ import User from "./models/User.js";
 import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
+import Report from "./models/Report.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -196,7 +197,7 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- AUTHENTICATION & API ---
+// --- AUTHENTICATION & MIDDLEWARE ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -295,12 +296,24 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Akses ditolak! Khusus administrator." });
+    }
+    next();
+  } catch (err) {
+    res.status(403).json({ success: false, message: "Akses terlarang." });
+  }
+};
+
 app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
   const today = new Date().toISOString().split("T")[0];
-  const currentMonth = today.slice(0, 7); // YYYY-MM
+  const currentMonth = today.slice(0, 7);
 
   if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
     user.dailyUsageDate = today;
@@ -324,6 +337,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     email: user.email,
     nickname: user.nickname,
     username: user.username,
+    role: user.role || "user",
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive ?? true,
@@ -569,7 +583,6 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
   }
 });
 
-// --- ENDPOINT VERIFIKASI / CEK PEMBAYARAN MANUAL LEWAT API MOOTA ---
 app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -631,6 +644,111 @@ app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
       message: "Mutasi belum terdeteksi di server bank/Moota. Mohon tunggu 1-2 menit lagi lalu klik tombol ini kembali."
     });
 
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- USER REPORT API ---
+app.post("/api/reports", verifyToken, async (req, res) => {
+  try {
+    const { category, subject, message } = req.body;
+    const user = await User.findById(req.user.userId);
+    
+    if (!category || !subject || !message) {
+      return res.status(400).json({ success: false, message: "Semua kolom laporan wajib diisi." });
+    }
+
+    const reportId = `RPT-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const newReport = await Report.create({
+      reportId,
+      userId: user._id,
+      userEmail: user.email,
+      userNickname: user.nickname,
+      category,
+      subject,
+      message
+    });
+
+    res.json({ success: true, message: `Laporan berhasil dikirim! ID Laporan: ${reportId}`, data: newReport });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
+  try {
+    const reports = await Report.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    res.json({ success: true, data: reports });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- ADMIN API ---
+app.get("/api/admin/pending-payments", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ status: "pending" }).populate("userId", "nickname email").sort({ createdAt: -1 });
+    res.json({ success: true, data: transactions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/admin/approve-payment", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+    const tx = await Transaction.findById(transactionId);
+    if (!tx) return res.status(404).json({ success: false, message: "Transaksi tidak ditemukan" });
+
+    tx.status = "completed";
+    await tx.save();
+
+    const user = await User.findById(tx.userId);
+    if (user) {
+      const now = new Date();
+      const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
+      user.plan = "premium";
+      user.expiredAt = user.expiredAt && user.expiredAt > now 
+        ? new Date(user.expiredAt.getTime() + durationMs) 
+        : new Date(now.getTime() + durationMs);
+      await user.save();
+
+      io.to(String(user._id)).emit("payment-success", {
+        message: "Pembayaran Anda telah disetujui secara manual oleh Admin!",
+        plan: user.plan,
+        expiredAt: user.expiredAt
+      });
+    }
+
+    res.json({ success: true, message: "Pembayaran berhasil dikonfirmasi & status User telah di-upgrade ke Premium!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/admin/all-reports", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const reports = await Report.find().sort({ createdAt: -1 });
+    res.json({ success: true, data: reports });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/admin/reply-report", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { reportId, adminReply, status } = req.body;
+    const report = await Report.findOne({ reportId });
+    if (!report) return res.status(404).json({ success: false, message: "Laporan tidak ditemukan" });
+
+    report.adminReply = adminReply;
+    report.status = status || "Resolved";
+    report.repliedAt = new Date();
+    await report.save();
+
+    res.json({ success: true, message: "Tanggapan berhasil dikirim ke User!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -50,12 +50,21 @@
         <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
           <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
         </a>
+        <a href="/report.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="help-circle" class="w-4 h-4"></i> Laporkan Kendala
+        </a>
       </nav>
     </div>
 
-    <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
-      <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
-    </button>
+    <div class="space-y-2">
+      <button onclick="openReportModal()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition w-full">
+        <i data-lucide="alert-circle" class="w-4 h-4"></i> Report Cepat
+      </button>
+
+      <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
+        <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
+      </button>
+    </div>
   </aside>
 
   <!-- Main Content Area -->
@@ -211,6 +220,54 @@
 
   </main>
 
+  <!-- POP-UP MODAL REPORT DASAR -->
+  <div id="reportModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl relative">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+          <i data-lucide="life-buoy" class="w-4 h-4 text-indigo-400"></i> Kirim Laporan Kendala Cepat
+        </h3>
+        <button onclick="closeReportModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <form onsubmit="submitModalReport(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
+          <select id="modalCategorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
+            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
+            <option value="Pembayaran Langganan">Pembayaran Langganan</option>
+            <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
+            <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
+            <option value="Respon AI Lambat">Respon AI Lambat</option>
+            <option value="Spam Balasan / Duplicate Chat">Spam Balasan / Duplicate Chat</option>
+            <option value="Masalah Akun & Akses Login">Masalah Akun & Akses Login</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Subjek Laporan</label>
+          <input type="text" id="modalSubjectInput" required placeholder="Judul masalah..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Detail Kendala</label>
+          <textarea id="modalMessageInput" rows="4" required placeholder="Jelaskan masalah kamu..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <a href="/report.html" class="text-xs text-indigo-400 hover:underline font-semibold flex items-center gap-1">
+            Lihat Semua Tiket Saya <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </a>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
+            Kirim Laporan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     lucide.createIcons();
     const token = localStorage.getItem('token');
@@ -218,6 +275,43 @@
 
     const socket = io();
     let currentUserPlan = 'free';
+
+    function openReportModal() {
+      document.getElementById('reportModal').classList.remove('hidden');
+    }
+
+    function closeReportModal() {
+      document.getElementById('reportModal').classList.add('hidden');
+    }
+
+    async function submitModalReport(e) {
+      e.preventDefault();
+      const category = document.getElementById('modalCategorySelect').value;
+      const subject = document.getElementById('modalSubjectInput').value;
+      const message = document.getElementById('modalMessageInput').value;
+
+      try {
+        const res = await fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ category, subject, message })
+        });
+
+        const data = await res.json();
+        alert(data.message);
+
+        if (data.success) {
+          closeReportModal();
+          document.getElementById('modalSubjectInput').value = '';
+          document.getElementById('modalMessageInput').value = '';
+        }
+      } catch {
+        alert("Gagal mengirimkan laporan.");
+      }
+    }
 
     async function loadConfig() {
       try {
