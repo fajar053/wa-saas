@@ -555,6 +555,73 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
   }
 });
 
+// --- ENDPOINT VERIFIKASI / CEK PEMBAYARAN MANUAL LEWAT API MOOTA ---
+app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const tx = await Transaction.findOne({ userId, status: "pending" }).sort({ createdAt: -1 });
+    if (!tx) {
+      return res.status(404).json({ success: false, message: "Tidak ada transaksi pending yang ditemukan." });
+    }
+
+    const mootaApiToken = process.env.MOOTA_API_TOKEN;
+    
+    if (mootaApiToken) {
+      try {
+        console.log(`🔍 [MOOTA API SEARCH] Memeriksa mutasi untuk Rp ${tx.totalAmount}...`);
+        
+        const mootaRes = await fetch(`https://api.moota.co/v1/mutation?amount=${tx.totalAmount}&type=CR`, {
+          headers: {
+            "Authorization": `Bearer ${mootaApiToken}`,
+            "Accept": "application/json"
+          }
+        });
+
+        if (mootaRes.ok) {
+          const mootaData = await mootaRes.json();
+          const mutations = mootaData?.data || mootaData || [];
+
+          const match = Array.isArray(mutations) && mutations.some(m => Math.round(Number(m.amount)) === tx.totalAmount);
+
+          if (match) {
+            tx.status = "completed";
+            await tx.save();
+
+            const user = await User.findById(userId);
+            if (user) {
+              const now = new Date();
+              const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
+              user.plan = "premium";
+              user.expiredAt = user.expiredAt && user.expiredAt > now 
+                ? new Date(user.expiredAt.getTime() + durationMs) 
+                : new Date(now.getTime() + durationMs);
+              await user.save();
+            }
+
+            return res.json({
+              success: true,
+              completed: true,
+              message: "Pembayaran berhasil diverifikasi! Akun Anda kini Aktif Premium."
+            });
+          }
+        }
+      } catch (apiErr) {
+        console.warn("⚠️ Gagal koneksi Moota API:", apiErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      completed: false,
+      message: "Mutasi belum terdeteksi di server bank/Moota. Mohon tunggu 1-2 menit lagi lalu klik tombol ini kembali."
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
   let session = await Session.findOne({ userId: String(userId) });

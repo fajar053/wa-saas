@@ -166,6 +166,11 @@
           <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
           <span class="text-xs text-indigo-300 font-medium">Menunggu Pembayaran Terdeteksi...</span>
         </div>
+
+        <!-- Tombol Verifikasi Manual -->
+        <button id="btnCheckPayment" onclick="checkPaymentStatus()" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> Saya Sudah Transfer (Cek Pembayaran)
+        </button>
       </div>
     </div>
   </div>
@@ -224,6 +229,37 @@
         }
       } catch {
         alert("Gagal membuat instruksi pembayaran.");
+      }
+    }
+
+    async function checkPaymentStatus() {
+      const btn = document.getElementById("btnCheckPayment");
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Memeriksa ke Bank...`;
+
+      try {
+        const res = await fetch("/api/subscribe/check-manual", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const data = await res.json();
+        alert(data.message);
+
+        if (data.completed) {
+          closeModal();
+          loadConfig();
+        }
+      } catch (err) {
+        alert("Terjadi kesalahan saat mengecek pembayaran.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        lucide.createIcons();
       }
     }
 
