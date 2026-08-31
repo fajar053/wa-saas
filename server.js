@@ -480,19 +480,28 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
 app.post("/api/subscribe/moota-webhook", async (req, res) => {
   try {
     const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
+    
+    // Ambil token dari berbagai kemungkinan header & body Moota
     const incomingSignature = 
       req.headers["signature"] || 
       req.headers["secret-token"] || 
-      req.headers["x-moota-secret"];
+      req.headers["x-moota-secret"] ||
+      req.headers["authorization"]?.replace("Bearer ", "") ||
+      req.body?.secret_token;
 
-    if (mootaSecret && incomingSignature !== mootaSecret) {
-      console.warn(`⚠️ [MOOTA SIGNATURE MISMATCH] Server env: "${mootaSecret}" | Incoming header: "${incomingSignature}"`);
-      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
+    // Cek apakah request dari Moota berupa tes "Check URL" (body kosong / ping test)
+    const isTestCheck = !req.body || (Array.isArray(req.body) && req.body.length === 0) || Object.keys(req.body || {}).length === 0;
+
+    // Jika ini adalah Tes "Check URL" dari Dashboard Moota, langsung kembalikan 200 OK
+    if (isTestCheck) {
+      console.log("✅ [MOOTA WEBHOOK] Check URL / Ping test berhasil!");
+      return res.status(200).json({ status: "success", message: "Webhook URL valid & ready" });
     }
 
-    // Penanganan Tes URL dari Dashboard Moota
-    if (!req.body || (Array.isArray(req.body) && req.body.length === 0)) {
-      return res.status(200).json({ status: "success", message: "Webhook URL valid & reachable" });
+    // Jika secret token diatur & request transaksi nyata menyertakan token yang tidak sesuai
+    if (mootaSecret && incomingSignature && incomingSignature !== mootaSecret) {
+      console.warn(`⚠️ [MOOTA MISMATCH] Env: "${mootaSecret}" vs Received: "${incomingSignature}"`);
+      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
     }
 
     const mutations = Array.isArray(req.body) ? req.body : [req.body];
