@@ -25,7 +25,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- PREVENT PROCESS CRASH ---
+// --- MENCEGAH PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -389,7 +389,7 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR AUTO GENERATE PROMPT (OPENROUTER ENGINE) ---
+// --- FITUR AUTO GENERATE PROMPT ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
@@ -515,6 +515,13 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
             await user.save();
 
             console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId}`);
+
+            // 🔥 KIRIM EVENT REALTIME KE USER BUFFERING/ROOM SOCKET.IO
+            io.to(String(tx.userId)).emit("payment-success", {
+              message: "Pembayaran Berhasil! Akun Anda telah di-upgrade ke Premium.",
+              plan: user.plan,
+              expiredAt: user.expiredAt
+            });
           }
         }
       }
