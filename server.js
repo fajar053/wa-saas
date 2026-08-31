@@ -25,7 +25,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 
-// --- MENCEGAH PROCESS CRASH ---
+// --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -480,17 +480,29 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
 app.post("/api/subscribe/moota-webhook", async (req, res) => {
   try {
     const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
-    const incomingSignature = req.headers["signature"] || req.headers["secret-token"];
+    const incomingSignature = 
+      req.headers["signature"] || 
+      req.headers["secret-token"] || 
+      req.headers["x-moota-secret"];
 
     if (mootaSecret && incomingSignature !== mootaSecret) {
+      console.warn(`⚠️ [MOOTA SIGNATURE MISMATCH] Server env: "${mootaSecret}" | Incoming header: "${incomingSignature}"`);
       return res.status(401).json({ success: false, message: "Unauthorized Signature" });
+    }
+
+    // Penanganan Tes URL dari Dashboard Moota
+    if (!req.body || (Array.isArray(req.body) && req.body.length === 0)) {
+      return res.status(200).json({ status: "success", message: "Webhook URL valid & reachable" });
     }
 
     const mutations = Array.isArray(req.body) ? req.body : [req.body];
 
     for (const item of mutations) {
-      if (item.type === "CR" || item.type === "credit") {
-        const amountReceived = Number(item.amount);
+      const isCredit = item.type?.toUpperCase() === "CR" || item.type?.toLowerCase() === "credit";
+      
+      if (isCredit) {
+        const amountReceived = Math.round(Number(item.amount));
+        console.log(`📩 [MOOTA WEBHOOK] Transaksi Masuk Detected: Rp ${amountReceived}`);
 
         const tx = await Transaction.findOne({ totalAmount: amountReceived, status: "pending" });
 
@@ -516,7 +528,6 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
 
             console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId}`);
 
-            // 🔥 KIRIM EVENT REALTIME KE USER BUFFERING/ROOM SOCKET.IO
             io.to(String(tx.userId)).emit("payment-success", {
               message: "Pembayaran Berhasil! Akun Anda telah di-upgrade ke Premium.",
               plan: user.plan,
