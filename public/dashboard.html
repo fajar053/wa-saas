@@ -110,7 +110,7 @@
                   id="btnGenDetailed"
                   class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
                 >
-                  <span>Detail (~100 kata)</span>
+                  <span>Detail (~50 kata)</span>
                 </button>
                 <button 
                   type="button" 
@@ -118,8 +118,8 @@
                   id="btnGenVeryDetailed"
                   class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
                 >
-                  <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400 hidden"></i>
-                  <span>Sangat Detail (~700 kata)</span>
+                  <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400"></i>
+                  <span>Sangat Detail (~300 kata)</span>
                 </button>
               </div>
             </div>
@@ -177,10 +177,18 @@
           </div>
         </div>
 
-        <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-1">
-          <div class="flex justify-between text-slate-400">
-            <span>Kuota Harian:</span>
-            <span id="usageStat" class="font-bold text-slate-200">0 / 50</span>
+        <!-- Box Stat Kuota -->
+        <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-2">
+          <div class="flex justify-between items-center text-slate-400">
+            <span>Kuota Bulanan:</span>
+            <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
+          </div>
+
+          <!-- Indikator Upgrade ketika Kuota Full -->
+          <div id="quotaFullBanner" class="hidden pt-1">
+            <a href="/subscription.html" class="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20">
+              <i data-lucide="crown" class="w-4 h-4"></i> Kuota Habis! Upgrade Premium
+            </a>
           </div>
         </div>
       </div>
@@ -230,16 +238,29 @@
           userAvatar.className = 'w-10 h-10 rounded-full bg-slate-700 object-cover transition-all duration-300 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]';
           document.getElementById('userPlan').className = 'text-[10px] text-amber-400 font-bold uppercase tracking-wider';
           document.getElementById('premiumCrownBadge')?.classList.remove('hidden');
+          document.getElementById('lockIcon')?.classList.add('hidden');
         } else {
           userAvatar.className = 'w-10 h-10 rounded-full bg-slate-700 border border-slate-600 object-cover transition-all duration-300';
           document.getElementById('userPlan').className = 'text-[10px] text-indigo-400 font-bold uppercase tracking-wider';
           document.getElementById('premiumCrownBadge')?.classList.add('hidden');
+          document.getElementById('lockIcon')?.classList.remove('hidden');
         }
 
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
         document.getElementById('isBotActive').checked = data.isBotActive;
 
-        document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 50`;
+        const isFull = currentUserPlan === 'free' && data.dailyUsage >= 200;
+        document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 200`;
+
+        if (isFull) {
+          document.getElementById('usageStat').className = 'font-bold text-rose-400';
+          document.getElementById('quotaFullBanner')?.classList.remove('hidden');
+        } else {
+          document.getElementById('usageStat').className = 'font-bold text-slate-200';
+          document.getElementById('quotaFullBanner')?.classList.add('hidden');
+        }
+
+        lucide.createIcons();
 
       } catch (err) {
         console.error("Load Config Error:", err);
@@ -303,6 +324,11 @@
     }
 
     async function generatePrompt(mode) {
+      if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
+        alert("🔒 Fitur Prompt 'Sangat Detail (~300 kata)' hanya tersedia untuk pengguna Premium. Silakan upgrade paket Anda!");
+        return;
+      }
+
       const promptInput = document.getElementById('systemPrompt');
       const text = promptInput.value;
 

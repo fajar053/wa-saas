@@ -197,50 +197,120 @@
 
       <div class="space-y-3">
         <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">3</div>
-        <h4 class="font-bold text-slate-200">Isi API Key & Aktifkan</h4>
-        <p class="text-slate-400 text-xs leading-relaxed">Masukkan API Key OpenRouter dan System Prompt, bot kamu siap bekerja otomatis!</p>
+        <h4 class="font-bold text-slate-200">Isi System Prompt & Aktifkan</h4>
+        <p class="text-slate-400 text-xs leading-relaxed">Masukkan instruksi System Prompt AI kamu, bot kamu siap bekerja otomatis!</p>
       </div>
     </div>
   </section>
 
-  <!-- Pricing -->
+  <!-- Pricing Sesuai Halaman Subscription -->
   <section id="harga" class="py-20 px-6 border-t border-slate-800/60">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-6xl mx-auto">
       <div class="text-center max-w-xl mx-auto mb-16">
         <h2 class="text-2xl md:text-3xl font-bold text-slate-100">Pilihan Paket Langganan</h2>
         <p class="text-slate-400 text-sm mt-2">Pilih paket yang paling sesuai dengan kebutuhan skala bisnismu.</p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <!-- Paket Gratis -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6 flex flex-col justify-between">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        
+        <!-- Paket 1 Bulan -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
           <div class="space-y-4">
-            <span class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">GRATIS</span>
-            <h3 class="text-3xl font-bold text-slate-100">Rp 0 <span class="text-sm font-normal text-slate-400">/ selamanya</span></h3>
-            <ul class="space-y-3 text-xs text-slate-300">
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Batas 50 Balasan Chat / Hari</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Model AI Gratis via OpenRouter</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Monitoring Chat Realtime</li>
+            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+              <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
+            </div>
+            <p class="text-slate-400 text-xs">Masa aktif 30 Hari (+Akumulasi)</p>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
+              <span class="text-xs text-slate-500">/ 30 hari</span>
+            </div>
+
+            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat AI</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prompt Sangat Detail <strong>Hingga 300 Kata</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prioritas Eksekusi Cepat
+              </li>
             </ul>
           </div>
-          <a href="/register.html" class="w-full text-center py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 transition text-sm">Daftar Akun Free</a>
+
+          <a href="/register.html" class="w-full text-center bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white font-bold text-xs py-3 rounded-xl transition shadow-lg">
+            Pilih 1 Bulan (Rp 29.000)
+          </a>
         </div>
 
-        <!-- Paket Premium -->
-        <div class="bg-gradient-to-b from-indigo-950/40 to-slate-900 border-2 border-indigo-500 rounded-2xl p-8 space-y-6 flex flex-col justify-between relative overflow-hidden">
-          <span class="absolute top-4 right-4 px-3 py-1 rounded-full bg-indigo-500 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md">POPULER</span>
+        <!-- Paket 6 Bulan -->
+        <div class="bg-slate-900 border-2 border-indigo-500/80 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative">
+          <div class="absolute -top-3.5 right-6 bg-indigo-500 text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">
+            Populer
+          </div>
+
           <div class="space-y-4">
-            <span class="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-semibold border border-indigo-500/30">PREMIUM</span>
-            <h3 class="text-3xl font-bold text-slate-100">Rp 49.000 <span class="text-sm font-normal text-slate-400">/ bulan</span></h3>
-            <ul class="space-y-3 text-xs text-slate-300">
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> <strong>Unlimited Chat Balasan</strong> tanpa batas</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Sesi Tersimpan Permanen di DB</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Bebas Pilih Model AI Apapun</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="text-emerald-400 w-4 h-4"></i> Dukungan Prioritas Customer Service</li>
+            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
+            </div>
+            <p class="text-slate-400 text-xs">Masa aktif 180 Hari (+Akumulasi)</p>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
+              <span class="text-xs text-slate-500">/ 6 bulan</span>
+            </div>
+
+            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat 6 Bulan</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prompt Sangat Detail <strong>Hingga 300 Kata</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Hemat Rp 25.000
+              </li>
             </ul>
           </div>
-          <a href="/register.html" class="w-full text-center py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-lg shadow-indigo-600/30 transition text-sm">Mulai Premium</a>
+
+          <a href="/register.html" class="w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/30">
+            Pilih 6 Bulan (Rp 149.000)
+          </a>
         </div>
+
+        <!-- Paket 1 Tahun -->
+        <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
+          <div class="absolute -top-3.5 right-6 bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">
+            Hemat Maksimal
+          </div>
+
+          <div class="space-y-4">
+            <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+              <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
+            </div>
+            <p class="text-slate-400 text-xs">Masa aktif 365 Hari (+Akumulasi)</p>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
+              <span class="text-xs text-slate-500">/ 1 tahun</span>
+            </div>
+
+            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> <strong>Unlimited Chat 1 Tahun Full</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Prompt Sangat Detail <strong>Hingga 300 Kata</strong>
+              </li>
+              <li class="flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Hemat Hingga Rp 89.000!
+              </li>
+            </ul>
+          </div>
+
+          <a href="/register.html" class="w-full text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-amber-500/20">
+            Pilih 1 Tahun (Rp 259.000)
+          </a>
+        </div>
+
       </div>
     </div>
   </section>

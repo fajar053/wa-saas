@@ -300,7 +300,9 @@ app.get("/api/config", verifyToken, async (req, res) => {
   if (!user) return res.status(404).json({ message: "User not found" });
 
   const today = new Date().toISOString().split("T")[0];
-  if (user.dailyUsageDate !== today) {
+  const currentMonth = today.slice(0, 7); // YYYY-MM
+
+  if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
     user.dailyUsageDate = today;
     user.dailyUsageCount = 0;
     await user.save();
@@ -328,7 +330,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     plan: user.plan || "free",
     remainingDays: remainingDays,
     dailyUsage: user.dailyUsageCount || 0,
-    dailyLimit: user.plan === "premium" ? "Unlimited" : 50
+    dailyLimit: user.plan === "premium" ? "Unlimited" : 200
   });
 });
 
@@ -395,7 +397,14 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
 
-    const wordTarget = mode === "very_detailed" ? "500" : "100";
+    if (mode === "very_detailed" && user.plan !== "premium") {
+      return res.status(403).json({
+        success: false,
+        message: "Fitur Auto-Generate 'Sangat Detail (~300 kata)' khusus untuk pengguna Premium."
+      });
+    }
+
+    const wordTarget = mode === "very_detailed" ? "300" : "50";
     const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Ubah instruksi singkat berikut menjadi System Prompt WhatsApp dalam Bahasa Indonesia (~${wordTarget} kata). Berikan teks prompt-nya saja tanpa kata pembuka/penutup.`;
 
     const messages = [
@@ -484,7 +493,6 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
   try {
     const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
     
-    // Ambil token dari berbagai kemungkinan header & body Moota
     const incomingSignature = 
       req.headers["signature"] || 
       req.headers["secret-token"] || 
@@ -492,16 +500,13 @@ app.post("/api/subscribe/moota-webhook", async (req, res) => {
       req.headers["authorization"]?.replace("Bearer ", "") ||
       req.body?.secret_token;
 
-    // Cek apakah request dari Moota berupa tes "Check URL" (body kosong / ping test)
     const isTestCheck = !req.body || (Array.isArray(req.body) && req.body.length === 0) || Object.keys(req.body || {}).length === 0;
 
-    // Jika ini adalah Tes "Check URL" dari Dashboard Moota, langsung kembalikan 200 OK
     if (isTestCheck) {
       console.log("✅ [MOOTA WEBHOOK] Check URL / Ping test berhasil!");
       return res.status(200).json({ status: "success", message: "Webhook URL valid & ready" });
     }
 
-    // Jika secret token diatur & request transaksi nyata menyertakan token yang tidak sesuai
     if (mootaSecret && incomingSignature && incomingSignature !== mootaSecret) {
       console.warn(`⚠️ [MOOTA MISMATCH] Env: "${mootaSecret}" vs Received: "${incomingSignature}"`);
       return res.status(401).json({ success: false, message: "Unauthorized Signature" });
@@ -708,16 +713,18 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     }
 
     const today = new Date().toISOString().split("T")[0];
-    if (user.dailyUsageDate !== today) {
+    const currentMonth = today.slice(0, 7);
+
+    if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
       user.dailyUsageDate = today;
       user.dailyUsageCount = 0;
       await user.save();
     }
 
-    if (user.plan === "free" && user.dailyUsageCount >= 50) {
+    if (user.plan === "free" && user.dailyUsageCount >= 200) {
       io.to(strUserId).emit("error-log", {
         time: new Date().toLocaleTimeString(),
-        message: "Batas kuota harian (50 pesan) tercapai.",
+        message: "Batas kuota bulanan (200 pesan) tercapai. Silakan upgrade ke Premium!",
         from: senderNumber
       });
       return;
