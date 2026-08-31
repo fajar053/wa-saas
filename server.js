@@ -437,18 +437,24 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
     }
 
     let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
+    
     if (existingTx) {
-      return res.json({
-        success: true,
-        data: {
-          orderId: existingTx.orderId,
-          totalAmount: existingTx.totalAmount,
-          uniqueCode: existingTx.uniqueCode,
-          bankName: "BNI",
-          accountNumber: "1275951171",
-          accountHolder: "Muhammad Fajar Firdaus"
-        }
-      });
+      if (existingTx.baseAmount !== baseAmount) {
+        await Transaction.deleteOne({ _id: existingTx._id });
+        existingTx = null;
+      } else {
+        return res.json({
+          success: true,
+          data: {
+            orderId: existingTx.orderId,
+            totalAmount: existingTx.totalAmount,
+            uniqueCode: existingTx.uniqueCode,
+            bankName: "BNI",
+            accountNumber: "1275951171",
+            accountHolder: "Muhammad Fajar Firdaus"
+          }
+        });
+      }
     }
 
     let uniqueCode;
