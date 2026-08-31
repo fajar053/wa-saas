@@ -395,7 +395,7 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     const { promptText, mode } = req.body;
     const user = await User.findById(req.user.userId);
 
-    const wordTarget = mode === "very_detailed" ? "700" : "100";
+    const wordTarget = mode === "very_detailed" ? "500" : "100";
     const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Ubah instruksi singkat berikut menjadi System Prompt WhatsApp dalam Bahasa Indonesia (~${wordTarget} kata). Berikan teks prompt-nya saja tanpa kata pembuka/penutup.`;
 
     const messages = [
@@ -416,11 +416,14 @@ app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
     const userId = req.user.userId;
     const { planType } = req.body;
 
-    let baseAmount = 15000;
+    let baseAmount = 29000;
     let durationDays = 30;
 
-    if (planType === "1_year") {
-      baseAmount = 99000;
+    if (planType === "6_months") {
+      baseAmount = 149000;
+      durationDays = 180;
+    } else if (planType === "1_year") {
+      baseAmount = 259000;
       durationDays = 365;
     }
 
