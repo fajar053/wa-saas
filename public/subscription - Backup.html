@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upgrade Premium - WA AutoBot AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+
+  <!-- Sidebar / Navigation -->
+  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
+    <div class="space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+          <i data-lucide="bot"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
+          <p class="text-[11px] text-slate-400">SaaS Manager</p>
+        </div>
+      </div>
+
+      <!-- User Profile Badge -->
+      <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-center gap-3">
+        <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 object-cover">
+        <div class="overflow-hidden">
+          <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
+          <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
+        </div>
+      </div>
+
+      <nav class="space-y-1">
+        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+        </a>
+        <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
+        </a>
+        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
+        </a>
+        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold">
+          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
+        </a>
+      </nav>
+    </div>
+
+    <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
+      <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
+    </button>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 p-6 md:p-12 space-y-8 overflow-y-auto">
+    <div class="text-center space-y-2 max-w-xl mx-auto">
+      <h2 class="text-2xl md:text-3xl font-extrabold text-slate-100">Pilih Paket Langganan Kamu</h2>
+      <p class="text-xs text-slate-400">Tingkatkan performa bisnis kamu dengan respon AI tanpa batas balasan</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch">
+      
+      <!-- Paket 1: 1 Bulan -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+            <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
+          </div>
+          <p class="text-slate-400 text-xs">Masa aktif 30 Hari (+Akumulasi)</p>
+          <div class="flex items-baseline gap-1">
+            <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
+            <span class="text-xs text-slate-500">/ 30 hari</span>
+          </div>
+
+          <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat AI</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Generate Prompt Detail <strong>Hingga 500 Kata</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prioritas Eksekusi Cepat
+            </li>
+          </ul>
+        </div>
+
+        <button onclick="createInvoice('1_month')" class="w-full bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white font-bold text-xs py-3 rounded-xl transition shadow-lg">
+          Beli 1 Bulan (Rp 29.000)
+        </button>
+      </div>
+
+      <!-- Paket 2: 6 Bulan -->
+      <div class="bg-slate-900 border-2 border-indigo-500/80 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative">
+        <div class="absolute -top-3.5 right-6 bg-indigo-500 text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">
+          Populer
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
+          </div>
+          <p class="text-slate-400 text-xs">Masa aktif 180 Hari (+Akumulasi)</p>
+          <div class="flex items-baseline gap-1">
+            <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
+            <span class="text-xs text-slate-500">/ 6 bulan</span>
+          </div>
+
+          <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat 6 Bulan</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Generate Prompt Detail <strong>Hingga 500 Kata</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Hemat Rp 25.000
+            </li>
+          </ul>
+        </div>
+
+        <button onclick="createInvoice('6_months')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/30">
+          Beli 6 Bulan (Rp 149.000)
+        </button>
+      </div>
+
+      <!-- Paket 3: 1 Tahun -->
+      <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
+        <div class="absolute -top-3.5 right-6 bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">
+          Hemat Maksimal
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+            <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
+          </div>
+          <p class="text-slate-400 text-xs">Masa aktif 365 Hari (+Akumulasi)</p>
+          <div class="flex items-baseline gap-1">
+            <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
+            <span class="text-xs text-slate-500">/ 1 tahun</span>
+          </div>
+
+          <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> <strong>Unlimited Chat 1 Tahun Full</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Generate Prompt Detail <strong>Hingga 500 Kata</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Hemat Hingga Rp 89.000!
+            </li>
+          </ul>
+        </div>
+
+        <button onclick="createInvoice('1_year')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-amber-500/20">
+          Beli 1 Tahun (Rp 259.000)
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL PEMBAYARAN MOOTA -->
+  <div id="paymentModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-6 shadow-2xl relative">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+          <i data-lucide="credit-card" class="w-4 h-4 text-indigo-400"></i> Instruksi Pembayaran
+        </h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="space-y-4">
+        <div class="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl text-center space-y-1">
+          <p class="text-[11px] text-slate-400">Transfer tepat sesuai nominal berikut (Termasuk Kode Unik):</p>
+          <p id="totalAmountText" class="text-2xl font-black text-amber-400">Rp 0</p>
+          <p class="text-[10px] text-amber-300/80 italic">*Jangan bulatkan nominal agar verifikasi otomatis berhasil!</p>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs">
+          <div class="flex justify-between text-slate-400">
+            <span>Bank:</span>
+            <span id="bankNameText" class="font-bold text-slate-200">BNI</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>No. Rekening:</span>
+            <span id="accNumberText" class="font-bold text-slate-200 font-mono">1275951171</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Atas Nama:</span>
+            <span id="accHolderText" class="font-bold text-slate-200">Muhammad Fajar Firdaus</span>
+          </div>
+        </div>
+
+        <!-- Waiting Payment Indicator -->
+        <div class="flex items-center justify-center gap-3 p-3 bg-slate-950/50 rounded-xl border border-slate-800">
+          <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-xs text-indigo-300 font-medium">Menunggu Pembayaran Terdeteksi...</span>
+        </div>
+
+        <!-- Tombol Verifikasi Manual -->
+        <button id="btnCheckPayment" onclick="checkPaymentStatus()" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> Saya Sudah Transfer (Cek Pembayaran)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    const socket = io();
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        document.getElementById('userNickname').innerText = data.nickname;
+        document.getElementById('userAvatar').src = data.profilePicture;
+        
+        if (data.plan === 'premium') {
+          document.getElementById('userPlan').innerText = `PREMIUM (${data.remainingDays} Hari)`;
+          document.getElementById('userPlan').className = 'text-[10px] text-amber-400 font-bold uppercase tracking-wider';
+        } else {
+          document.getElementById('userPlan').innerText = 'FREE PLAN';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function createInvoice(planType) {
+      try {
+        const res = await fetch('/api/subscribe/create-moota', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ planType })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          const d = result.data;
+          document.getElementById('totalAmountText').innerText = `Rp ${d.totalAmount.toLocaleString('id-ID')}`;
+          document.getElementById('bankNameText').innerText = d.bankName;
+          document.getElementById('accNumberText').innerText = d.accountNumber;
+          document.getElementById('accHolderText').innerText = d.accountHolder;
+          
+          document.getElementById('paymentModal').classList.remove('hidden');
+        } else {
+          alert(result.message);
+        }
+      } catch {
+        alert("Gagal membuat instruksi pembayaran.");
+      }
+    }
+
+    async function checkPaymentStatus() {
+      const btn = document.getElementById("btnCheckPayment");
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Memeriksa ke Bank...`;
+
+      try {
+        const res = await fetch("/api/subscribe/check-manual", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const data = await res.json();
+        alert(data.message);
+
+        if (data.completed) {
+          closeModal();
+          loadConfig();
+        }
+      } catch (err) {
+        alert("Terjadi kesalahan saat mengecek pembayaran.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        lucide.createIcons();
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('paymentModal').classList.add('hidden');
+    }
+
+    // Join Socket Room
+    socket.emit('start-bot', token);
+
+    // REALTIME PAYMENT DETECTED LISTENER
+    socket.on('payment-success', (data) => {
+      closeModal();
+      alert(`🎉 SUCCESS! ${data.message}`);
+      loadConfig();
+    });
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+    }
+
+    loadConfig();
+  </script>
+</body>
+</html>
