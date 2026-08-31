@@ -44,34 +44,36 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- KONFIGURASI SINGLE PROVIDER: ORCAROUTER AI ENGINE ---
-const ORCAROUTER_CONFIG = {
-  name: "Orcarouter",
-  apiKey: process.env.ORCAROUTER_API_KEY || "sk-orca-x9zTIrLjQRpAzGuFH8UotyjXEqzujt5nNIZukJ8n7Qk",
-  baseUrl: process.env.ORCAROUTER_API_URL || "https://api.orcarouter.ai/v1/chat/completions",
+// --- KONFIGURASI SINGLE PROVIDER: OPENROUTER PAID ENGINE ---
+const OPENROUTER_CONFIG = {
+  name: "OpenRouter",
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions",
   models: [
-    "qwen/qwen3.8-27b-free",
-    "orcarouter/free",
-    "tencent/hy3-free",
-    "deepseek/deepseek-v4-flash-free"
+    "inclusionai/ling-3.0-flash"
   ]
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL ORCAROUTER AI (ROBUST MODEL FAILOVER) ---
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
-  for (const model of ORCAROUTER_CONFIG.models) {
+// --- HELPER CALL OPENROUTER AI ENGINE ---
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
+  if (!OPENROUTER_CONFIG.apiKey) {
+    console.error("❌ [OPENROUTER ERROR] API Key tidak ditemukan di environment variable OPENROUTER_API_KEY");
+    return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
+  }
+
+  for (const model of OPENROUTER_CONFIG.models) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    console.log(`📡 [ORCAROUTER AI] Requesting model: ${model}`);
+    console.log(`📡 [OPENROUTER AI] Requesting model: ${model}`);
 
     try {
-      const response = await fetch(ORCAROUTER_CONFIG.baseUrl, {
+      const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${ORCAROUTER_CONFIG.apiKey}`,
+          "Authorization": `Bearer ${OPENROUTER_CONFIG.apiKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
           "X-Title": "WA AutoBot SaaS",
@@ -87,13 +89,14 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
       clearTimeout(timeoutId);
 
       if ([400, 401, 403, 404].includes(response.status)) {
-        console.warn(`❌ [ORCAROUTER HTTP ${response.status}] Model ${model} ditolak. Mencoba model Orcarouter berikutnya...`);
+        const errJson = await response.json().catch(() => null);
+        console.warn(`❌ [OPENROUTER HTTP ${response.status}] ${JSON.stringify(errJson)}`);
         await sleep(300);
         continue;
       }
 
       if (response.status === 429) {
-        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk. Mencoba model Orcarouter berikutnya...`);
+        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk...`);
         await sleep(500);
         continue;
       }
@@ -107,19 +110,18 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 8000) {
       const content = data?.choices?.[0]?.message?.content;
 
       if (content && content.trim()) {
-        console.log(`✅ [ORCAROUTER SUCCESS] Berhasil merespon menggunakan model: ${model}`);
+        console.log(`✅ [OPENROUTER SUCCESS] Berhasil merespon menggunakan model: ${model}`);
         return content.trim();
       }
 
     } catch (err) {
       clearTimeout(timeoutId);
       const errDetail = err.cause?.message || err.message;
-      console.warn(`⚠️ [ORCAROUTER TIMEOUT/ERR] Model ${model}: ${errDetail}`);
+      console.warn(`⚠️ [OPENROUTER TIMEOUT/ERR] Model ${model}: ${errDetail}`);
       await sleep(300);
     }
   }
 
-  // Fallback cadangan jika seluruh model Orcarouter sibuk
   return "Halo! Terima kasih telah menghubungi kami. Saat ini sistem balasan otomatis sedang diproses, mohon ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
@@ -387,7 +389,7 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR AUTO GENERATE PROMPT (ORCAROUTER ENGINE) ---
+// --- FITUR AUTO GENERATE PROMPT (OPENROUTER ENGINE) ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
