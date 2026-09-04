@@ -12,6 +12,7 @@
     "crypto": "^1.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
+    "googleapis": "^178.0.0",
     "jsonwebtoken": "^9.0.3",
     "midtrans-client": "^1.4.3",
     "mongoose": "^8.24.4",
