@@ -342,8 +342,17 @@
         document.getElementById('userNickname').innerText = data.nickname;
         document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
 
+        const btnSheet = document.getElementById('btnOpenSpreadsheet');
         if (data.googleSpreadsheetUrl) {
-          document.getElementById('btnOpenSpreadsheet').href = data.googleSpreadsheetUrl;
+          btnSheet.href = data.googleSpreadsheetUrl;
+          btnSheet.onclick = null;
+        } else {
+          btnSheet.href = "#";
+          btnSheet.onclick = (e) => {
+            e.preventDefault();
+            alert("⚠️ Database Spreadsheet belum terbuat. Memuat ulang sistem untuk membuat ulang otomatis...");
+            location.reload();
+          };
         }
 
         const userAvatar = document.getElementById('userAvatar');
