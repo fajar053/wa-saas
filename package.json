@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "scripts": {
-    "build": "npm install",
-    "start": "node server.js"
+"scripts": {
+    "start": "npm install googleapis && node server.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.24",
