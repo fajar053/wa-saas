@@ -19,6 +19,7 @@ import makeWASocket, {
   BufferJSON 
 } from "@whiskeysockets/baileys";
 import pino from "pino";
+import { google } from "googleapis";
 
 import User from "./models/User.js";
 import Session from "./models/Session.js";
@@ -45,6 +46,18 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
+// --- KONFIGURASI GOOGLE SERVICE ACCOUNT ---
+const googleAuth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  },
+  scopes: [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+  ],
+});
+
 // --- KONFIGURASI SINGLE PROVIDER: OPENROUTER PAID ENGINE ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
@@ -56,6 +69,98 @@ const OPENROUTER_CONFIG = {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// --- HELPER GOOGLE SPREADSHEET AUTOMATION ---
+function convertDriveUrlToDirect(url) {
+  if (!url || typeof url !== "string") return null;
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://lh3.googleusercontent.com/d/${match[1]}`;
+  }
+  return url.trim();
+}
+
+async function createAutoSpreadsheetForUser(user) {
+  try {
+    if (user.googleSpreadsheetId) return user.googleSpreadsheetId;
+
+    const templateId = process.env.GOOGLE_TEMPLATE_SPREADSHEET_ID;
+    if (!templateId || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+      console.warn("⚠️ Google Service Account / Template ID belum diatur di .env");
+      return "";
+    }
+
+    const drive = google.drive({ version: "v3", auth: googleAuth });
+
+    const copyResponse = await drive.files.copy({
+      fileId: templateId,
+      requestBody: {
+        name: `[WA AutoBot] Database Auto-Reply - ${user.nickname}`,
+      },
+    });
+
+    const newSheetId = copyResponse.data.id;
+
+    await drive.permissions.create({
+      fileId: newSheetId,
+      requestBody: {
+        role: "writer",
+        type: "anyone",
+      },
+    });
+
+    user.googleSpreadsheetId = newSheetId;
+    await user.save();
+
+    console.log(`✅ [AUTO-SHEET] Berhasil membuat Spreadsheet untuk User: ${user.email} (ID: ${newSheetId})`);
+    return newSheetId;
+  } catch (err) {
+    console.error("❌ [AUTO-SHEET CLONE ERR]:", err.message);
+    return "";
+  }
+}
+
+async function fetchUserSheetData(spreadsheetId, range = "Sheet1!A2:D100") {
+  try {
+    if (!spreadsheetId) return [];
+
+    const sheets = google.sheets({ version: "v4", auth: googleAuth });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values || [];
+    return rows.map((row) => ({
+      keyword: row[0] ? String(row[0]).trim().toLowerCase() : "",
+      replyText: row[1] ? String(row[1]).trim() : "",
+      imageUrl: convertDriveUrlToDirect(row[2]),
+      matchType: row[3] ? String(row[3]).trim().toLowerCase() : "similar",
+    }));
+  } catch (err) {
+    console.warn("⚠️ [READ USER SHEET ERR]:", err.message);
+    return [];
+  }
+}
+
+function findSheetKeywordMatch(userText, sheetData) {
+  if (!sheetData || sheetData.length === 0) return null;
+  const cleanedInput = userText.toLowerCase().trim();
+
+  for (const item of sheetData) {
+    if (item.matchType === "exact" && item.keyword === cleanedInput) {
+      return item;
+    }
+  }
+
+  for (const item of sheetData) {
+    if (item.keyword && cleanedInput.includes(item.keyword)) {
+      return item;
+    }
+  }
+
+  return null;
+}
 
 // --- HELPER CALL OPENROUTER AI ENGINE ---
 async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
@@ -227,7 +332,7 @@ app.post("/api/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
-    await User.create({
+    const newUser = await User.create({
       nickname,
       username,
       email,
@@ -235,6 +340,8 @@ app.post("/api/register", async (req, res) => {
       verificationToken,
       profilePicture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`
     });
+
+    createAutoSpreadsheetForUser(newUser).catch(err => console.error("Async Sheet Init Error:", err));
 
     const verifyLink = `${process.env.APP_URL || 'https://wasaas.my.id'}/api/verify-email?token=${verificationToken}`;
     
@@ -323,6 +430,10 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
+  if (!user.googleSpreadsheetId) {
+    await createAutoSpreadsheetForUser(user);
+  }
+
   const today = new Date().toISOString().split("T")[0];
   const currentMonth = today.slice(0, 7);
 
@@ -349,6 +460,9 @@ app.get("/api/config", verifyToken, async (req, res) => {
     nickname: user.nickname,
     username: user.username,
     role: user.role || "user",
+    googleSpreadsheetUrl: user.googleSpreadsheetId 
+      ? `https://docs.google.com/spreadsheets/d/${user.googleSpreadsheetId}/edit` 
+      : "",
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive ?? true,
@@ -833,31 +947,38 @@ async function autoStartAllSessions() {
 }
 
 // --- HELPER SIMULASI KIRIM BALASAN HUMANIS / ANTI-BLOKIR ---
-async function sendHumanizedReply(sock, remoteJid, replyText) {
+async function sendHumanizedReply(sock, remoteJid, replyText, imageUrl = null) {
   try {
-    // 1. Tampilkan indikator status "ketik..." (composing)
     await sock.sendPresenceUpdate("composing", remoteJid);
 
-    // 2. Hitung jeda pengetikan acak dinamis berdasarkan panjang pesan (2s s.d 6s)
-    const baseDelay = Math.min(Math.max(replyText.length * 35, 2000), 6000);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 35, 2000), 6000);
     const randomJitter = Math.floor(Math.random() * 1200);
     const totalTypingTime = baseDelay + randomJitter;
 
     await sleep(totalTypingTime);
 
-    // 3. Matikan indikator ketik
     await sock.sendPresenceUpdate("paused", remoteJid);
     await sleep(300);
 
-    // 4. Kirim balasan pesan
-    await sock.sendMessage(remoteJid, { text: replyText });
+    if (imageUrl) {
+      await sock.sendMessage(remoteJid, {
+        image: { url: imageUrl },
+        caption: replyText || ""
+      });
+    } else if (replyText) {
+      await sock.sendMessage(remoteJid, { text: replyText });
+    }
   } catch (err) {
     console.warn("⚠️ Anti-Ban Send Fallback:", err.message);
-    await sock.sendMessage(remoteJid, { text: replyText });
+    if (imageUrl) {
+      await sock.sendMessage(remoteJid, { image: { url: imageUrl }, caption: replyText || "" });
+    } else if (replyText) {
+      await sock.sendMessage(remoteJid, { text: replyText });
+    }
   }
 }
 
-// --- PEMROSESAN BALASAN AI ---
+// --- PEMROSESAN BALASAN AI & DATABASE SPREADSHEET ---
 async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
   try {
     const user = await User.findById(strUserId);
@@ -894,6 +1015,29 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       await sock.readMessages([{ remoteJid, id: lastMsgId }]);
     } catch {}
 
+    // --- 1. CEK SPREADSHEET KUSTOM USER ---
+    if (user.googleSpreadsheetId) {
+      const userRows = await fetchUserSheetData(user.googleSpreadsheetId);
+      const matchedData = findSheetKeywordMatch(combinedText, userRows);
+
+      if (matchedData) {
+        console.log(`🎯 [SPREADSHEET MATCH] Keyword: "${matchedData.keyword}" | User: ${user.email}`);
+
+        await sendHumanizedReply(sock, remoteJid, matchedData.replyText, matchedData.imageUrl);
+        await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
+
+        io.to(strUserId).emit("chat-log", {
+          time: new Date().toLocaleTimeString(),
+          sender: senderNumber,
+          text: `[Database Sheet Match] ${matchedData.replyText} ${matchedData.imageUrl ? '[Gambar Dikirim]' : ''}`,
+          type: "out"
+        });
+
+        return;
+      }
+    }
+
+    // --- 2. FALLBACK AI OPENROUTER ---
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
     if (!conv) {
       conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
@@ -916,7 +1060,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim balasan dengan fitur simulasi pengetikan manusia
     await sendHumanizedReply(sock, remoteJid, reply);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
@@ -956,7 +1099,6 @@ async function startUserBot(userId) {
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
-    // Inisialisasi Socket Baileys dengan Browser Fingerprint Resmi & Timeout Stabil
     const sock = makeWASocket({
       version,
       logger: globalLogger,
@@ -1014,7 +1156,6 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          // Filter pesan agar tidak memproses grup, siaran, atau status
           if (
             !msg.message || 
             msg.key.fromMe || 

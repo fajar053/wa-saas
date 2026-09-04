@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
   orcarouterApiKey: { type: String, default: "" },
   aiProvider: { type: String, enum: ["openrouter", "orcarouter"], default: "openrouter" },
   modelName: { type: String, default: "nvidia/nemotron-3-ultra-550b-a55b:free" },
+  googleSpreadsheetId: { type: String, default: "" },
   systemPrompt: { type: String, default: "Kamu adalah asisten AI yang ramah." },
   isBotActive: { type: Boolean, default: true },
   plan: { type: String, enum: ["free", "premium"], default: "free" },
