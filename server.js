@@ -832,6 +832,31 @@ async function autoStartAllSessions() {
   }
 }
 
+// --- HELPER SIMULASI KIRIM BALASAN HUMANIS / ANTI-BLOKIR ---
+async function sendHumanizedReply(sock, remoteJid, replyText) {
+  try {
+    // 1. Tampilkan indikator status "ketik..." (composing)
+    await sock.sendPresenceUpdate("composing", remoteJid);
+
+    // 2. Hitung jeda pengetikan acak dinamis berdasarkan panjang pesan (2s s.d 6s)
+    const baseDelay = Math.min(Math.max(replyText.length * 35, 2000), 6000);
+    const randomJitter = Math.floor(Math.random() * 1200);
+    const totalTypingTime = baseDelay + randomJitter;
+
+    await sleep(totalTypingTime);
+
+    // 3. Matikan indikator ketik
+    await sock.sendPresenceUpdate("paused", remoteJid);
+    await sleep(300);
+
+    // 4. Kirim balasan pesan
+    await sock.sendMessage(remoteJid, { text: replyText });
+  } catch (err) {
+    console.warn("⚠️ Anti-Ban Send Fallback:", err.message);
+    await sock.sendMessage(remoteJid, { text: replyText });
+  }
+}
+
 // --- PEMROSESAN BALASAN AI ---
 async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
   try {
@@ -891,7 +916,8 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    await sock.sendMessage(remoteJid, { text: reply });
+    // Kirim balasan dengan fitur simulasi pengetikan manusia
+    await sendHumanizedReply(sock, remoteJid, reply);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
     io.to(strUserId).emit("chat-log", {
@@ -930,15 +956,19 @@ async function startUserBot(userId) {
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
+    // Inisialisasi Socket Baileys dengan Browser Fingerprint Resmi & Timeout Stabil
     const sock = makeWASocket({
       version,
       logger: globalLogger,
       auth: state,
       printQRInTerminal: false,
-      markOnlineOnConnect: true,
+      markOnlineOnConnect: false,
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
-      browser: ["WA AutoBot AI", "Chrome", "1.0.0"],
+      browser: ["Ubuntu", "Chrome", "122.0.6261.111"],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
       getMessage: async () => ({ conversation: "Bot Active" })
     });
 
@@ -970,7 +1000,7 @@ async function startUserBot(userId) {
         console.log(`🔌 [WA CLOSED] User: ${strUserId} | Reason: ${statusCode} | Reconnect: ${shouldReconnect}`);
 
         if (shouldReconnect) {
-          setTimeout(() => startUserBot(strUserId), 4000);
+          setTimeout(() => startUserBot(strUserId), 5000);
         } else {
           await Session.deleteOne({ userId: strUserId }).catch(() => {});
           io.to(strUserId).emit("status", "Disconnected");
@@ -984,6 +1014,7 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
+          // Filter pesan agar tidak memproses grup, siaran, atau status
           if (
             !msg.message || 
             msg.key.fromMe || 
@@ -1028,7 +1059,7 @@ async function startUserBot(userId) {
 
             const combinedText = aggregatedTexts.join("\n");
             await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetMsgId);
-          }, 2000);
+          }, 2500);
         }
       } catch (err) {
         console.error("Upsert Error:", err.message);
