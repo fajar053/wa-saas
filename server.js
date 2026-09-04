@@ -92,11 +92,18 @@ async function createAutoSpreadsheetForUser(user) {
 
     const drive = google.drive({ version: "v3", auth: googleAuth });
 
+    const requestBody = {
+      name: `[WA AutoBot] Database Auto-Reply - ${user.nickname}`,
+    };
+
+    // Mengarahkan lokasi penyimpanan ke Folder Drive milik akun utama (penyedia kuota)
+    if (process.env.GOOGLE_DRIVE_FOLDER_ID) {
+      requestBody.parents = [process.env.GOOGLE_DRIVE_FOLDER_ID];
+    }
+
     const copyResponse = await drive.files.copy({
       fileId: templateId,
-      requestBody: {
-        name: `[WA AutoBot] Database Auto-Reply - ${user.nickname}`,
-      },
+      requestBody: requestBody,
     });
 
     const newSheetId = copyResponse.data.id;
