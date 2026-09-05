@@ -67,7 +67,7 @@ function formatWaJid(rawJid) {
   
   if (jid.endsWith("@g.us") || jid.endsWith("@newsletter")) return jid;
 
-  let cleanNum = jid.split("@")[0].replace(/[^0-9]/g, "");
+  let cleanNum = jid.split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
   if (cleanNum.startsWith("0")) {
     cleanNum = "62" + cleanNum.slice(1);
   } else if (cleanNum.startsWith("8")) {
@@ -83,17 +83,19 @@ const OPENROUTER_CONFIG = {
   apiKey: process.env.OPENROUTER_API_KEY,
   baseUrl: process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions",
   models: [
-    "inclusionai/ling-3.0-flash",
-    "deepseek/deepseek-v4-flash-0731",
-    "mistralai/mistral-nemo",
-    "meta-llama/llama-3.1-8b-instruct"
+    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.3-70b-instruct",
+    "deepseek/deepseek-chat",
+    "mistralai/mistral-7b-instruct:free",
+    "qwen/qwen-2.5-72b-instruct"
   ]
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
+async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
   if (!OPENROUTER_CONFIG.apiKey) {
+    console.error("❌ [OPENROUTER] API Key tidak ditemukan di .env!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
@@ -102,6 +104,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+      console.log(`📡 [AI REQUEST] Mencoba model: ${model}`);
       const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
         method: "POST",
         headers: {
@@ -109,7 +112,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
           "Content-Type": "application/json",
           "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
           "X-Title": "WA AutoBot SaaS",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          "User-Agent": "Mozilla/5.0"
         },
         body: JSON.stringify({ model, messages }),
         signal: controller.signal
@@ -118,6 +121,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        console.warn(`⚠️ [AI MODEL FAIL] ${model} HTTP status: ${response.status}`);
         await sleep(300);
         continue;
       }
@@ -126,11 +130,13 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
       const content = data?.choices?.[0]?.message?.content;
 
       if (content && content.trim()) {
+        console.log(`✅ [AI SUCCESS] Berhasil merespon dari model: ${model}`);
         return content.trim();
       }
 
     } catch (err) {
       clearTimeout(timeoutId);
+      console.warn(`⚠️ [AI TIMEOUT/ERR] ${model}: ${err.message}`);
       await sleep(300);
     }
   }
@@ -155,6 +161,9 @@ function extractMessageText(msg) {
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
     m.documentMessage?.caption ||
+    m.buttonsResponseMessage?.selectedButtonId ||
+    m.buttonsResponseMessage?.selectedDisplayText ||
+    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
     ""
   ).trim();
 }
@@ -655,31 +664,33 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS / ANTI-BLOKIR ---
+// --- HELPER SIMULASI BALASAN HUMANIS ---
 async function sendHumanizedReply(sock, remoteJid, replyText) {
   try {
-    await sock.sendPresenceUpdate("composing", remoteJid);
+    try {
+      await sock.sendPresenceUpdate("composing", remoteJid);
+    } catch {}
 
-    const baseDelay = Math.min(Math.max((replyText || "").length * 35, 1500), 5000);
-    const randomJitter = Math.floor(Math.random() * 800);
-    await sleep(baseDelay + randomJitter);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 30, 1000), 4000);
+    await sleep(baseDelay);
 
-    await sock.sendPresenceUpdate("paused", remoteJid);
-    await sleep(200);
+    try {
+      await sock.sendPresenceUpdate("paused", remoteJid);
+    } catch {}
 
     if (replyText) {
       await sock.sendMessage(remoteJid, { text: replyText });
     }
   } catch (err) {
-    console.warn("⚠️ Send Reply Fallback:", err.message);
+    console.warn("⚠️ Send Reply Fallback Direct Send:", err.message);
     if (replyText) {
       await sock.sendMessage(remoteJid, { text: replyText });
     }
   }
 }
 
-// --- PEMROSESAN BALASAN AI ---
-async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
+// --- PEMROSESAN BALASAN AI AUTOMATIS ---
+async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, lastMsgId) {
   try {
     const user = await User.findById(strUserId);
     if (!user) return;
@@ -707,9 +718,12 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       return;
     }
 
+    // Tandai pesan sudah dibaca
     try {
-      await sock.readMessages([{ remoteJid, id: lastMsgId }]);
-    } catch {}
+      await sock.readMessages([{ remoteJid: targetJid, id: lastMsgId }]);
+    } catch (e) {
+      console.warn("⚠️ Read Message Warning:", e.message);
+    }
 
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
     if (!conv) {
@@ -728,15 +742,17 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       ...historyForAI
     ];
 
-    console.log(`📡 [AI REPLYING] Generasi balasan untuk ${senderNumber}...`);
+    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber}...`);
     const reply = await fetchAIResponse(messagesPayload, strUserId);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    await sendHumanizedReply(sock, remoteJid, reply);
+    // Kirim Balasan ke WhatsApp Kontak
+    await sendHumanizedReply(sock, targetJid, reply);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
+    // Emit Log Keluar ke Frontend Dashboard Realtime
     io.to(strUserId).emit("chat-log", {
       time: new Date().toLocaleTimeString(),
       sender: "BOT AI",
@@ -744,7 +760,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       type: "out"
     });
 
-    console.log(`✅ [AI SUCCESS] Balasan AI berhasil dikirim ke ${senderNumber}`);
+    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber}: "${reply.slice(0, 30)}..."`);
 
   } catch (err) {
     console.error("❌ Reply Error:", err.message);
@@ -916,8 +932,13 @@ async function startUserBot(userId) {
           const text = extractMessageText(msg);
           if (!text) continue;
 
+          // Normalisasi Sender Number & Target JID
           const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
+          const targetJid = formatWaJid(msg.key.remoteJid);
 
+          console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | Text: ${text}`);
+
+          // Emit Log Masuk Realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -925,27 +946,32 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // BUFFER PESAN UNTUK MEMANGGIL OPENROUTER AI BOT
+          // Buffer Agregasi Pesan (2.5 Detik Penundaan)
           const bufferKey = `${strUserId}_${senderNumber}`;
           if (!messageBuffers.has(bufferKey)) {
-            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
+            messageBuffers.set(bufferKey, { 
+              messages: [], 
+              timer: null, 
+              targetJid: targetJid, 
+              lastMsgId: msg.key.id 
+            });
           }
 
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
-          buf.remoteJid = msg.key.remoteJid;
+          buf.targetJid = targetJid;
           buf.lastMsgId = msg.key.id;
 
           if (buf.timer) clearTimeout(buf.timer);
 
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
-            const targetJid = buf.remoteJid;
+            const finalTargetJid = buf.targetJid;
             const targetMsgId = buf.lastMsgId;
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetMsgId);
+            await handleAIBotReply(strUserId, senderNumber, finalTargetJid, combinedText, sock, targetMsgId);
           }, 2500);
         }
       } catch (err) {
@@ -964,6 +990,7 @@ io.on("connection", (socket) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const strUserId = String(decoded.userId);
       socket.join(strUserId);
+      console.log(`🔌 [SOCKET JOIN] User ${strUserId} terhubung ke realtime room.`);
       startUserBot(strUserId);
     } catch {
       socket.emit("status", "Unauthorized");
