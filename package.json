@@ -4,8 +4,8 @@
   "type": "module",
   "main": "server.js",
 "scripts": {
-    "start": "npm install googleapis && node server.js"
-  },
+  "start": "node server.js"
+},
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.24",
     "bcryptjs": "^2.4.3",

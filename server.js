@@ -86,6 +86,29 @@ function normalizeJid(rawJid) {
   return `${cleanNum}@s.whatsapp.net`;
 }
 
+// Helper untuk mengekstrak JID efektif (Mengekstrak @s.whatsapp.net dari pesan LID jika ada)
+function getEffectiveJid(msg) {
+  if (!msg || !msg.key) return "";
+
+  const remoteJid = msg.key.remoteJid || "";
+  const remoteJidAlt = msg.key.remoteJidAlt || "";
+  const participant = msg.key.participant || msg.participant || "";
+
+  if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
+    return normalizeJid(remoteJidAlt);
+  }
+
+  if (participant && participant.endsWith("@s.whatsapp.net")) {
+    return normalizeJid(participant);
+  }
+
+  if (remoteJid.endsWith("@s.whatsapp.net")) {
+    return normalizeJid(remoteJid);
+  }
+
+  return normalizeJid(remoteJid);
+}
+
 function extractPhoneNumber(rawJid) {
   if (!rawJid) return "";
   const clean = String(rawJid).split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
@@ -184,7 +207,6 @@ function extractMessageText(msg) {
 
 app.use(express.json());
 
-// --- MIDDLEWARE HTML INJECTION (DIBAIKI: BEBAS DARI WA-STATUS.JS) ---
 app.use((req, res, next) => {
   if (req.method === "GET" && (req.path.endsWith(".html") || req.path === "/")) {
     const fileName = req.path === "/" ? "index.html" : req.path;
@@ -681,24 +703,36 @@ setInterval(async () => {
 // --- HELPER SIMULASI BALASAN HUMANIS ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
-    try {
-      await sock.sendPresenceUpdate("composing", targetJid);
-    } catch {}
+    const isLid = targetJid.endsWith("@lid");
 
-    const baseDelay = Math.min(Math.max((replyText || "").length * 20, 1000), 3000);
+    if (!isLid) {
+      try {
+        await sock.sendPresenceUpdate("composing", targetJid);
+      } catch {}
+    }
+
+    const baseDelay = Math.min(Math.max((replyText || "").length * 20, 1000), 2500);
     await sleep(baseDelay);
 
     let sentMsg;
-    try {
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
-    } catch (quoteErr) {
-      console.warn("⚠️ Quoted send failed, falling back to direct send:", quoteErr.message);
+    // PENTING: Jika targetJid berakhiran @lid, JANGAN sertakan { quoted: rawMsg } karena WhatsApp Server membuang (silent drop) balasan bertipe quoted pada LID!
+    if (isLid) {
+      console.log(`ℹ️ [LID TARGET] Mengirim pesan langsung tanpa quote context ke ${targetJid}`);
       sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+    } else {
+      try {
+        sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
+      } catch (quoteErr) {
+        console.warn("⚠️ Quoted send failed, falling back to direct send:", quoteErr.message);
+        sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+      }
     }
 
-    try {
-      await sock.sendPresenceUpdate("paused", targetJid);
-    } catch {}
+    if (!isLid) {
+      try {
+        await sock.sendPresenceUpdate("paused", targetJid);
+      } catch {}
+    }
 
     console.log(`📤 [MESSAGE DELIVERED] Ref ID: ${sentMsg?.key?.id} | Target: ${targetJid}`);
     return sentMsg;
@@ -959,7 +993,8 @@ async function startUserBot(userId) {
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          const targetJid = normalizeJid(msg.key.remoteJid);
+          // Dapatkan JID efektif (mengutamakan nomor HP asli @s.whatsapp.net jika tersedia)
+          const targetJid = getEffectiveJid(msg);
           const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
