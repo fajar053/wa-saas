@@ -35,6 +35,9 @@
         <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
           <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
         </a>
+        <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
+        </a>
         <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
           <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
         </a>
@@ -43,6 +46,9 @@
         </a>
         <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold">
           <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
+        </a>
+        <a href="/report.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
+          <i data-lucide="help-circle" class="w-4 h-4"></i> Laporkan Kendala
         </a>
       </nav>
     </div>
@@ -196,7 +202,6 @@
       }
     }
 
-    // Join Socket Room
     socket.emit('start-bot', token);
 
     function logout() {
