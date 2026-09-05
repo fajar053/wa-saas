@@ -415,6 +415,36 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
+// --- API AUTO GENERATE SYSTEM PROMPT ---
+app.post("/api/generate-prompt", verifyToken, async (req, res) => {
+  try {
+    const { promptText, mode } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan!" });
+
+    const targetWords = parseInt(mode) || 50;
+
+    if (targetWords > 50 && user.plan !== "premium") {
+      return res.status(403).json({
+        success: false,
+        message: "Fitur Auto-Generate di atas 50 kata khusus untuk pengguna Premium."
+      });
+    }
+
+    const systemInstruction = `Kamu adalah AI Prompt Engineer profesional. Ubah instruksi singkat berikut menjadi System Prompt instruksi WhatsApp Bot yang terstruktur dan detail dalam Bahasa Indonesia (~${targetWords} kata). Berikan teks prompt-nya saja secara langsung tanpa kata pembuka atau penutup.`;
+
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: promptText }
+    ];
+
+    const generatedPrompt = await fetchAIResponse(messages, String(user._id));
+    res.json({ success: true, generatedPrompt });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // --- API WA SCHEDULE ---
 app.get("/api/schedule/targets", verifyToken, async (req, res) => {
   try {

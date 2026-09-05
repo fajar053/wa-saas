@@ -54,26 +54,29 @@
                   System Prompt / Pelatihan Bot
                 </label>
 
-                <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Dropdown Auto Generate & Button Terapkan -->
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-[11px] text-slate-400 flex items-center gap-1">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i> Auto Generate:
                   </span>
+
+                  <select 
+                    id="promptWordTarget" 
+                    class="bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-200 px-3 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                  >
+                    <option value="50">50 Kata (Free Plan)</option>
+                    <option value="150" id="opt150">150 Kata (Premium 🔒)</option>
+                    <option value="250" id="opt250">250 Kata (Premium 🔒)</option>
+                    <option value="500" id="opt500">500 Kata (Premium 🔒)</option>
+                  </select>
+
                   <button 
                     type="button" 
-                    onclick="generatePrompt('detailed')" 
-                    id="btnGenDetailed"
-                    class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                    onclick="handleGeneratePrompt()" 
+                    id="btnGeneratePrompt"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
                   >
-                    <span>Detail (~50 kata)</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    onclick="generatePrompt('very_detailed')" 
-                    id="btnGenVeryDetailed"
-                    class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
-                  >
-                    <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400"></i>
-                    <span>Sangat Detail (~300 kata)</span>
+                    <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> Terapkan
                   </button>
                 </div>
               </div>
@@ -81,7 +84,7 @@
               <textarea 
                 id="systemPrompt" 
                 rows="8" 
-                placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu klik tombol Auto Generate di atas..." 
+                placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu pilih target kata di atas dan klik Terapkan..." 
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
               ></textarea>
             </div>
@@ -207,6 +210,21 @@
         currentUserPlan = data.plan || 'free';
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
 
+        // Atur Status Opsi kata Premium pada Dropdown
+        const opt150 = document.getElementById('opt150');
+        const opt250 = document.getElementById('opt250');
+        const opt500 = document.getElementById('opt500');
+
+        if (currentUserPlan !== 'premium') {
+          if (opt150) opt150.disabled = true;
+          if (opt250) opt250.disabled = true;
+          if (opt500) opt500.disabled = true;
+        } else {
+          if (opt150) { opt150.disabled = false; opt150.innerText = '150 Kata (Premium)'; }
+          if (opt250) { opt250.disabled = false; opt250.innerText = '250 Kata (Premium)'; }
+          if (opt500) { opt500.disabled = false; opt500.innerText = '500 Kata (Premium)'; }
+        }
+
         const isBotActive = data.isBotActive !== false && data.isBotActive !== "false";
         const textStatus = document.getElementById('botActiveTextStatus');
         const iconBg = document.getElementById('botActiveIconBg');
@@ -313,9 +331,12 @@
       }
     }
 
-    async function generatePrompt(mode) {
-      if (mode === 'very_detailed' && currentUserPlan !== 'premium') {
-        alert("🔒 Fitur Prompt 'Sangat Detail (~300 kata)' hanya tersedia untuk pengguna Premium. Silakan upgrade paket Anda!");
+    async function handleGeneratePrompt() {
+      const mode = document.getElementById('promptWordTarget').value;
+      const targetWords = parseInt(mode) || 50;
+
+      if (targetWords > 50 && currentUserPlan !== 'premium') {
+        alert("🔒 Fitur Auto-Generate di atas 50 kata khusus untuk pengguna Premium. Silakan upgrade paket Anda!");
         return;
       }
 
@@ -323,12 +344,12 @@
       const text = promptInput.value;
 
       if (!text.trim()) {
-        alert("Ketikkan instruksi singkat terlebih dahulu!");
+        alert("Ketikkan instruksi singkat terlebih dahulu pada kolom System Prompt!");
         return;
       }
 
       const originalText = promptInput.value;
-      promptInput.value = "🤖 Mengisi & mengembangkan System Prompt...";
+      promptInput.value = `🤖 Mengisi & mengembangkan System Prompt (~${targetWords} kata)...`;
 
       try {
         const res = await fetch('/api/generate-prompt', {
@@ -344,7 +365,7 @@
         if (data.success) {
           promptInput.value = data.generatedPrompt;
         } else {
-          alert(data.message);
+          alert(data.message || "Gagal menghasilkan prompt.");
           promptInput.value = originalText;
         }
       } catch {
