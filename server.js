@@ -66,10 +66,11 @@ function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
 
+  // Hapus suffix device ID (misal: 628123:12@s.whatsapp.net -> 628123@s.whatsapp.net)
   if (jid.includes(":")) {
-    const [userPart, domainPart] = jid.split("@");
-    const cleanUser = userPart.split(":")[0];
-    jid = `${cleanUser}@${domainPart}`;
+    const parts = jid.split("@");
+    const cleanUser = parts[0].split(":")[0];
+    jid = `${cleanUser}@${parts[1]}`;
   }
 
   if (jid.endsWith("@lid") || jid.endsWith("@g.us") || jid.endsWith("@newsletter")) {
@@ -678,7 +679,7 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS DENGAN QUOTED CONTEXT ---
+// --- HELPER SIMULASI BALASAN HUMANIS DENGAN DUAL SEND FALLBACK ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
     try {
@@ -688,9 +689,15 @@ async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
     const baseDelay = Math.min(Math.max((replyText || "").length * 20, 1000), 3000);
     await sleep(baseDelay);
 
-    // Menggunakan quote kontekstual asli untuk menjamin terkirim di E2EE
-    const sendOptions = rawMsg ? { quoted: rawMsg } : {};
-    const sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
+    let sentMsg;
+    try {
+      // Opsi 1: Mengirim balasan dengan quote konteks pesan asli
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
+    } catch (quoteErr) {
+      console.warn("⚠️ Quoted send failed, falling back to direct send:", quoteErr.message);
+      // Opsi 2: Kirim langsung tanpa quote jika quote gagal
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+    }
 
     try {
       await sock.sendPresenceUpdate("paused", targetJid);
@@ -699,11 +706,8 @@ async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
     console.log(`📤 [MESSAGE DELIVERED] Ref ID: ${sentMsg?.key?.id} | Target: ${targetJid}`);
     return sentMsg;
   } catch (err) {
-    console.warn("⚠️ Direct Send Fallback Error:", err.message);
-    if (replyText) {
-      const sendOptions = rawMsg ? { quoted: rawMsg } : {};
-      return await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
-    }
+    console.error("❌ Send Reply Error:", err.message);
+    throw err;
   }
 }
 
@@ -766,7 +770,7 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim Balasan menggunakan E2EE Quoted Context
+    // Kirim Balasan ke WhatsApp Kontak
     console.log(`📤 [SENDING REPLY] Mengirim balasan ke JID: ${targetJid}`);
     await sendHumanizedReply(sock, targetJid, reply, rawMsg);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
@@ -889,12 +893,13 @@ async function startUserBot(userId) {
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
-      // Opsi Kritis untuk Menangani E2EE Retry Decryption
       getMessage: async (key) => {
-        if (store && typeof store.loadMessage === "function") {
-          const msg = await store.loadMessage(key.remoteJid, key.id);
-          return msg?.message || undefined;
-        }
+        try {
+          if (store && typeof store.loadMessage === "function") {
+            const msg = await store.loadMessage(key.remoteJid, key.id);
+            return msg?.message || undefined;
+          }
+        } catch (e) {}
         return { conversation: "" };
       }
     });
@@ -944,7 +949,9 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
+          // 1. Abaikan pesan kosong, pesan dari bot sendiri, grup, status, dan channel
           if (
+            !msg ||
             !msg.message || 
             msg.key.fromMe || 
             msg.key.remoteJid?.endsWith("@g.us") ||
@@ -952,15 +959,17 @@ async function startUserBot(userId) {
             msg.key.remoteJid?.endsWith("@newsletter")
           ) continue;
 
+          // 2. Ekstrak teks pesan TERLEBIH DAHULU
+          const text = extractMessageText(msg);
+          if (!text || text.trim() === "") continue;
+
+          // 3. Periksa deduplikasi ID HANYA jika teks valid ada
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
-          if (processedMsgIds.size > 1000) processedMsgIds.clear();
+          if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          const text = extractMessageText(msg);
-          if (!text) continue;
-
-          // Gunakan remoteJid persis tanpa memotong domain E2EE
-          const targetJid = msg.key.remoteJid;
+          // Normalize JID dan nomor telepon
+          const targetJid = normalizeJid(msg.key.remoteJid);
           const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
@@ -973,7 +982,7 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // Buffer Agregasi Pesan
+          // Buffer Agregasi Pesan (2 Detik Delay)
           const bufferKey = `${strUserId}_${targetJid}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { 
@@ -999,7 +1008,7 @@ async function startUserBot(userId) {
 
             const combinedText = aggregatedTexts.join("\n");
             await handleAIBotReply(strUserId, senderNumber, finalTargetJid, combinedText, sock, finalRawMsg);
-          }, 2500);
+          }, 2000);
         }
       } catch (err) {
         console.error("Upsert Error:", err.message);
