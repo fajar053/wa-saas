@@ -925,39 +925,52 @@ setInterval(async () => {
       const strUserId = String(item.userId);
       const sock = activeSessions.get(strUserId);
 
-      if (!sock || !sock.user) {
-        console.warn(`⏳ [SCHEDULE DELAY] Bot User ${strUserId} belum terhubung WA.`);
+      // FIX: Cek kredensial aktif jika sock.user bernilai undefined pada Baileys
+      const isConnected = sock && (sock.user || sock.authState?.creds?.me);
+
+      if (!isConnected) {
+        console.warn(`⏳ [SCHEDULE DELAY] Session User ${strUserId} belum siap.`);
         continue;
       }
 
       try {
-        await sock.sendPresenceUpdate("composing", item.targetJid);
-        const randomJitter = Math.floor(Math.random() * 4000) + 3000;
+        console.log(`🚀 [SCHEDULE SENDING] Mengirim pesan otomatis ke ${item.targetJid}...`);
+
+        // Format JID Target
+        let targetJid = item.targetJid;
+        if (!targetJid.includes("@")) {
+          targetJid = `${targetJid}@s.whatsapp.net`;
+        }
+
+        // Simulasi Presence (Ketik)
+        await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
+        const randomJitter = Math.floor(Math.random() * 2000) + 1000;
         await sleep(randomJitter);
-        await sock.sendPresenceUpdate("paused", item.targetJid);
+        await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 
         const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
 
-        if (item.mediaType === "image" && fullMediaPath) {
-          await sock.sendMessage(item.targetJid, {
+        // Eksekusi Kirim Berdasarkan Tipe Media
+        if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
             image: { url: fullMediaPath },
             caption: item.message,
             viewOnce: item.isViewOnce
           });
-        } else if (item.mediaType === "video" && fullMediaPath) {
-          await sock.sendMessage(item.targetJid, {
+        } else if (item.mediaType === "video" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
             video: { url: fullMediaPath },
             caption: item.message,
             viewOnce: item.isViewOnce
           });
-        } else if (item.mediaType === "document" && fullMediaPath) {
-          await sock.sendMessage(item.targetJid, {
+        } else if (item.mediaType === "document" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
             document: { url: fullMediaPath },
             fileName: path.basename(fullMediaPath),
             caption: item.message
           });
         } else {
-          await sock.sendMessage(item.targetJid, { text: item.message });
+          await sock.sendMessage(targetJid, { text: item.message });
         }
 
         item.status = "sent";
@@ -970,6 +983,8 @@ setInterval(async () => {
           type: "out"
         });
 
+        console.log(`✅ [SCHEDULE SUCCESS] Pesan berhasil terkirim ke ${item.targetName}`);
+
       } catch (sendErr) {
         console.error(`❌ [SCHEDULE ERR]:`, sendErr.message);
         item.status = "failed";
@@ -977,12 +992,12 @@ setInterval(async () => {
         await item.save();
       }
 
-      await sleep(5000);
+      await sleep(3000);
     }
   } catch (cronErr) {
     console.error("Scheduler Worker Error:", cronErr.message);
   }
-}, 15000);
+}, 10000);
 
 // --- USER REPORT API ---
 app.post("/api/reports", verifyToken, async (req, res) => {
