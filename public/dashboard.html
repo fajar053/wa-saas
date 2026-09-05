@@ -149,10 +149,14 @@
             ></textarea>
           </div>
 
-          <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <!-- SAKELAR AKTIFKAN RESPON OTOMATIS -->
+          <div class="flex items-center justify-between pt-4 border-t border-slate-800">
             <div class="flex items-center gap-3">
-              <input type="checkbox" id="isBotActive" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-0">
-              <label for="isBotActive" class="text-xs font-medium text-slate-300">Aktifkan Respon Otomatis Bot</label>
+              <input type="checkbox" id="isBotActive" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-0 cursor-pointer">
+              <div>
+                <label for="isBotActive" class="text-xs font-medium text-slate-200 cursor-pointer">Aktifkan Respon Otomatis Bot</label>
+                <p class="text-[10px] text-slate-400">Jika dimatikan, WA tetap terhubung namun AI tidak akan membalas pesan masuk.</p>
+              </div>
             </div>
 
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
@@ -183,7 +187,6 @@
               </div>
               <p class="text-xs font-bold text-emerald-400">Terhubung ke WhatsApp</p>
               
-              <!-- Tombol Putuskan WA -->
               <button 
                 onclick="disconnectWA()" 
                 class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5 mx-auto"
@@ -194,14 +197,12 @@
           </div>
         </div>
 
-        <!-- Box Stat Kuota -->
         <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-2">
           <div class="flex justify-between items-center text-slate-400">
             <span>Kuota Bulanan:</span>
             <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
           </div>
 
-          <!-- Indikator Upgrade ketika Kuota Full -->
           <div id="quotaFullBanner" class="hidden pt-1">
             <a href="/subscription.html" class="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20">
               <i data-lucide="crown" class="w-4 h-4"></i> Kuota Habis! Upgrade Premium
@@ -363,7 +364,7 @@
         }
 
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
-        document.getElementById('isBotActive').checked = data.isBotActive;
+        document.getElementById('isBotActive').checked = data.isBotActive !== false;
 
         const isFull = currentUserPlan === 'free' && data.dailyUsage >= 200;
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 200`;

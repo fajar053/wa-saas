@@ -251,6 +251,7 @@ app.post("/api/register", async (req, res) => {
       email,
       password: hashedPassword,
       verificationToken,
+      isBotActive: true,
       profilePicture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`
     });
 
@@ -369,7 +370,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     role: user.role || "user",
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     systemPrompt: user.systemPrompt,
-    isBotActive: user.isBotActive ?? true,
+    isBotActive: user.isBotActive !== false,
     plan: user.plan || "free",
     remainingDays: remainingDays,
     dailyUsage: user.dailyUsageCount || 0,
@@ -380,14 +381,20 @@ app.get("/api/config", verifyToken, async (req, res) => {
 app.post("/api/config", verifyToken, async (req, res) => {
   try {
     const { systemPrompt, isBotActive } = req.body;
-    const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
+    
+    await User.findByIdAndUpdate(req.user.userId, {
+      $set: {
+        systemPrompt: systemPrompt,
+        isBotActive: Boolean(isBotActive)
+      }
+    });
 
-    user.systemPrompt = systemPrompt;
-    user.isBotActive = isBotActive;
-
-    await user.save();
-    res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
+    res.json({ 
+      success: true, 
+      message: isBotActive 
+        ? "Pengaturan berhasil disimpan. Respon otomatis Bot telah AKTIF!" 
+        : "Pengaturan berhasil disimpan. Respon otomatis Bot DINONAKTIFKAN (Koneksi WA tetap terhubung)." 
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -1081,10 +1088,11 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     if (!user) return;
 
     if (user.isBotActive === false) {
-      io.to(strUserId).emit("error-log", {
+      io.to(strUserId).emit("chat-log", {
         time: new Date().toLocaleTimeString(),
-        message: "Pesan masuk tetapi Bot dalam status NONAKTIF.",
-        from: senderNumber
+        sender: senderNumber,
+        text: `[Pesan Masuk (Bot Off)]: ${combinedText}`,
+        type: "in"
       });
       return;
     }
