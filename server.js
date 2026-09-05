@@ -61,7 +61,7 @@ const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
 
-// --- HELPER NORMALISASI JID & NOMOR TELEPON ---
+// --- HELPER NORMALISASI JID ---
 function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
@@ -86,24 +86,54 @@ function normalizeJid(rawJid) {
   return `${cleanNum}@s.whatsapp.net`;
 }
 
-// Helper untuk mengekstrak JID efektif (Mengekstrak @s.whatsapp.net dari pesan LID jika ada)
-function getEffectiveJid(msg) {
+// --- HELPER RESOLUSI MULTI-LAYER JID (LID -> PN JID) ---
+function resolveRealJid(msg, sock, strUserId) {
   if (!msg || !msg.key) return "";
 
   const remoteJid = msg.key.remoteJid || "";
   const remoteJidAlt = msg.key.remoteJidAlt || "";
   const participant = msg.key.participant || msg.participant || "";
 
+  // 1. Ekstrak @s.whatsapp.net langsung jika tersedia di key
   if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
     return normalizeJid(remoteJidAlt);
   }
-
   if (participant && participant.endsWith("@s.whatsapp.net")) {
     return normalizeJid(participant);
   }
-
   if (remoteJid.endsWith("@s.whatsapp.net")) {
     return normalizeJid(remoteJid);
+  }
+
+  // 2. Cari di dalam contextInfo isi pesan
+  const m = msg.message;
+  if (m) {
+    const ctx = m.extendedTextMessage?.contextInfo ||
+              m.imageMessage?.contextInfo ||
+              m.videoMessage?.contextInfo ||
+              m.documentMessage?.contextInfo;
+
+    if (ctx && ctx.participant && ctx.participant.endsWith("@s.whatsapp.net")) {
+      return normalizeJid(ctx.participant);
+    }
+  }
+
+  // 3. Cari pemetaan LID -> Phone Number di memori Kontak Store
+  if (remoteJid.endsWith("@lid")) {
+    const store = userStores.get(strUserId) || sock?.store;
+    if (store && store.contacts) {
+      for (const cJid in store.contacts) {
+        const c = store.contacts[cJid];
+        if (c) {
+          if (c.lid === remoteJid && cJid.endsWith("@s.whatsapp.net")) {
+            return normalizeJid(cJid);
+          }
+          if (c.id === remoteJid && cJid.endsWith("@s.whatsapp.net")) {
+            return normalizeJid(cJid);
+          }
+        }
+      }
+    }
   }
 
   return normalizeJid(remoteJid);
@@ -700,39 +730,34 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS ---
+// --- HELPER SIMULASI BALASAN HUMANIS DENGAN AUTO-RETRY ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
-    const isLid = targetJid.endsWith("@lid");
+    try {
+      await sock.sendPresenceUpdate("composing", targetJid);
+    } catch (e) {}
 
-    if (!isLid) {
-      try {
-        await sock.sendPresenceUpdate("composing", targetJid);
-      } catch {}
-    }
-
-    const baseDelay = Math.min(Math.max((replyText || "").length * 20, 1000), 2500);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 15, 800), 2500);
     await sleep(baseDelay);
 
     let sentMsg;
-    // PENTING: Jika targetJid berakhiran @lid, JANGAN sertakan { quoted: rawMsg } karena WhatsApp Server membuang (silent drop) balasan bertipe quoted pada LID!
-    if (isLid) {
-      console.log(`ℹ️ [LID TARGET] Mengirim pesan langsung tanpa quote context ke ${targetJid}`);
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText });
-    } else {
-      try {
-        sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
-      } catch (quoteErr) {
-        console.warn("⚠️ Quoted send failed, falling back to direct send:", quoteErr.message);
-        sentMsg = await sock.sendMessage(targetJid, { text: replyText });
-      }
+    const sendOptions = {};
+    if (rawMsg && rawMsg.key) {
+      sendOptions.quoted = rawMsg;
     }
 
-    if (!isLid) {
-      try {
-        await sock.sendPresenceUpdate("paused", targetJid);
-      } catch {}
+    try {
+      // Upaya 1: Kirim dengan menyertakan quoted context pesan asli
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
+    } catch (sendErr) {
+      console.warn("⚠️ Quoted send failed, retrying direct send:", sendErr.message);
+      // Upaya 2: Fallback kirim langsung tanpa quoted context
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText });
     }
+
+    try {
+      await sock.sendPresenceUpdate("paused", targetJid);
+    } catch (e) {}
 
     console.log(`📤 [MESSAGE DELIVERED] Ref ID: ${sentMsg?.key?.id} | Target: ${targetJid}`);
     return sentMsg;
@@ -993,8 +1018,8 @@ async function startUserBot(userId) {
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          // Dapatkan JID efektif (mengutamakan nomor HP asli @s.whatsapp.net jika tersedia)
-          const targetJid = getEffectiveJid(msg);
+          // Resolusi JID tingkat lanjut
+          const targetJid = resolveRealJid(msg, sock, strUserId);
           const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
