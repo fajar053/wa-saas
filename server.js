@@ -139,32 +139,48 @@ function resolveTargetJids(msg) {
   return jids;
 }
 
-// --- KONFIGURASI OPENROUTER AI ENGINE ---
+// --- KONFIGURASI OPENROUTER AI ENGINE (FREE vs PREMIUM) ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
   apiKey: process.env.OPENROUTER_API_KEY,
   baseUrl: process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions",
-  models: [
-    "google/gemini-2.5-flash",
-    "meta-llama/llama-3.3-70b-instruct",
-    "deepseek/deepseek-chat"
+  freeModels: [
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "nvidia/nemotron-3.5-content-safety:free",
+    "cohere/north-mini-code:free",
+    "dots-studio/dots-3-note-preview:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "inclusionai/ling-3.0-flash-fin:free",
+    "inclusionai/ling-3.0-flash-sante:free",
+    "minimax/minimax-m2.7:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "openrouter/free"
+  ],
+  premiumModels: [
+    "inclusionai/ling-3.0-flash",
+    "deepseek/deepseek-v4-flash-0731",
+    "mistralai/mistral-nemo",
+    "meta-llama/llama-3.1-8b-instruct"
   ]
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
+async function fetchAIResponse(messages, plan = "free", timeoutMs = 8000) {
   if (!OPENROUTER_CONFIG.apiKey) {
     console.error("❌ [OPENROUTER] API Key tidak ditemukan!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
-  for (const model of OPENROUTER_CONFIG.models) {
+  const models = plan === "premium" ? OPENROUTER_CONFIG.premiumModels : OPENROUTER_CONFIG.freeModels;
+
+  for (const model of models) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      console.log(`📡 [AI REQUEST] Memanggil model: ${model}`);
+      console.log(`📡 [AI REQUEST] Memanggil model (${plan.toUpperCase()}): ${model}`);
       const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
         method: "POST",
         headers: {
@@ -181,7 +197,8 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        await sleep(300);
+        console.warn(`⚠️ [AI MODEL ERROR] Model ${model} status: ${response.status}. Beralih ke model berikutnya...`);
+        await sleep(150);
         continue;
       }
 
@@ -195,7 +212,8 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
 
     } catch (err) {
       clearTimeout(timeoutId);
-      await sleep(300);
+      console.warn(`⚠️ [AI MODEL FAIL] Model ${model} error/timeout (${err.message}). Beralih ke model berikutnya...`);
+      await sleep(150);
     }
   }
 
@@ -438,7 +456,7 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
       { role: "user", content: promptText }
     ];
 
-    const generatedPrompt = await fetchAIResponse(messages, String(user._id));
+    const generatedPrompt = await fetchAIResponse(messages, user.plan || "free");
     res.json({ success: true, generatedPrompt });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -457,7 +475,6 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
 
     const targetsMap = new Map();
 
-    // 1. Ambil kontak dari Riwayat Percakapan AI
     try {
       const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
       for (const conv of conversations) {
@@ -472,7 +489,6 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       }
     } catch (err) {}
 
-    // 2. Ambil kontak dari Memori Store Baileys
     const userStore = userStores.get(strUserId) || sock.store;
     if (userStore && userStore.contacts) {
       for (const rawJid in userStore.contacts) {
@@ -489,7 +505,6 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       }
     }
 
-    // 3. Ambil daftar Grup tempat Bot bergabung secara aman
     try {
       const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
       for (const jid in groups) {
@@ -729,8 +744,8 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
       ...historyForAI
     ];
 
-    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber}...`);
-    const reply = await fetchAIResponse(messagesPayload, strUserId);
+    console.log(`📡 [AI GENERATION] Memproses respon AI (${user.plan || "free"}) untuk ${senderNumber}...`);
+    const reply = await fetchAIResponse(messagesPayload, user.plan || "free");
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
