@@ -363,6 +363,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
     }
   }
 
+  const isBotActive = user.isBotActive !== false && user.isBotActive !== "false";
+
   res.json({
     email: user.email,
     nickname: user.nickname,
@@ -370,7 +372,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     role: user.role || "user",
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     systemPrompt: user.systemPrompt,
-    isBotActive: user.isBotActive !== false,
+    isBotActive: isBotActive,
     plan: user.plan || "free",
     remainingDays: remainingDays,
     dailyUsage: user.dailyUsageCount || 0,
@@ -378,22 +380,28 @@ app.get("/api/config", verifyToken, async (req, res) => {
   });
 });
 
+// FIX: Menggunakan findByIdAndUpdate dengan strict: false agar Mongoose memaksa penyimpan variabel isBotActive ke MongoDB
 app.post("/api/config", verifyToken, async (req, res) => {
   try {
     const { systemPrompt, isBotActive } = req.body;
-    
-    await User.findByIdAndUpdate(req.user.userId, {
-      $set: {
-        systemPrompt: systemPrompt,
-        isBotActive: Boolean(isBotActive)
-      }
-    });
+    const activeStatus = Boolean(isBotActive);
+
+    await User.findByIdAndUpdate(
+      req.user.userId,
+      { 
+        $set: { 
+          systemPrompt: systemPrompt,
+          isBotActive: activeStatus 
+        } 
+      },
+      { strict: false, new: true }
+    );
 
     res.json({ 
       success: true, 
-      message: isBotActive 
-        ? "Pengaturan berhasil disimpan. Respon otomatis Bot telah AKTIF!" 
-        : "Pengaturan berhasil disimpan. Respon otomatis Bot DINONAKTIFKAN (Koneksi WA tetap terhubung)." 
+      message: activeStatus 
+        ? "Pengaturan disimpan. Respon otomatis Bot telah AKTIF!" 
+        : "Pengaturan disimpan. Respon otomatis Bot telah DINONAKTIFKAN!" 
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -1087,14 +1095,16 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     const user = await User.findById(strUserId);
     if (!user) return;
 
-    if (user.isBotActive === false) {
+    // PENGECEKAN KETAT UNTUK FITUR ISBOTACTIVE
+    if (user.isBotActive === false || user.isBotActive === "false") {
+      console.log(`⏸️ [BOT NONAKTIF] User ${strUserId} mematikan respon otomatis.`);
       io.to(strUserId).emit("chat-log", {
         time: new Date().toLocaleTimeString(),
         sender: senderNumber,
         text: `[Pesan Masuk (Bot Off)]: ${combinedText}`,
         type: "in"
       });
-      return;
+      return; // BERHENTI DI SINI AGAR BOT TIDAK MEMBALAS AUTOMATIS
     }
 
     const today = new Date().toISOString().split("T")[0];
