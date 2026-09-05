@@ -174,6 +174,34 @@ function extractMessageText(msg) {
 }
 
 app.use(express.json());
+
+// --- MIDDLEWARE AUTO-INJECT SCRIPT STATUS WA KE SEMUA HALAMAN HTML ---
+app.use((req, res, next) => {
+  if (req.method === "GET" && (req.path.endsWith(".html") || req.path === "/")) {
+    const fileName = req.path === "/" ? "index.html" : req.path;
+    const filePath = path.join(__dirname, "public", fileName);
+
+    if (fs.existsSync(filePath)) {
+      let html = fs.readFileSync(filePath, "utf8");
+      
+      const scriptsToInject = `
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="/js/wa-status.js"></script>
+        </body>
+      `;
+
+      if (html.includes("</body>")) {
+        html = html.replace("</body>", scriptsToInject);
+      } else {
+        html += scriptsToInject;
+      }
+
+      return res.send(html);
+    }
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
