@@ -42,7 +42,6 @@
           <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
         </button>
 
-        <!-- Dropdown Menu -->
         <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
           <button onclick="openReportModal()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-400 hover:bg-slate-800 transition">
             <i data-lucide="alert-circle" class="w-4 h-4"></i> Report Cepat
@@ -88,19 +87,9 @@
         <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak, Grup, atau Channel di waktu mendatang</p>
       </div>
 
-      <!-- Live Realtime Clock Box -->
       <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
         <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
         <p id="liveDate" class="text-[11px] text-slate-400">---</p>
-      </div>
-    </div>
-
-    <!-- Peringatan Anti-Spam Pembatasan WA -->
-    <div class="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-start gap-3">
-      <i data-lucide="shield-alert" class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"></i>
-      <div class="text-xs text-amber-200/90 leading-relaxed">
-        <p class="font-bold text-amber-300 mb-0.5">Peringatan Keamanan & Anti-Spam WhatsApp:</p>
-        Hindari membuat puluhan jadwal dalam rentang waktu yang sangat berdekatan. Sistem kami telah melengkapi jeda pengiriman acak (3-7 detik) untuk menyamarkan aktivitas bot agar terhindar dari pemblokiran akun oleh WhatsApp.
       </div>
     </div>
 
@@ -113,28 +102,39 @@
         </h3>
 
         <form id="scheduleForm" onsubmit="submitSchedule(event)" class="space-y-4">
-          <!-- Target Selector dengan Filter Tipe -->
+          
+          <!-- Filter & Target Selector -->
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Target Kirim Pesan</label>
-            
-            <!-- Filter Kategori Tipe Target -->
-            <div class="mb-2">
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-medium text-slate-300">Target Kirim Pesan</label>
+              <button type="button" onclick="toggleManualInput()" id="btnToggleManual" class="text-[11px] text-indigo-400 hover:underline">
+                + Input Nomor Manual
+              </button>
+            </div>
+
+            <!-- Mode Selection Dropdown -->
+            <div id="selectTargetBox" class="space-y-2">
               <select id="targetTypeFilter" onchange="filterAndRenderTargets()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
                 <option value="all">🔍 Semua Tipe (Kontak, Grup, Channel)</option>
                 <option value="contact">👤 Kontak Pribadi</option>
                 <option value="group">👥 Grup WhatsApp</option>
                 <option value="channel">📢 Channel / Saluran</option>
               </select>
+
+              <div class="flex gap-2">
+                <select id="targetSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+                  <option value="">-- Memuat Target... --</option>
+                </select>
+                <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
+                  <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
+                </button>
+              </div>
             </div>
 
-            <!-- Select Target Kontak / Grup / Channel -->
-            <div class="flex gap-2">
-              <select id="targetSelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-                <option value="">-- Memuat Target... --</option>
-              </select>
-              <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
-                <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
-              </button>
+            <!-- Mode Manual Input Nomor HP (Fallback) -->
+            <div id="manualInputBox" class="hidden space-y-2 pt-1">
+              <input type="text" id="manualPhoneInput" placeholder="Contoh: 6281234567890" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+              <p class="text-[10px] text-slate-400">Gunakan format kode negara tanpa +/spasi (contoh: 6281234567890).</p>
             </div>
           </div>
 
@@ -155,7 +155,7 @@
             <input type="datetime-local" id="scheduleTime" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
           </div>
 
-          <!-- File Media Upload (Khusus Premium) -->
+          <!-- File Media Upload -->
           <div id="mediaUploadBox" class="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-xs font-medium text-slate-300">Lampiran Media (Gambar/Video/File)</label>
@@ -165,7 +165,6 @@
             </div>
             <input type="file" id="mediaFile" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
             
-            <!-- Fitur Sekali Lihat -->
             <div class="flex items-center gap-2 pt-1">
               <input type="checkbox" id="isViewOnce" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-800 rounded">
               <label for="isViewOnce" class="text-xs text-slate-300">Aktifkan Pesan Sekali Lihat (View Once)</label>
@@ -226,8 +225,7 @@
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
           <select id="modalCategorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
-            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
+            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
             <option value="Pembayaran Langganan">Pembayaran Langganan</option>
             <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
             <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
@@ -267,6 +265,7 @@
 
     let userPlan = 'free';
     let allTargets = [];
+    let isManualMode = false;
 
     function toggleUserDropdown() {
       const dropdown = document.getElementById('userDropdown');
@@ -288,6 +287,26 @@
 
     function closeReportModal() {
       document.getElementById('reportModal').classList.add('hidden');
+    }
+
+    function toggleManualInput() {
+      isManualMode = !isManualMode;
+      const selectBox = document.getElementById('selectTargetBox');
+      const manualBox = document.getElementById('manualInputBox');
+      const btnToggle = document.getElementById('btnToggleManual');
+      const targetSelect = document.getElementById('targetSelect');
+
+      if (isManualMode) {
+        selectBox.classList.add('hidden');
+        manualBox.classList.remove('hidden');
+        btnToggle.innerText = '← Pilih dari List Kontak';
+        targetSelect.removeAttribute('required');
+      } else {
+        selectBox.classList.remove('hidden');
+        manualBox.classList.add('hidden');
+        btnToggle.innerText = '+ Input Nomor Manual';
+        targetSelect.setAttribute('required', 'required');
+      }
     }
 
     async function submitModalReport(e) {
@@ -319,7 +338,6 @@
       }
     }
 
-    // Realtime Clock Function
     function updateClock() {
       const now = new Date();
       const timeZoneName = Intl.DateTimeFormat('id-ID', { timeZoneName: 'short' })
@@ -366,11 +384,11 @@
         });
         const data = await res.json();
 
-        if (data.success && data.targets) {
+        if (data.success && data.targets && data.targets.length > 0) {
           allTargets = data.targets;
           filterAndRenderTargets();
         } else {
-          select.innerHTML = '<option value="">-- Target Tidak Ditemukan --</option>';
+          select.innerHTML = '<option value="">-- Tidak ada target ditemukan --</option>';
         }
       } catch {
         console.warn("Gagal memuat target WA.");
@@ -397,7 +415,6 @@
         return;
       }
 
-      // Kelompokkan opsi berdasarkan kategori
       const categories = {
         contact: { label: '👤 Kontak Pribadi', items: [] },
         group: { label: '👥 Grup WhatsApp', items: [] },
@@ -472,13 +489,31 @@
 
     async function submitSchedule(e) {
       e.preventDefault();
-      const select = document.getElementById('targetSelect');
-      const selectedOpt = select.options[select.selectedIndex];
       
+      let targetJid = "";
+      let targetName = "";
+      let targetType = "contact";
+
+      if (isManualMode) {
+        const rawPhone = document.getElementById('manualPhoneInput').value.trim().replace(/[^0-9]/g, '');
+        if (!rawPhone) return alert("Masukkan nomor HP target!");
+        targetJid = `${rawPhone}@s.whatsapp.net`;
+        targetName = `+${rawPhone}`;
+        targetType = "contact";
+      } else {
+        const select = document.getElementById('targetSelect');
+        const selectedOpt = select.options[select.selectedIndex];
+        if (!select.value) return alert("Pilih target kirim pesan terlebih dahulu!");
+        
+        targetJid = select.value;
+        targetName = selectedOpt ? selectedOpt.dataset.name : '';
+        targetType = selectedOpt ? selectedOpt.dataset.type : 'contact';
+      }
+
       const formData = new FormData();
-      formData.append('targetJid', select.value);
-      formData.append('targetName', selectedOpt ? selectedOpt.dataset.name : '');
-      formData.append('targetType', selectedOpt ? selectedOpt.dataset.type : 'contact');
+      formData.append('targetJid', targetJid);
+      formData.append('targetName', targetName);
+      formData.append('targetType', targetType);
       formData.append('message', document.getElementById('scheduleMessage').value);
       formData.append('scheduledTime', document.getElementById('scheduleTime').value);
       formData.append('isViewOnce', document.getElementById('isViewOnce').checked);
