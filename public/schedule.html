@@ -112,7 +112,6 @@
               </button>
             </div>
 
-            <!-- Mode Selection Dropdown -->
             <div id="selectTargetBox" class="space-y-2">
               <select id="targetTypeFilter" onchange="filterAndRenderTargets()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
                 <option value="all">🔍 Semua Tipe (Kontak, Grup, Channel)</option>
@@ -131,17 +130,17 @@
               </div>
             </div>
 
-            <!-- Mode Manual Input Nomor HP (Fallback) -->
+            <!-- Input Manual Nomor HP -->
             <div id="manualInputBox" class="hidden space-y-2 pt-1">
               <input type="text" id="manualPhoneInput" placeholder="Contoh: 6281234567890" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
               <p class="text-[10px] text-slate-400">Gunakan format kode negara tanpa +/spasi (contoh: 6281234567890).</p>
             </div>
           </div>
 
-          <!-- Input Pesan Teks + Emoji Picker -->
+          <!-- Input Pesan Teks -->
           <div class="relative">
             <label class="block text-xs font-medium text-slate-300 mb-1">Pesan WhatsApp</label>
-            <textarea id="scheduleMessage" rows="4" placeholder="Ketik pesan..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
+            <textarea id="scheduleMessage" rows="3" placeholder="Ketik pesan..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
             
             <button type="button" onclick="toggleEmojiPicker()" class="absolute right-3 bottom-3 text-slate-400 hover:text-amber-400 transition">
               <i data-lucide="smile" class="w-4 h-4"></i>
@@ -149,10 +148,66 @@
             <div id="emojiPickerContainer" class="hidden absolute right-0 bottom-12 z-50"></div>
           </div>
 
-          <!-- Waktu Kirim -->
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Waktu & Tanggal Kirim</label>
-            <input type="datetime-local" id="scheduleTime" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+          <!-- Form Pemisah Waktu & Tanggal Kirim -->
+          <div class="space-y-2">
+            <label class="block text-xs font-medium text-slate-300">Waktu & Tanggal Kirim</label>
+
+            <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl space-y-3">
+              <!-- Live Clock & Quick Buttons -->
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span class="text-[11px] text-slate-400">Waktu Acuan Saat Ini:</span>
+                <span id="formClockRef" class="text-xs font-mono font-bold text-indigo-400">00:00:00</span>
+              </div>
+
+              <!-- Quick Time Preset Buttons -->
+              <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" onclick="setQuickTime(5)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+5 Mnt</button>
+                <button type="button" onclick="setQuickTime(15)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+15 Mnt</button>
+                <button type="button" onclick="setQuickTime(30)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+30 Mnt</button>
+                <button type="button" onclick="setQuickTime(60)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+1 Jam</button>
+              </div>
+
+              <!-- Split Fields: Tanggal, Bulan, Tahun -->
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Tanggal</label>
+                  <select id="schedDay" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Bulan</label>
+                  <select id="schedMonth" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option value="1">Januari</option>
+                    <option value="2">Februari</option>
+                    <option value="3">Maret</option>
+                    <option value="4">April</option>
+                    <option value="5">Mei</option>
+                    <option value="6">Juni</option>
+                    <option value="7">Juli</option>
+                    <option value="8">Agustus</option>
+                    <option value="9">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Tahun</label>
+                  <select id="schedYear" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                </div>
+              </div>
+
+              <!-- Split Fields: Jam & Menit -->
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Jam (00-23)</label>
+                  <select id="schedHour" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Menit (00-59)</label>
+                  <select id="schedMinute" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- File Media Upload -->
@@ -225,7 +280,8 @@
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
           <select id="modalCategorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
+            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
+            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
             <option value="Pembayaran Langganan">Pembayaran Langganan</option>
             <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
             <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
@@ -309,33 +365,58 @@
       }
     }
 
-    async function submitModalReport(e) {
-      e.preventDefault();
-      const category = document.getElementById('modalCategorySelect').value;
-      const subject = document.getElementById('modalSubjectInput').value;
-      const message = document.getElementById('modalMessageInput').value;
+    // Populate Option Elements (Day, Year, Hour, Minute)
+    function initDateTimeDropdowns() {
+      const daySel = document.getElementById('schedDay');
+      const yearSel = document.getElementById('schedYear');
+      const hourSel = document.getElementById('schedHour');
+      const minSel = document.getElementById('schedMinute');
 
-      try {
-        const res = await fetch('/api/reports', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ category, subject, message })
-        });
-
-        const data = await res.json();
-        alert(data.message);
-
-        if (data.success) {
-          closeReportModal();
-          document.getElementById('modalSubjectInput').value = '';
-          document.getElementById('modalMessageInput').value = '';
-        }
-      } catch {
-        alert("Gagal mengirimkan laporan.");
+      daySel.innerHTML = '';
+      for (let i = 1; i <= 31; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = i < 10 ? `0${i}` : i;
+        daySel.appendChild(opt);
       }
+
+      const currentYear = new Date().getFullYear();
+      yearSel.innerHTML = '';
+      for (let y = currentYear; y <= currentYear + 3; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.innerText = y;
+        yearSel.appendChild(opt);
+      }
+
+      hourSel.innerHTML = '';
+      for (let h = 0; h < 24; h++) {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.innerText = h < 10 ? `0${h}` : h;
+        hourSel.appendChild(opt);
+      }
+
+      minSel.innerHTML = '';
+      for (let m = 0; m < 60; m++) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.innerText = m < 10 ? `0${m}` : m;
+        minSel.appendChild(opt);
+      }
+
+      // Default to Current Time + 5 Minutes
+      setQuickTime(5);
+    }
+
+    function setQuickTime(minutesToAdd) {
+      const targetDate = new Date(Date.now() + minutesToAdd * 60000);
+
+      document.getElementById('schedDay').value = targetDate.getDate();
+      document.getElementById('schedMonth').value = targetDate.getMonth() + 1;
+      document.getElementById('schedYear').value = targetDate.getFullYear();
+      document.getElementById('schedHour').value = targetDate.getHours();
+      document.getElementById('schedMinute').value = targetDate.getMinutes();
     }
 
     function updateClock() {
@@ -344,7 +425,10 @@
         .formatToParts(now)
         .find(part => part.type === 'timeZoneName')?.value || '';
 
-      document.getElementById('liveTime').innerText = `${now.toLocaleTimeString('id-ID')} ${timeZoneName}`;
+      const timeStr = `${now.toLocaleTimeString('id-ID')} ${timeZoneName}`;
+      document.getElementById('liveTime').innerText = timeStr;
+      document.getElementById('formClockRef').innerText = timeStr;
+
       document.getElementById('liveDate').innerText = now.toLocaleDateString('id-ID', { 
         weekday: 'long', 
         year: 'numeric', 
@@ -510,12 +594,25 @@
         targetType = selectedOpt ? selectedOpt.dataset.type : 'contact';
       }
 
+      // Format ISO Date String dari Form Terpisah
+      const year = document.getElementById('schedYear').value;
+      const month = String(document.getElementById('schedMonth').value).padStart(2, '0');
+      const day = String(document.getElementById('schedDay').value).padStart(2, '0');
+      const hour = String(document.getElementById('schedHour').value).padStart(2, '0');
+      const minute = String(document.getElementById('schedMinute').value).padStart(2, '0');
+
+      const scheduledDateObj = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+
+      if (isNaN(scheduledDateObj.getTime())) {
+        return alert("Kombinasi tanggal atau waktu tidak valid.");
+      }
+
       const formData = new FormData();
       formData.append('targetJid', targetJid);
       formData.append('targetName', targetName);
       formData.append('targetType', targetType);
       formData.append('message', document.getElementById('scheduleMessage').value);
-      formData.append('scheduledTime', document.getElementById('scheduleTime').value);
+      formData.append('scheduledTime', scheduledDateObj.toISOString());
       formData.append('isViewOnce', document.getElementById('isViewOnce').checked);
 
       const fileInput = document.getElementById('mediaFile');
@@ -533,6 +630,7 @@
         alert(data.message);
         if (data.success) {
           document.getElementById('scheduleForm').reset();
+          initDateTimeDropdowns();
           loadSchedules();
         }
       } catch {
@@ -556,6 +654,8 @@
     }
 
     async function initPage() {
+      initDateTimeDropdowns();
+
       const configRes = await fetch('/api/config', { headers: { 'Authorization': `Bearer ${token}` } });
       const configData = await configRes.json();
       userPlan = configData.plan || 'free';

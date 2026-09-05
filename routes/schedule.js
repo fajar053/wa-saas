@@ -2,11 +2,11 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import Schedule from "../models/Schedule.js";
-import { getWaSocket } from "../whatsapp/sessionManager.js"; // Sesuaikan lokasi fungsi pengambilan socket WA Anda
+import { getWaSocket } from "../whatsapp/sessionManager.js"; // Sesuaikan jalur dengan struktur proyek Anda
 
 const router = express.Router();
 
-// Konfigurasi Multer untuk Upload Media
+// Konfigurasi Multer Upload Media
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -16,7 +16,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// GET /api/schedule/targets - Mengambil Kontak, Grup, dan Channel
+// GET /api/schedule/targets - Mengambil Semua Kontak, Grup, dan Channel WA
 router.get("/targets", async (req, res) => {
   try {
     const sock = getWaSocket(req.userId);
@@ -25,8 +25,9 @@ router.get("/targets", async (req, res) => {
     }
 
     const targets = [];
+    const contactMap = new Map();
 
-    // 1. Ambil Semua Grup
+    // 1. Ambil Semua Grup WhatsApp
     try {
       const groups = await sock.groupFetchAllParticipating();
       Object.values(groups).forEach((g) => {
@@ -40,26 +41,42 @@ router.get("/targets", async (req, res) => {
       console.warn("Gagal mengambil daftar grup:", err.message);
     }
 
-    // 2. Ambil Kontak Pribadi dari Memory Store / Active Chats
+    // 2. Ambil Kontak Pribadi dari Memory Store (store.contacts)
     try {
-      if (sock.store && sock.store.chats) {
-        const chats = sock.store.chats.all();
-        chats.forEach((c) => {
-          if (c.id && c.id.endsWith("@s.whatsapp.net")) {
+      if (sock.store && sock.store.contacts) {
+        const contacts = Object.values(sock.store.contacts);
+        contacts.forEach((c) => {
+          if (c.id && c.id.endsWith("@s.whatsapp.net") && !c.id.includes("g.us")) {
             const numberOnly = c.id.split("@")[0];
-            targets.push({
-              jid: c.id,
-              name: c.name || c.verifiedName || `+${numberOnly}`,
-              type: "contact"
-            });
+            const name = c.name || c.notify || c.verifiedName || `+${numberOnly}`;
+            contactMap.set(c.id, { jid: c.id, name, type: "contact" });
           }
         });
       }
     } catch (err) {
-      console.warn("Gagal mengambil kontak pribadi:", err.message);
+      console.warn("Gagal mengambil store.contacts:", err.message);
     }
 
-    // 3. Ambil Saluran / Channel (Newsletter)
+    // 3. Ambil Kontak dari Objek Chats Aktif (store.chats)
+    try {
+      if (sock.store && sock.store.chats) {
+        const chats = sock.store.chats.all ? sock.store.chats.all() : Object.values(sock.store.chats);
+        chats.forEach((c) => {
+          if (c.id && c.id.endsWith("@s.whatsapp.net") && !contactMap.has(c.id)) {
+            const numberOnly = c.id.split("@")[0];
+            const name = c.name || c.verifiedName || `+${numberOnly}`;
+            contactMap.set(c.id, { jid: c.id, name, type: "contact" });
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("Gagal mengambil store.chats:", err.message);
+    }
+
+    // Gabungkan seluruh kontak pribadi yang terdeteksi
+    contactMap.forEach((contact) => targets.push(contact));
+
+    // 4. Ambil Channel / Saluran WhatsApp
     try {
       if (typeof sock.newsletterSubscribed === "function") {
         const newsletters = await sock.newsletterSubscribed();
@@ -72,7 +89,7 @@ router.get("/targets", async (req, res) => {
         });
       }
     } catch (err) {
-      console.warn("Gagal mengambil saluran/channel:", err.message);
+      console.warn("Gagal mengambil channel:", err.message);
     }
 
     return res.json({ success: true, targets });
@@ -81,7 +98,7 @@ router.get("/targets", async (req, res) => {
   }
 });
 
-// GET /api/schedule/list - Menampilkan Semua Antrian Jadwal User
+// GET /api/schedule/list - Menampilkan Daftar Antrian Pesan
 router.get("/list", async (req, res) => {
   try {
     const schedules = await Schedule.find({ userId: req.userId }).sort({ scheduledTime: 1 });
