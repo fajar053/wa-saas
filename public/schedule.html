@@ -79,8 +79,8 @@
 
       <!-- Live Realtime Clock Box -->
       <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
-        <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00 WITA</p>
-        <p id="liveDate" class="text-[11px] text-slate-400">Sabtu, 5 September 2026</p>
+        <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
+        <p id="liveDate" class="text-[11px] text-slate-400">---</p>
       </div>
     </div>
 
@@ -196,10 +196,20 @@
 
     let userPlan = 'free';
 
+    // Realtime Clock Function (Menyesuaikan Zona Waktu Perangkat Perangkat Pengguna)
     function updateClock() {
       const now = new Date();
-      document.getElementById('liveTime').innerText = now.toLocaleTimeString('id-ID') + " WITA";
-      document.getElementById('liveDate').innerText = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const timeZoneName = Intl.DateTimeFormat('id-ID', { timeZoneName: 'short' })
+        .formatToParts(now)
+        .find(part => part.type === 'timeZoneName')?.value || '';
+
+      document.getElementById('liveTime').innerText = `${now.toLocaleTimeString('id-ID')} ${timeZoneName}`;
+      document.getElementById('liveDate').innerText = now.toLocaleDateString('id-ID', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
     }
     setInterval(updateClock, 1000);
     updateClock();
