@@ -60,14 +60,25 @@ const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
 
-// --- HELPER NORMALISASI JID WHATSAPP (KONTAK & GRUP) ---
-function formatWaJid(rawJid) {
+// --- HELPER NORMALISASI JID WHATSAPP (MENDUKUNG @lid, @s.whatsapp.net, DAN GRUP) ---
+function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
-  
-  if (jid.endsWith("@g.us") || jid.endsWith("@newsletter")) return jid;
 
-  let cleanNum = jid.split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
+  // Bersihkan index device (misal: 628123:12@s.whatsapp.net -> 628123@s.whatsapp.net)
+  if (jid.includes(":")) {
+    const [userPart, domainPart] = jid.split("@");
+    const cleanUser = userPart.split(":")[0];
+    jid = `${cleanUser}@${domainPart}`;
+  }
+
+  // Jika JID bertipe @lid, @g.us, atau @newsletter, pertahankan domain aslinya!
+  if (jid.endsWith("@lid") || jid.endsWith("@g.us") || jid.endsWith("@newsletter")) {
+    return jid;
+  }
+
+  // Jika nomor HP biasa / @s.whatsapp.net
+  let cleanNum = jid.split("@")[0].replace(/[^0-9]/g, "");
   if (cleanNum.startsWith("0")) {
     cleanNum = "62" + cleanNum.slice(1);
   } else if (cleanNum.startsWith("8")) {
@@ -95,7 +106,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
   if (!OPENROUTER_CONFIG.apiKey) {
-    console.error("❌ [OPENROUTER] API Key tidak ditemukan di .env!");
+    console.error("❌ [OPENROUTER] API Key tidak ditemukan di environment variables!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
@@ -104,7 +115,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      console.log(`📡 [AI REQUEST] Mencoba model: ${model}`);
+      console.log(`📡 [AI REQUEST] Memanggil model: ${model}`);
       const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
         method: "POST",
         headers: {
@@ -444,7 +455,7 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
     try {
       const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
       for (const conv of conversations) {
-        const jid = formatWaJid(conv.senderNumber);
+        const jid = normalizeJid(conv.senderNumber);
         const cleanNum = jid.split("@")[0];
         targetsMap.set(jid, {
           jid,
@@ -458,9 +469,9 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
     const userStore = userStores.get(strUserId) || sock.store;
     if (userStore && userStore.contacts) {
       for (const rawJid in userStore.contacts) {
-        if (rawJid.endsWith("@s.whatsapp.net")) {
+        if (rawJid.endsWith("@s.whatsapp.net") || rawJid.endsWith("@lid")) {
           const contact = userStore.contacts[rawJid];
-          const jid = formatWaJid(rawJid);
+          const jid = normalizeJid(rawJid);
           const cleanNum = jid.split("@")[0];
           const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
           
@@ -508,7 +519,7 @@ app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaF
       return res.status(400).json({ success: false, message: "Target dan waktu kirim wajib diisi!" });
     }
 
-    targetJid = formatWaJid(targetJid);
+    targetJid = normalizeJid(targetJid);
 
     let mediaUrl = "";
     let mediaType = "none";
@@ -590,14 +601,14 @@ setInterval(async () => {
       }
 
       try {
-        let targetJid = formatWaJid(item.targetJid);
+        let targetJid = normalizeJid(item.targetJid);
 
-        if (!targetJid.endsWith("@g.us")) {
+        if (!targetJid.endsWith("@g.us") && !targetJid.endsWith("@lid")) {
           try {
             if (typeof sock.onWhatsApp === "function") {
               const cleanNum = targetJid.split("@")[0];
               const [waCheck] = await sock.onWhatsApp(cleanNum);
-              if (waCheck && waCheck.exists && waCheck.jid && waCheck.jid.endsWith("@s.whatsapp.net")) {
+              if (waCheck && waCheck.exists && waCheck.jid) {
                 targetJid = waCheck.jid;
               }
             }
@@ -665,26 +676,28 @@ setInterval(async () => {
 }, 3000);
 
 // --- HELPER SIMULASI BALASAN HUMANIS ---
-async function sendHumanizedReply(sock, remoteJid, replyText) {
+async function sendHumanizedReply(sock, targetJid, replyText) {
   try {
     try {
-      await sock.sendPresenceUpdate("composing", remoteJid);
+      await sock.sendPresenceUpdate("composing", targetJid);
     } catch {}
 
-    const baseDelay = Math.min(Math.max((replyText || "").length * 30, 1000), 4000);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 25, 1000), 3500);
     await sleep(baseDelay);
 
     try {
-      await sock.sendPresenceUpdate("paused", remoteJid);
+      await sock.sendPresenceUpdate("paused", targetJid);
     } catch {}
 
     if (replyText) {
-      await sock.sendMessage(remoteJid, { text: replyText });
+      const sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+      console.log(`📤 [MESSAGE SENT SUCCESS] Ref ID: ${sentMsg?.key?.id} | Destination: ${targetJid}`);
+      return sentMsg;
     }
   } catch (err) {
-    console.warn("⚠️ Send Reply Fallback Direct Send:", err.message);
+    console.warn("⚠️ Direct Send Fallback:", err.message);
     if (replyText) {
-      await sock.sendMessage(remoteJid, { text: replyText });
+      return await sock.sendMessage(targetJid, { text: replyText });
     }
   }
 }
@@ -718,7 +731,7 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       return;
     }
 
-    // Tandai pesan sudah dibaca
+    // Tandai pesan sudah dibaca (Read Receipt)
     try {
       await sock.readMessages([{ remoteJid: targetJid, id: lastMsgId }]);
     } catch (e) {
@@ -742,13 +755,14 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       ...historyForAI
     ];
 
-    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber}...`);
+    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber} (${targetJid})...`);
     const reply = await fetchAIResponse(messagesPayload, strUserId);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim Balasan ke WhatsApp Kontak
+    // Kirim Balasan ke WhatsApp Kontak Asli (Mendukung @lid dan @s.whatsapp.net)
+    console.log(`📤 [SENDING REPLY] Mengirim balasan ke JID: ${targetJid}`);
     await sendHumanizedReply(sock, targetJid, reply);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
@@ -760,7 +774,7 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       type: "out"
     });
 
-    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber}: "${reply.slice(0, 30)}..."`);
+    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber} (${targetJid}): "${reply.slice(0, 30)}..."`);
 
   } catch (err) {
     console.error("❌ Reply Error:", err.message);
@@ -920,9 +934,9 @@ async function startUserBot(userId) {
           if (
             !msg.message || 
             msg.key.fromMe || 
-            msg.key.remoteJid.endsWith("@g.us") ||
+            msg.key.remoteJid?.endsWith("@g.us") ||
             msg.key.remoteJid === "status@broadcast" ||
-            msg.key.remoteJid.endsWith("@newsletter")
+            msg.key.remoteJid?.endsWith("@newsletter")
           ) continue;
 
           if (processedMsgIds.has(msg.key.id)) continue;
@@ -932,11 +946,11 @@ async function startUserBot(userId) {
           const text = extractMessageText(msg);
           if (!text) continue;
 
-          // Normalisasi Sender Number & Target JID
-          const senderNumber = msg.key.remoteJid.split("@")[0].split(":")[0];
-          const targetJid = formatWaJid(msg.key.remoteJid);
+          // Dapatkan JID tujuan pengiriman balasan secara persis (termasuk domain @lid)
+          const targetJid = normalizeJid(msg.key.remoteJid);
+          const senderNumber = targetJid.split("@")[0];
 
-          console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | Text: ${text}`);
+          console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
 
           // Emit Log Masuk Realtime
           io.to(strUserId).emit("chat-log", {
@@ -947,7 +961,7 @@ async function startUserBot(userId) {
           });
 
           // Buffer Agregasi Pesan (2.5 Detik Penundaan)
-          const bufferKey = `${strUserId}_${senderNumber}`;
+          const bufferKey = `${strUserId}_${targetJid}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { 
               messages: [], 
