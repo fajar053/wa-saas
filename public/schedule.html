@@ -84,7 +84,7 @@
         <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
           <i data-lucide="clock" class="w-5 h-5 text-indigo-400"></i> Penjadwalan Pesan WhatsApp
         </h2>
-        <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak, Grup, atau Channel di waktu mendatang</p>
+        <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak atau Grup di waktu mendatang</p>
       </div>
 
       <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
@@ -105,7 +105,7 @@
           
           <!-- Filter & Target Selector -->
           <div>
-            <div class="flex justify-between items-center mb-1">
+            <div class="flex justify-between items-center mb-1.5">
               <label class="block text-xs font-medium text-slate-300">Target Kirim Pesan</label>
               <button type="button" onclick="toggleManualInput()" id="btnToggleManual" class="text-[11px] text-indigo-400 hover:underline">
                 + Input Nomor Manual
@@ -113,19 +113,38 @@
             </div>
 
             <div id="selectTargetBox" class="space-y-2">
-              <select id="targetTypeFilter" onchange="filterAndRenderTargets()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
-                <option value="all">🔍 Semua Tipe (Kontak, Grup, Channel)</option>
-                <option value="contact">👤 Kontak Pribadi</option>
-                <option value="group">👥 Grup WhatsApp</option>
-                <option value="channel">📢 Channel / Saluran</option>
-              </select>
+              <!-- Live Search Input -->
+              <div class="relative">
+                <input 
+                  type="text" 
+                  id="targetSearchInput" 
+                  oninput="onSearchInputChanged()" 
+                  placeholder="🔍 Cari nama/nomor kontak atau grup..." 
+                  class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+              </div>
 
               <div class="flex gap-2">
-                <select id="targetSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+                <select id="targetTypeFilter" onchange="onSearchInputChanged()" class="w-1/3 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
+                  <option value="all">Semua Tipe</option>
+                  <option value="contact">👤 Kontak</option>
+                  <option value="group">👥 Grup</option>
+                </select>
+
+                <select id="targetSelect" required class="w-2/3 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
                   <option value="">-- Memuat Target... --</option>
                 </select>
-                <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
+
+                <button type="button" onclick="loadTargets()" class="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
                   <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
+                </button>
+              </div>
+
+              <!-- Pagination Info & Load More Button -->
+              <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 px-1">
+                <span id="targetCountInfo">Menampilkan 0 target</span>
+                <button type="button" id="btnLoadMoreTargets" onclick="showMoreTargets()" class="text-indigo-400 hover:underline font-semibold hidden">
+                  + Tampilkan Lebih Banyak
                 </button>
               </div>
             </div>
@@ -153,7 +172,6 @@
             <label class="block text-xs font-medium text-slate-300">Waktu & Tanggal Kirim</label>
 
             <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl space-y-3">
-              <!-- Live Clock & Quick Buttons -->
               <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span class="text-[11px] text-slate-400">Waktu Acuan Saat Ini:</span>
                 <span id="formClockRef" class="text-xs font-mono font-bold text-indigo-400">00:00:00</span>
@@ -322,6 +340,7 @@
     let userPlan = 'free';
     let allTargets = [];
     let isManualMode = false;
+    let displayedLimit = 10;
 
     function toggleUserDropdown() {
       const dropdown = document.getElementById('userDropdown');
@@ -365,7 +384,6 @@
       }
     }
 
-    // Populate Option Elements (Day, Year, Hour, Minute)
     function initDateTimeDropdowns() {
       const daySel = document.getElementById('schedDay');
       const yearSel = document.getElementById('schedYear');
@@ -405,7 +423,6 @@
         minSel.appendChild(opt);
       }
 
-      // Default to Current Time + 5 Minutes
       setQuickTime(5);
     }
 
@@ -470,9 +487,11 @@
 
         if (data.success && data.targets && data.targets.length > 0) {
           allTargets = data.targets;
+          displayedLimit = 10;
           filterAndRenderTargets();
         } else {
           select.innerHTML = '<option value="">-- Tidak ada target ditemukan --</option>';
+          document.getElementById('targetCountInfo').innerText = "Menampilkan 0 target";
         }
       } catch {
         console.warn("Gagal memuat target WA.");
@@ -480,55 +499,78 @@
       }
     }
 
+    function onSearchInputChanged() {
+      displayedLimit = 10;
+      filterAndRenderTargets();
+    }
+
     function filterAndRenderTargets() {
       const select = document.getElementById('targetSelect');
       const filterType = document.getElementById('targetTypeFilter').value;
+      const searchQuery = document.getElementById('targetSearchInput').value.toLowerCase().trim();
+
       select.innerHTML = '<option value="">-- Pilih Target Kirim --</option>';
 
       const filtered = allTargets.filter(t => {
-        if (filterType === 'all') return true;
-        return t.type === filterType;
+        const matchesType = (filterType === 'all') || (t.type === filterType);
+        const matchesSearch = !searchQuery || t.name.toLowerCase().includes(searchQuery) || t.jid.toLowerCase().includes(searchQuery);
+        return matchesType && matchesSearch;
       });
 
-      if (filtered.length === 0) {
+      const totalFiltered = filtered.length;
+      const visibleTargets = filtered.slice(0, displayedLimit);
+
+      if (visibleTargets.length === 0) {
         const opt = document.createElement('option');
         opt.value = "";
         opt.disabled = true;
-        opt.innerText = "Tidak ada target untuk kategori ini";
+        opt.innerText = searchQuery ? "Tidak ada kontak/grup yang cocok" : "Tidak ada target ditemukan";
         select.appendChild(opt);
-        return;
+      } else {
+        const categories = {
+          contact: { label: '👤 Kontak Percakapan Terakhir', items: [] },
+          group: { label: '👥 Grup WhatsApp', items: [] },
+          other: { label: '📌 Target Lainnya', items: [] }
+        };
+
+        visibleTargets.forEach(t => {
+          const typeKey = categories[t.type] ? t.type : 'other';
+          categories[typeKey].items.push(t);
+        });
+
+        Object.keys(categories).forEach(key => {
+          const cat = categories[key];
+          if (cat.items.length > 0) {
+            const groupEl = document.createElement('optgroup');
+            groupEl.label = `${cat.label} (${cat.items.length})`;
+            
+            cat.items.forEach(t => {
+              const opt = document.createElement('option');
+              opt.value = t.jid;
+              opt.dataset.name = t.name;
+              opt.dataset.type = t.type;
+              opt.innerText = `[${t.type.toUpperCase()}] ${t.name}`;
+              groupEl.appendChild(opt);
+            });
+
+            select.appendChild(groupEl);
+          }
+        });
       }
 
-      const categories = {
-        contact: { label: '👤 Kontak Pribadi', items: [] },
-        group: { label: '👥 Grup WhatsApp', items: [] },
-        channel: { label: '📢 Channel / Saluran', items: [] },
-        other: { label: '📌 Target Lainnya', items: [] }
-      };
+      document.getElementById('targetCountInfo').innerText = `Menampilkan ${visibleTargets.length} dari ${totalFiltered} target`;
 
-      filtered.forEach(t => {
-        const typeKey = categories[t.type] ? t.type : 'other';
-        categories[typeKey].items.push(t);
-      });
+      const btnLoadMore = document.getElementById('btnLoadMoreTargets');
+      if (totalFiltered > displayedLimit) {
+        btnLoadMore.classList.remove('hidden');
+      } else {
+        btnLoadMore.classList.add('hidden');
+      }
+    }
 
-      Object.keys(categories).forEach(key => {
-        const cat = categories[key];
-        if (cat.items.length > 0) {
-          const groupEl = document.createElement('optgroup');
-          groupEl.label = `${cat.label} (${cat.items.length})`;
-          
-          cat.items.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t.jid;
-            opt.dataset.name = t.name;
-            opt.dataset.type = t.type;
-            opt.innerText = `[${t.type.toUpperCase()}] ${t.name}`;
-            groupEl.appendChild(opt);
-          });
-
-          select.appendChild(groupEl);
-        }
-      });
+    function showMoreTargets() {
+      displayedLimit += 10;
+      filterAndRenderTargets();
     }
 
     async function loadSchedules() {
@@ -594,7 +636,6 @@
         targetType = selectedOpt ? selectedOpt.dataset.type : 'contact';
       }
 
-      // Format ISO Date String dari Form Terpisah
       const year = document.getElementById('schedYear').value;
       const month = String(document.getElementById('schedMonth').value).padStart(2, '0');
       const day = String(document.getElementById('schedDay').value).padStart(2, '0');

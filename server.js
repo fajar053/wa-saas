@@ -16,7 +16,8 @@ import makeWASocket, {
   DisconnectReason, 
   fetchLatestBaileysVersion, 
   initAuthCreds, 
-  BufferJSON 
+  BufferJSON,
+  makeInMemoryStore
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 
@@ -45,6 +46,9 @@ const io = new Server(server);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
+
+// --- MAP UNTUK MENYIMPAN MEMORY STORE SETIAP USER ---
+const userStores = new Map();
 
 // --- KONFIGURASI SINGLE PROVIDER: OPENROUTER ENGINE ---
 const OPENROUTER_CONFIG = {
@@ -380,7 +384,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
   });
 });
 
-// MEMPROSES UPDATE TERPISAH UNTUK INSTRUKSI MAUPUN SAKELAR ISBOTACTIVE
 app.post("/api/config", verifyToken, async (req, res) => {
   try {
     const { systemPrompt, isBotActive } = req.body;
@@ -698,7 +701,7 @@ app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
   }
 });
 
-// --- API WA SCHEDULE CHAT ---
+// --- API WA SCHEDULE CHAT DENGAN PEMBACAAN KONTAK & PERCAKAPAN LENGKAP ---
 app.get("/api/schedule/targets", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -708,35 +711,85 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "WhatsApp belum terhubung!" });
     }
 
-    const targets = [];
+    const targetsMap = new Map();
 
-    // 1. Fetch Grup WA
+    // 1. Ambil Riwayat Percakapan dari DB MongoDB (Sangat Akurat untuk Kontak yang Pernah Chat)
+    try {
+      const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
+      for (const conv of conversations) {
+        const jid = conv.senderNumber.includes("@") ? conv.senderNumber : `${conv.senderNumber}@s.whatsapp.net`;
+        const cleanNumber = conv.senderNumber.replace("@s.whatsapp.net", "");
+        const formattedName = cleanNumber.startsWith("+") ? cleanNumber : `+${cleanNumber}`;
+        
+        targetsMap.set(jid, {
+          jid,
+          name: formattedName,
+          type: "contact",
+          lastTime: conv.updatedAt ? new Date(conv.updatedAt).getTime() : 0
+        });
+      }
+    } catch (dbErr) {
+      console.warn("⚠️ Gagal mengambil riwayat DB:", dbErr.message);
+    }
+
+    // 2. Ambil dari Baileys In-Memory Store & Contacts
+    const userStore = userStores.get(strUserId) || sock.store;
+    if (userStore) {
+      if (userStore.contacts) {
+        for (const jid in userStore.contacts) {
+          if (jid.endsWith("@s.whatsapp.net")) {
+            const contact = userStore.contacts[jid];
+            const cleanNum = jid.split("@")[0];
+            const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
+            
+            if (!targetsMap.has(jid)) {
+              targetsMap.set(jid, {
+                jid,
+                name: displayName,
+                type: "contact",
+                lastTime: 0
+              });
+            } else if (contact.name || contact.notify) {
+              const existing = targetsMap.get(jid);
+              existing.name = `${contact.name || contact.notify} (+${cleanNum})`;
+            }
+          }
+        }
+      }
+
+      if (userStore.chats) {
+        const chatsList = typeof userStore.chats.all === "function" ? userStore.chats.all() : Object.values(userStore.chats);
+        for (const chat of chatsList) {
+          if (chat.id && chat.id.endsWith("@s.whatsapp.net") && !targetsMap.has(chat.id)) {
+            const cleanNum = chat.id.split("@")[0];
+            targetsMap.set(chat.id, {
+              jid: chat.id,
+              name: chat.name || chat.notify ? `${chat.name || chat.notify} (+${cleanNum})` : `+${cleanNum}`,
+              type: "contact",
+              lastTime: chat.conversationTimestamp ? chat.conversationTimestamp * 1000 : 0
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Fetch Grup WA
     try {
       const groups = await sock.groupFetchAllParticipating();
       for (const jid in groups) {
-        targets.push({
+        targetsMap.set(jid, {
           jid: jid,
           name: groups[jid].subject || "Grup Tanpa Nama",
-          type: "group"
+          type: "group",
+          lastTime: Date.now()
         });
       }
     } catch (err) {
       console.warn("⚠️ Gagal mengambil daftar grup:", err.message);
     }
 
-    // 2. Fetch Kontak
-    if (sock.store && sock.store.contacts) {
-      for (const jid in sock.store.contacts) {
-        if (jid.endsWith("@s.whatsapp.net")) {
-          const contact = sock.store.contacts[jid];
-          targets.push({
-            jid: jid,
-            name: contact.name || contact.notify || jid.split("@")[0],
-            type: "contact"
-          });
-        }
-      }
-    }
+    // Urutkan Kontak berdasarkan aktivitas percakapan terbaru
+    const targets = Array.from(targetsMap.values()).sort((a, b) => b.lastTime - a.lastTime);
 
     res.json({ success: true, targets });
   } catch (err) {
@@ -1194,6 +1247,13 @@ async function startUserBot(userId) {
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
+    // Inisialisasi In-Memory Store Baileys
+    let store = userStores.get(strUserId);
+    if (!store) {
+      store = makeInMemoryStore({ logger: globalLogger });
+      userStores.set(strUserId, store);
+    }
+
     const sock = makeWASocket({
       version,
       logger: globalLogger,
@@ -1208,6 +1268,9 @@ async function startUserBot(userId) {
       keepAliveIntervalMs: 30000,
       getMessage: async () => ({ conversation: "Bot Active" })
     });
+
+    store.bind(sock.ev);
+    sock.store = store;
 
     activeSessions.set(strUserId, sock);
     sock.ev.on("creds.update", saveCreds);
