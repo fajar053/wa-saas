@@ -59,6 +59,9 @@ const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
 
+// --- MAP UNTUK ANTI-SPAM RATE LIMITING PENGIRIM ---
+const senderRateLimits = new Map();
+
 // --- CONFIG UPLOAD MEDIA PENJADWALAN ---
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
@@ -139,6 +142,26 @@ function resolveTargetJids(msg) {
   return jids;
 }
 
+// --- HELPER SLEEP / DELAY ---
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// --- HELPER ANTI-SPAM PROTECTION (Mencegah Pengirim Melakukan Flood Chat) ---
+function isSenderRateLimited(senderNumber) {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 Menit
+  const maxAllowed = 8; // Maksimal 8 pesan per menit per pengirim
+
+  if (!senderRateLimits.has(senderNumber)) {
+    senderRateLimits.set(senderNumber, []);
+  }
+
+  const timestamps = senderRateLimits.get(senderNumber).filter(ts => now - ts < windowMs);
+  timestamps.push(now);
+  senderRateLimits.set(senderNumber, timestamps);
+
+  return timestamps.length > maxAllowed;
+}
+
 // --- KONFIGURASI MODEL AI OPENROUTER ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
@@ -165,11 +188,7 @@ const OPENROUTER_CONFIG = {
   ]
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// ============================================================
 // ENGINE AI 1: INDEPENDEN KHUSUS FREE PLAN (Timeout 3.5 Detik per Model)
-// ============================================================
 async function fetchFreeAIResponse(messages) {
   if (!OPENROUTER_CONFIG.apiKey) {
     console.error("❌ [OPENROUTER FREE] API Key tidak ditemukan!");
@@ -219,9 +238,7 @@ async function fetchFreeAIResponse(messages) {
   return "Halo! Terima kasih telah menghubungi kami. Mohon ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
-// ============================================================
 // ENGINE AI 2: INDEPENDEN KHUSUS PREMIUM PLAN (Timeout 6 Detik per Model)
-// ============================================================
 async function fetchPremiumAIResponse(messages) {
   if (!OPENROUTER_CONFIG.apiKey) {
     console.error("❌ [OPENROUTER PREMIUM] API Key tidak ditemukan!");
@@ -271,7 +288,7 @@ async function fetchPremiumAIResponse(messages) {
   return "Halo! Terima kasih telah menghubungi kami. Mohon ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
-// Router Utama AI berdasarkan Paket User
+// Router Utama AI
 async function fetchAIResponse(messages, plan = "free") {
   if (plan === "premium") {
     return await fetchPremiumAIResponse(messages);
@@ -662,7 +679,7 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
   }
 });
 
-// --- WORKER PENJADWAL OTOMATIS ---
+// --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE) ---
 setInterval(async () => {
   try {
     const now = new Date();
@@ -684,6 +701,11 @@ setInterval(async () => {
         const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
 
         console.log(`🚀 [SCHEDULE SENDING] Mengirim ke ${item.targetName} (${targetJid})...`);
+
+        // Simulasi Mengetik Singkat
+        await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
+        await sleep(1500);
+        await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 
         if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
           await sock.sendMessage(targetJid, {
@@ -725,26 +747,38 @@ setInterval(async () => {
         await item.save();
       }
 
-      await sleep(1000);
+      // Jeda keamanan antar kirim jadwal agar tidak memicu deteksi spam
+      await sleep(2500);
     }
   } catch (cronErr) {
     console.error("Scheduler Worker Error:", cronErr.message);
   }
-}, 4000);
+}, 5000);
 
-// --- HELPER PERBAIKAN PENGIRIMAN BALASAN KE WHATSAPP ---
+// --- HELPER HUMANIZED WHATSAPP REPLY (FITUR KEAMANAN ANTI-BLOKIR) ---
 async function sendHumanizedReply(sock, rawMsg, replyText) {
   try {
-    sock.sendPresenceUpdate("available").catch(() => {});
-
-    // Target JID utama adalah remoteJid asli tempat pesan diterima
     const primaryJid = rawMsg?.key?.remoteJid;
     if (!primaryJid) {
       console.error("❌ [DELIVERY FAILED] JID asal tidak valid!");
       return false;
     }
 
-    console.log(`📤 [SENDING TO WHATSAPP] Primary JID: ${primaryJid}`);
+    // 1. Humanized Delay Jitter (Delay acak 1.0 - 2.2 detik sebelum mulai mengetik)
+    const randomJitter = Math.floor(Math.random() * 1200) + 1000;
+    await sleep(randomJitter);
+
+    // 2. Tampilkan Status "Sedang Mengetik..." di WhatsApp
+    await sock.sendPresenceUpdate("composing", primaryJid).catch(() => {});
+
+    // 3. Hitung Durasi Mengetik Proorsional Panjang Pesan (Min 1.2s, Max 3.5s)
+    const typingDuration = Math.min(Math.max(replyText.length * 35, 1200), 3500);
+    await sleep(typingDuration);
+
+    // 4. Hentikan Status Mengetik
+    await sock.sendPresenceUpdate("paused", primaryJid).catch(() => {});
+
+    console.log(`📤 [SENDING TO WHATSAPP] Target JID: ${primaryJid}`);
 
     const isLid = primaryJid.endsWith("@lid");
     const options = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
@@ -756,10 +790,10 @@ async function sendHumanizedReply(sock, rawMsg, replyText) {
         return true;
       }
     } catch (primaryErr) {
-      console.warn(`⚠️ [PRIMARY DELIVERY FAIL] JID ${primaryJid} gagal: ${primaryErr.message}. Mencoba fallback JID alternatif...`);
+      console.warn(`⚠️ [PRIMARY DELIVERY FAIL] JID ${primaryJid} gagal: ${primaryErr.message}. Mencoba fallback JID...`);
     }
 
-    // Fallback: mencoba daftar JID turunan jika primaryJid mengalami galat
+    // Fallback JID Alternatif
     const altJids = resolveTargetJids(rawMsg).filter(j => j !== primaryJid);
     for (const altJid of altJids) {
       try {
@@ -795,12 +829,21 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
       return;
     }
 
+    // FITUR ANTI-SPAM: Cek jika pengirim melakukan flood chat berlebihan
+    if (isSenderRateLimited(senderNumber)) {
+      console.warn(`⚠️ [RATE LIMIT TRIGGERED] Pengirim ${senderNumber} terlalu sering mengirim pesan. Diabaikan demi keamanan akun WA.`);
+      return;
+    }
+
+    // Tanda Baca Pesan (Read State) Dengan Delay Alami
     if (rawMsg?.key?.id) {
-      sock.readMessages([{
-        remoteJid: rawMsg.key.remoteJid,
-        id: rawMsg.key.id,
-        participant: rawMsg.key.participant
-      }]).catch(() => {});
+      setTimeout(() => {
+        sock.readMessages([{
+          remoteJid: rawMsg.key.remoteJid,
+          id: rawMsg.key.id,
+          participant: rawMsg.key.participant
+        }]).catch(() => {});
+      }, 800);
     }
 
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
@@ -823,15 +866,14 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
     const userPlan = user.plan || "free";
     console.log(`📡 [AI GENERATION] Memproses respon AI (${userPlan.toUpperCase()}) untuk ${senderNumber}...`);
     
-    // Pemanggilan Engine AI sesuai Plan
     const reply = await fetchAIResponse(messagesPayload, userPlan);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    console.log(`📤 [SENDING REPLY] Mengirim balasan ke WhatsApp ${senderNumber}...`);
+    console.log(`📤 [SENDING REPLY] Mengirim balasan humanized ke WhatsApp ${senderNumber}...`);
     
-    // Kirim pesan ke WhatsApp dan pastikan status pengirimannya berhasil
+    // Kirim pesan dengan simulasi manusia dan pengecekan keberhasilan socket
     const isDelivered = await sendHumanizedReply(sock, rawMsg, reply);
 
     if (isDelivered) {
