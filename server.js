@@ -28,7 +28,8 @@ try {
   makeInMemoryStore = () => ({
     bind: () => {},
     contacts: {},
-    chats: { all: () => [] }
+    chats: { all: () => [] },
+    loadMessage: async () => null
   });
 }
 
@@ -60,24 +61,21 @@ const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
 
-// --- HELPER NORMALISASI JID WHATSAPP (MENDUKUNG @lid, @s.whatsapp.net, DAN GRUP) ---
+// --- HELPER NORMALISASI JID & NOMOR TELEPON ---
 function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
 
-  // Bersihkan index device (misal: 628123:12@s.whatsapp.net -> 628123@s.whatsapp.net)
   if (jid.includes(":")) {
     const [userPart, domainPart] = jid.split("@");
     const cleanUser = userPart.split(":")[0];
     jid = `${cleanUser}@${domainPart}`;
   }
 
-  // Jika JID bertipe @lid, @g.us, atau @newsletter, pertahankan domain aslinya!
   if (jid.endsWith("@lid") || jid.endsWith("@g.us") || jid.endsWith("@newsletter")) {
     return jid;
   }
 
-  // Jika nomor HP biasa / @s.whatsapp.net
   let cleanNum = jid.split("@")[0].replace(/[^0-9]/g, "");
   if (cleanNum.startsWith("0")) {
     cleanNum = "62" + cleanNum.slice(1);
@@ -86,6 +84,12 @@ function normalizeJid(rawJid) {
   }
 
   return `${cleanNum}@s.whatsapp.net`;
+}
+
+function extractPhoneNumber(rawJid) {
+  if (!rawJid) return "";
+  const clean = String(rawJid).split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
+  return clean || rawJid;
 }
 
 // --- KONFIGURASI OPENROUTER AI ENGINE ---
@@ -97,8 +101,7 @@ const OPENROUTER_CONFIG = {
     "google/gemini-2.5-flash",
     "meta-llama/llama-3.3-70b-instruct",
     "deepseek/deepseek-chat",
-    "mistralai/mistral-7b-instruct:free",
-    "qwen/qwen-2.5-72b-instruct"
+    "mistralai/mistral-7b-instruct:free"
   ]
 };
 
@@ -106,7 +109,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
   if (!OPENROUTER_CONFIG.apiKey) {
-    console.error("❌ [OPENROUTER] API Key tidak ditemukan di environment variables!");
+    console.error("❌ [OPENROUTER] API Key tidak ditemukan!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
@@ -132,7 +135,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.warn(`⚠️ [AI MODEL FAIL] ${model} HTTP status: ${response.status}`);
+        console.warn(`⚠️ [AI MODEL FAIL] ${model} Status: ${response.status}`);
         await sleep(300);
         continue;
       }
@@ -141,7 +144,7 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 15000) {
       const content = data?.choices?.[0]?.message?.content;
 
       if (content && content.trim()) {
-        console.log(`✅ [AI SUCCESS] Berhasil merespon dari model: ${model}`);
+        console.log(`✅ [AI SUCCESS] Respon dari model: ${model}`);
         return content.trim();
       }
 
@@ -456,7 +459,7 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
       for (const conv of conversations) {
         const jid = normalizeJid(conv.senderNumber);
-        const cleanNum = jid.split("@")[0];
+        const cleanNum = extractPhoneNumber(jid);
         targetsMap.set(jid, {
           jid,
           name: `+${cleanNum}`,
@@ -472,7 +475,7 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
         if (rawJid.endsWith("@s.whatsapp.net") || rawJid.endsWith("@lid")) {
           const contact = userStore.contacts[rawJid];
           const jid = normalizeJid(rawJid);
-          const cleanNum = jid.split("@")[0];
+          const cleanNum = extractPhoneNumber(jid);
           const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
           
           if (!targetsMap.has(jid)) {
@@ -606,7 +609,7 @@ setInterval(async () => {
         if (!targetJid.endsWith("@g.us") && !targetJid.endsWith("@lid")) {
           try {
             if (typeof sock.onWhatsApp === "function") {
-              const cleanNum = targetJid.split("@")[0];
+              const cleanNum = extractPhoneNumber(targetJid);
               const [waCheck] = await sock.onWhatsApp(cleanNum);
               if (waCheck && waCheck.exists && waCheck.jid) {
                 targetJid = waCheck.jid;
@@ -675,35 +678,37 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS ---
-async function sendHumanizedReply(sock, targetJid, replyText) {
+// --- HELPER SIMULASI BALASAN HUMANIS DENGAN QUOTED CONTEXT ---
+async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
     try {
       await sock.sendPresenceUpdate("composing", targetJid);
     } catch {}
 
-    const baseDelay = Math.min(Math.max((replyText || "").length * 25, 1000), 3500);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 20, 1000), 3000);
     await sleep(baseDelay);
+
+    // Menggunakan quote kontekstual asli untuk menjamin terkirim di E2EE
+    const sendOptions = rawMsg ? { quoted: rawMsg } : {};
+    const sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
 
     try {
       await sock.sendPresenceUpdate("paused", targetJid);
     } catch {}
 
-    if (replyText) {
-      const sentMsg = await sock.sendMessage(targetJid, { text: replyText });
-      console.log(`📤 [MESSAGE SENT SUCCESS] Ref ID: ${sentMsg?.key?.id} | Destination: ${targetJid}`);
-      return sentMsg;
-    }
+    console.log(`📤 [MESSAGE DELIVERED] Ref ID: ${sentMsg?.key?.id} | Target: ${targetJid}`);
+    return sentMsg;
   } catch (err) {
-    console.warn("⚠️ Direct Send Fallback:", err.message);
+    console.warn("⚠️ Direct Send Fallback Error:", err.message);
     if (replyText) {
-      return await sock.sendMessage(targetJid, { text: replyText });
+      const sendOptions = rawMsg ? { quoted: rawMsg } : {};
+      return await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
     }
   }
 }
 
 // --- PEMROSESAN BALASAN AI AUTOMATIS ---
-async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, lastMsgId) {
+async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, rawMsg) {
   try {
     const user = await User.findById(strUserId);
     if (!user) return;
@@ -731,11 +736,11 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       return;
     }
 
-    // Tandai pesan sudah dibaca (Read Receipt)
-    try {
-      await sock.readMessages([{ remoteJid: targetJid, id: lastMsgId }]);
-    } catch (e) {
-      console.warn("⚠️ Read Message Warning:", e.message);
+    // Read Receipt
+    if (rawMsg?.key?.id) {
+      try {
+        await sock.readMessages([{ remoteJid: targetJid, id: rawMsg.key.id }]);
+      } catch (e) {}
     }
 
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
@@ -761,12 +766,12 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim Balasan ke WhatsApp Kontak Asli (Mendukung @lid dan @s.whatsapp.net)
+    // Kirim Balasan menggunakan E2EE Quoted Context
     console.log(`📤 [SENDING REPLY] Mengirim balasan ke JID: ${targetJid}`);
-    await sendHumanizedReply(sock, targetJid, reply);
+    await sendHumanizedReply(sock, targetJid, reply, rawMsg);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-    // Emit Log Keluar ke Frontend Dashboard Realtime
+    // Emit Log Realtime ke Dashboard
     io.to(strUserId).emit("chat-log", {
       time: new Date().toLocaleTimeString(),
       sender: "BOT AI",
@@ -883,7 +888,15 @@ async function startUserBot(userId) {
       browser: ["Ubuntu", "Chrome", "122.0.6261.111"],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
-      keepAliveIntervalMs: 30000
+      keepAliveIntervalMs: 30000,
+      // Opsi Kritis untuk Menangani E2EE Retry Decryption
+      getMessage: async (key) => {
+        if (store && typeof store.loadMessage === "function") {
+          const msg = await store.loadMessage(key.remoteJid, key.id);
+          return msg?.message || undefined;
+        }
+        return { conversation: "" };
+      }
     });
 
     if (store && typeof store.bind === "function") {
@@ -946,9 +959,9 @@ async function startUserBot(userId) {
           const text = extractMessageText(msg);
           if (!text) continue;
 
-          // Dapatkan JID tujuan pengiriman balasan secara persis (termasuk domain @lid)
-          const targetJid = normalizeJid(msg.key.remoteJid);
-          const senderNumber = targetJid.split("@")[0];
+          // Gunakan remoteJid persis tanpa memotong domain E2EE
+          const targetJid = msg.key.remoteJid;
+          const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
 
@@ -960,32 +973,32 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // Buffer Agregasi Pesan (2.5 Detik Penundaan)
+          // Buffer Agregasi Pesan
           const bufferKey = `${strUserId}_${targetJid}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { 
               messages: [], 
               timer: null, 
               targetJid: targetJid, 
-              lastMsgId: msg.key.id 
+              rawMsg: msg 
             });
           }
 
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
           buf.targetJid = targetJid;
-          buf.lastMsgId = msg.key.id;
+          buf.rawMsg = msg;
 
           if (buf.timer) clearTimeout(buf.timer);
 
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
             const finalTargetJid = buf.targetJid;
-            const targetMsgId = buf.lastMsgId;
+            const finalRawMsg = buf.rawMsg;
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, finalTargetJid, combinedText, sock, targetMsgId);
+            await handleAIBotReply(strUserId, senderNumber, finalTargetJid, combinedText, sock, finalRawMsg);
           }, 2500);
         }
       } catch (err) {
