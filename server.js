@@ -86,59 +86,56 @@ function normalizeJid(rawJid) {
   return `${cleanNum}@s.whatsapp.net`;
 }
 
-// --- HELPER RESOLUSI MULTI-LAYER JID (LID -> PHONE NUMBER JID) ---
-function resolveRealJid(msg, sock, strUserId) {
+// --- HELPER DETEKSI JID TERBAIK (UTAMAKAN @s.whatsapp.net) ---
+function getBestTargetJid(msg, sock, strUserId) {
   if (!msg || !msg.key) return "";
 
   const remoteJid = msg.key.remoteJid || "";
   const remoteJidAlt = msg.key.remoteJidAlt || "";
   const participant = msg.key.participant || msg.participant || "";
 
-  // 1. Ekstrak @s.whatsapp.net langsung dari properti key
-  if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
-    return normalizeJid(remoteJidAlt);
-  }
-  if (participant && participant.endsWith("@s.whatsapp.net")) {
-    return normalizeJid(participant);
-  }
-  if (remoteJid.endsWith("@s.whatsapp.net")) {
+  // Prioritas 1: Jika remoteJid sudah @s.whatsapp.net atau @g.us
+  if (remoteJid.endsWith("@s.whatsapp.net") || remoteJid.endsWith("@g.us")) {
     return normalizeJid(remoteJid);
   }
 
-  // 2. Cari di dalam contextInfo payload pesan
+  // Prioritas 2: Ambil dari remoteJidAlt jika bertipe @s.whatsapp.net
+  if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
+    return normalizeJid(remoteJidAlt);
+  }
+
+  // Prioritas 3: Ambil dari participant jika bertipe @s.whatsapp.net
+  if (participant && participant.endsWith("@s.whatsapp.net")) {
+    return normalizeJid(participant);
+  }
+
+  // Prioritas 4: Cari di memori kontak Baileys (LID -> Phone Number)
+  const store = userStores.get(strUserId) || sock?.store;
+  if (store && store.contacts) {
+    for (const cJid in store.contacts) {
+      const contact = store.contacts[cJid];
+      if (contact && cJid.endsWith("@s.whatsapp.net")) {
+        if (contact.lid === remoteJid || contact.id === remoteJid) {
+          console.log(`🔍 [LID MATCH STORE] ${remoteJid} -> ${cJid}`);
+          return normalizeJid(cJid);
+        }
+      }
+    }
+  }
+
+  // Prioritas 5: Cari di dalam contextInfo isi pesan
   const m = msg.message;
   if (m) {
     const ctx = m.extendedTextMessage?.contextInfo ||
               m.imageMessage?.contextInfo ||
               m.videoMessage?.contextInfo ||
               m.documentMessage?.contextInfo;
-
-    if (ctx) {
-      if (ctx.participant && ctx.participant.endsWith("@s.whatsapp.net")) {
-        return normalizeJid(ctx.participant);
-      }
-      if (ctx.remoteJid && ctx.remoteJid.endsWith("@s.whatsapp.net")) {
-        return normalizeJid(ctx.remoteJid);
-      }
+    if (ctx?.participant && ctx.participant.endsWith("@s.whatsapp.net")) {
+      return normalizeJid(ctx.participant);
     }
   }
 
-  // 3. Cari pemetaan LID -> Nomor HP di memori Kontak Store
-  if (remoteJid.endsWith("@lid")) {
-    const store = userStores.get(strUserId) || sock?.store;
-    if (store && store.contacts) {
-      for (const cJid in store.contacts) {
-        const c = store.contacts[cJid];
-        if (c && cJid.endsWith("@s.whatsapp.net")) {
-          if (c.lid === remoteJid || c.id === remoteJid) {
-            return normalizeJid(cJid);
-          }
-        }
-      }
-    }
-  }
-
-  return normalizeJid(remoteJid);
+  return remoteJid;
 }
 
 function extractPhoneNumber(rawJid) {
@@ -734,7 +731,7 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS DENGAN DUAL-OPTION DELIVERY ---
+// --- HELPER BALASAN DUAL-ROUTING (PENGIRIMAN TERJAMIN) ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
     try {
@@ -747,21 +744,37 @@ async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
     const isLid = targetJid.endsWith("@lid");
     let sentMsg;
 
-    // Persiapkan opsi pengiriman
-    const baseOptions = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
-    const sendOptionsWithQuoted = { ...baseOptions };
+    if (isLid) {
+      console.log(`⚠️ [LID DELIVERY] Target JID adalah LID (${targetJid}). Menggunakan mode LID...`);
 
-    if (rawMsg && rawMsg.key) {
-      sendOptionsWithQuoted.quoted = rawMsg;
-    }
+      // 1. Kirim ke LID JID dengan atribut addressing_mode = lid
+      try {
+        sentMsg = await sock.sendMessage(targetJid, { text: replyText }, {
+          additionalAttributes: { addressing_mode: "lid" }
+        });
+        console.log(`📤 [LID SENT] Ref ID: ${sentMsg?.key?.id}`);
+      } catch (lidErr) {
+        console.error("❌ Gagal kirim ke LID:", lidErr.message);
+      }
 
-    try {
-      // Opsi 1: Mengirim balasan beserta quoted context & addressing_mode jika LID
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptionsWithQuoted);
-    } catch (sendErr) {
-      console.warn("⚠️ Quoted send failed, retrying direct fallback send:", sendErr.message);
-      // Opsi 2: Fallback kirim langsung tanpa quoted context
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, baseOptions);
+      // 2. Jika tersedia Phone Number JID (remoteJidAlt), kirim juga ke JID tersebut sebagai garansi
+      const altJid = rawMsg?.key?.remoteJidAlt;
+      if (altJid && altJid.endsWith("@s.whatsapp.net") && altJid !== targetJid) {
+        console.log(`🔄 [FALLBACK PN] Mengirim juga ke Phone Number JID: ${altJid}`);
+        try {
+          await sock.sendMessage(normalizeJid(altJid), { text: replyText });
+        } catch (altErr) {
+          console.error("❌ Fallback PN gagal:", altErr.message);
+        }
+      }
+    } else {
+      // Pengiriman standar ke @s.whatsapp.net atau @g.us
+      try {
+        sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+      } catch (sendErr) {
+        console.warn("⚠️ Kirim standar gagal, mencoba opsi quoted:", sendErr.message);
+        sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
+      }
     }
 
     try {
@@ -1029,8 +1042,8 @@ async function startUserBot(userId) {
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          // Resolusi JID multi-layer (Utamakan @s.whatsapp.net jika tersedia)
-          const targetJid = resolveRealJid(msg, sock, strUserId);
+          // Dapatkan JID terbaik (mengutamakan @s.whatsapp.net dari remoteJidAlt / Store)
+          const targetJid = getBestTargetJid(msg, sock, strUserId);
           const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
