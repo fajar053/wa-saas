@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
 import { Resend } from "resend";
+import multer from "multer";
 import QRCode from "qrcode";
 import makeWASocket, { 
   DisconnectReason, 
@@ -35,6 +36,7 @@ try {
 import User from "./models/User.js";
 import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
+import Schedule from "./models/Schedule.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -56,6 +58,24 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
+
+// --- CONFIG UPLOAD MEDIA PENJADWALAN ---
+if (!fs.existsSync(path.join(__dirname, "uploads"))) {
+  fs.mkdirSync(path.join(__dirname, "uploads"));
+}
+
+const scheduleStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `schedule_${req.user.userId}_${Date.now()}${ext}`);
+  }
+});
+
+const uploadScheduleMedia = multer({
+  storage: scheduleStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 // --- HELPER NORMALISASI JID ---
 function normalizeJid(rawJid) {
@@ -88,7 +108,6 @@ function extractPhoneNumber(rawJid) {
   return clean || rawJid;
 }
 
-// --- RESOLUSI MULTI-TARGET JID (MENGATASI ISSUES SILENT DROP @LID) ---
 function resolveTargetJids(msg) {
   const jids = [];
   if (!msg || !msg.key) return jids;
@@ -97,7 +116,6 @@ function resolveTargetJids(msg) {
   const remoteJidAlt = msg.key.remoteJidAlt || "";
   const participant = msg.key.participant || "";
 
-  // Prioritas Utama: JID Nomor Telepon (@s.whatsapp.net)
   if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
     jids.push(normalizeJid(remoteJidAlt));
   }
@@ -108,14 +126,12 @@ function resolveTargetJids(msg) {
     jids.push(normalizeJid(remoteJid));
   }
 
-  // Jika remoteJid berformat nomor telepon
   const cleanNum = extractPhoneNumber(remoteJid);
   if (cleanNum && cleanNum.length >= 7) {
     const phoneJid = `${cleanNum}@s.whatsapp.net`;
     if (!jids.includes(phoneJid)) jids.push(phoneJid);
   }
 
-  // Prioritas Cadangan: LID JID
   if (remoteJid.endsWith("@lid") && !jids.includes(remoteJid)) {
     jids.push(remoteJid);
   }
@@ -204,6 +220,8 @@ function extractMessageText(msg) {
 }
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((req, res, next) => {
   if (req.method === "GET" && (req.path.endsWith(".html") || req.path === "/")) {
@@ -224,8 +242,6 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, "public")));
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -242,7 +258,18 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- AUTH ROUTES ---
+// --- MIDDLEWARE & AUTH ROUTES ---
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ message: "Token Invalid" });
+  }
+};
+
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -331,17 +358,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Unauthorized" });
-  try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
-  } catch {
-    res.status(401).json({ message: "Token Invalid" });
-  }
-};
-
 app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
@@ -399,10 +415,222 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- HELPER BALASAN DENGAN DUAL-ROUTING (TERKIRIM 100%) ---
+// --- API WA SCHEDULE ---
+app.get("/api/schedule/targets", verifyToken, async (req, res) => {
+  try {
+    const strUserId = String(req.user.userId);
+    const sock = activeSessions.get(strUserId);
+
+    if (!sock) {
+      return res.status(400).json({ success: false, message: "WhatsApp belum terhubung!" });
+    }
+
+    const targetsMap = new Map();
+
+    // 1. Ambil kontak dari Riwayat Percakapan AI
+    try {
+      const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
+      for (const conv of conversations) {
+        const jid = normalizeJid(conv.senderNumber);
+        const cleanNum = extractPhoneNumber(jid);
+        targetsMap.set(jid, {
+          jid,
+          name: `+${cleanNum}`,
+          type: "contact",
+          lastTime: conv.updatedAt ? new Date(conv.updatedAt).getTime() : 0
+        });
+      }
+    } catch (err) {}
+
+    // 2. Ambil kontak dari Memori Store Baileys
+    const userStore = userStores.get(strUserId) || sock.store;
+    if (userStore && userStore.contacts) {
+      for (const rawJid in userStore.contacts) {
+        if (rawJid.endsWith("@s.whatsapp.net") || rawJid.endsWith("@lid")) {
+          const contact = userStore.contacts[rawJid];
+          const jid = normalizeJid(rawJid);
+          const cleanNum = extractPhoneNumber(jid);
+          const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
+          
+          if (!targetsMap.has(jid)) {
+            targetsMap.set(jid, { jid, name: displayName, type: "contact", lastTime: 0 });
+          }
+        }
+      }
+    }
+
+    // 3. Ambil daftar Grup tempat Bot bergabung secara aman
+    try {
+      const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+      for (const jid in groups) {
+        targetsMap.set(jid, {
+          jid: jid,
+          name: groups[jid].subject || "Grup Tanpa Nama",
+          type: "group",
+          lastTime: Date.now()
+        });
+      }
+    } catch (err) {}
+
+    const targets = Array.from(targetsMap.values()).sort((a, b) => b.lastTime - a.lastTime);
+    res.json({ success: true, targets });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/schedule/list", verifyToken, async (req, res) => {
+  try {
+    const schedules = await Schedule.find({ userId: req.user.userId }).sort({ scheduledTime: 1 });
+    res.json({ success: true, data: schedules });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaFile"), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    let { targetJid, targetName, targetType, message, scheduledTime, isViewOnce } = req.body;
+
+    if (!targetJid || !scheduledTime) {
+      return res.status(400).json({ success: false, message: "Target dan waktu kirim wajib diisi!" });
+    }
+
+    targetJid = normalizeJid(targetJid);
+
+    let mediaUrl = "";
+    let mediaType = "none";
+
+    if (req.file) {
+      mediaUrl = `/uploads/${req.file.filename}`;
+      const mime = req.file.mimetype;
+      if (mime.startsWith("image/")) mediaType = "image";
+      else if (mime.startsWith("video/")) mediaType = "video";
+      else mediaType = "document";
+    }
+
+    const newSchedule = await Schedule.create({
+      userId: user._id,
+      targetJid,
+      targetName: targetName || targetJid,
+      targetType: targetType || "contact",
+      message: message || "",
+      mediaUrl,
+      mediaType,
+      isViewOnce: isViewOnce === "true",
+      scheduledTime: new Date(scheduledTime),
+      status: "pending"
+    });
+
+    res.json({ success: true, message: "Jadwal pesan berhasil disimpan!", data: newSchedule });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete("/api/schedule/:id", verifyToken, async (req, res) => {
+  try {
+    await Schedule.deleteOne({ _id: req.params.id, userId: req.user.userId });
+    res.json({ success: true, message: "Jadwal pesan berhasil dihapus!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
+  try {
+    const { ids, deleteAll } = req.body;
+
+    if (deleteAll) {
+      const result = await Schedule.deleteMany({ userId: req.user.userId });
+      return res.json({ success: true, message: `Semua antrian jadwal (${result.deletedCount} item) berhasil dihapus!` });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "Pilih minimal satu antrian untuk dihapus." });
+    }
+
+    const result = await Schedule.deleteMany({ _id: { $in: ids }, userId: req.user.userId });
+    res.json({ success: true, message: `${result.deletedCount} antrian jadwal berhasil dihapus!` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE INDEPENDEN) ---
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const pendingSchedules = await Schedule.find({
+      status: "pending",
+      scheduledTime: { $lte: now }
+    }).limit(10);
+
+    for (const item of pendingSchedules) {
+      const strUserId = String(item.userId);
+      const sock = activeSessions.get(strUserId);
+
+      if (!sock) continue;
+
+      try {
+        let targetJid = normalizeJid(item.targetJid);
+        const isLid = targetJid.endsWith("@lid");
+        const sendOptions = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
+        const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
+
+        console.log(`🚀 [SCHEDULE SENDING] Mengirim ke ${item.targetName} (${targetJid})...`);
+
+        if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
+            image: { url: fullMediaPath },
+            caption: item.message,
+            viewOnce: item.isViewOnce
+          }, sendOptions);
+        } else if (item.mediaType === "video" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
+            video: { url: fullMediaPath },
+            caption: item.message,
+            viewOnce: item.isViewOnce
+          }, sendOptions);
+        } else if (item.mediaType === "document" && fullMediaPath && fs.existsSync(fullMediaPath)) {
+          await sock.sendMessage(targetJid, {
+            document: { url: fullMediaPath },
+            fileName: path.basename(fullMediaPath),
+            caption: item.message
+          }, sendOptions);
+        } else {
+          await sock.sendMessage(targetJid, { text: item.message }, sendOptions);
+        }
+
+        item.status = "sent";
+        await item.save();
+
+        io.to(strUserId).emit("chat-log", {
+          time: new Date().toLocaleTimeString(),
+          sender: "SCHEDULED BOT",
+          text: `[Terkirim ke ${item.targetName}] ${item.message}`,
+          type: "out"
+        });
+
+        console.log(`✅ [SCHEDULE SUCCESS] Terkirim ke ${item.targetName} (${targetJid})`);
+      } catch (sendErr) {
+        console.error(`❌ [SCHEDULE ERR]:`, sendErr.message);
+        item.status = "failed";
+        item.errorMessage = sendErr.message;
+        await item.save();
+      }
+
+      await sleep(1000);
+    }
+  } catch (cronErr) {
+    console.error("Scheduler Worker Error:", cronErr.message);
+  }
+}, 4000);
+
+// --- HELPER BALASAN CHAT AI ---
 async function sendHumanizedReply(sock, rawMsg, replyText) {
   try {
-    // Jalankan pembaruan status online secara non-blocking
     sock.sendPresenceUpdate("available").catch(() => {});
 
     const targetJids = resolveTargetJids(rawMsg);
@@ -417,15 +645,14 @@ async function sendHumanizedReply(sock, rawMsg, replyText) {
 
         const result = await sock.sendMessage(jid, { text: replyText }, options);
         if (result?.key?.id) {
-          console.log(`✅ [MESSAGE DELIVERED SUCCESSFULLY] JID: ${jid} | ID: ${result.key.id}`);
+          console.log(`✅ [MESSAGE DELIVERED] JID: ${jid} | ID: ${result.key.id}`);
           sentSuccess = true;
         }
       } catch (err) {
-        console.warn(`⚠️ [DELIVERY ATTEMPT FAILED] JID: ${jid} - Error: ${err.message}`);
+        console.warn(`⚠️ [DELIVERY FAILED] JID: ${jid} - Error: ${err.message}`);
       }
     }
 
-    // Fallback Terakhir jika semua target gagal
     if (!sentSuccess && rawMsg?.key?.remoteJid) {
       const fallbackJid = rawMsg.key.remoteJid;
       console.log(`🔄 [FALLBACK DELIVERY] Kirim ke raw remoteJid: ${fallbackJid}`);
@@ -447,7 +674,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
       return;
     }
 
-    // Tandai pesan terbaca (non-blocking)
     if (rawMsg?.key?.id) {
       sock.readMessages([{
         remoteJid: rawMsg.key.remoteJid,
