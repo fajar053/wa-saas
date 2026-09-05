@@ -139,7 +139,7 @@ function resolveTargetJids(msg) {
   return jids;
 }
 
-// --- KONFIGURASI OPENROUTER AI ENGINE ---
+// --- KONFIGURASI MODEL AI OPENROUTER ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -165,22 +165,23 @@ const OPENROUTER_CONFIG = {
   ]
 };
 
-async function fetchAIResponse(messages, plan = "free") {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ============================================================
+// ENGINE AI 1: INDEPENDEN KHUSUS FREE PLAN (Timeout 3.5 Detik per Model)
+// ============================================================
+async function fetchFreeAIResponse(messages) {
   if (!OPENROUTER_CONFIG.apiKey) {
-    console.error("❌ [OPENROUTER] API Key tidak ditemukan!");
+    console.error("❌ [OPENROUTER FREE] API Key tidak ditemukan!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
-  const models = plan === "premium" ? OPENROUTER_CONFIG.premiumModels : OPENROUTER_CONFIG.freeModels;
-  // Timeout 3.5 detik per model untuk free plan agar cepat berpindah jika lelet/hang
-  const timeoutMs = plan === "premium" ? 6000 : 3500;
-
-  for (const model of models) {
+  for (const model of OPENROUTER_CONFIG.freeModels) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
     try {
-      console.log(`📡 [AI REQUEST] Memanggil model (${plan.toUpperCase()}): ${model}`);
+      console.log(`📡 [AI FREE ENGINE] Memanggil model: ${model}`);
       const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
         method: "POST",
         headers: {
@@ -197,7 +198,7 @@ async function fetchAIResponse(messages, plan = "free") {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.warn(`⚠️ [AI MODEL ERROR] Model ${model} status: ${response.status}. Beralih cepat ke model berikutnya...`);
+        console.warn(`⚠️ [AI FREE ERROR] Model ${model} status HTTP ${response.status}. Langsung ganti model...`);
         continue;
       }
 
@@ -205,17 +206,77 @@ async function fetchAIResponse(messages, plan = "free") {
       const content = data?.choices?.[0]?.message?.content;
 
       if (content && content.trim()) {
-        console.log(`✅ [AI SUCCESS] Respon dari model: ${model}`);
+        console.log(`✅ [AI FREE SUCCESS] Berhasil direspon oleh: ${model}`);
         return content.trim();
       }
 
     } catch (err) {
       clearTimeout(timeoutId);
-      console.warn(`⚠️ [AI MODEL FAIL/TIMEOUT] Model ${model} error/timeout (${err.message}). Langsung beralih ke model berikutnya...`);
+      console.warn(`⚠️ [AI FREE FAIL/TIMEOUT] Model ${model} (${err.message}). Langsung ganti model berikutnya...`);
     }
   }
 
   return "Halo! Terima kasih telah menghubungi kami. Mohon ulangi pesan Anda beberapa saat lagi 🙏";
+}
+
+// ============================================================
+// ENGINE AI 2: INDEPENDEN KHUSUS PREMIUM PLAN (Timeout 6 Detik per Model)
+// ============================================================
+async function fetchPremiumAIResponse(messages) {
+  if (!OPENROUTER_CONFIG.apiKey) {
+    console.error("❌ [OPENROUTER PREMIUM] API Key tidak ditemukan!");
+    return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
+  }
+
+  for (const model of OPENROUTER_CONFIG.premiumModels) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    try {
+      console.log(`📡 [AI PREMIUM ENGINE] Memanggil model: ${model}`);
+      const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_CONFIG.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "https://wasaas.my.id",
+          "X-Title": "WA AutoBot SaaS",
+          "User-Agent": "Mozilla/5.0"
+        },
+        body: JSON.stringify({ model, messages }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`⚠️ [AI PREMIUM ERROR] Model ${model} status HTTP ${response.status}. Ganti model...`);
+        continue;
+      }
+
+      const data = await response.json().catch(() => null);
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (content && content.trim()) {
+        console.log(`✅ [AI PREMIUM SUCCESS] Berhasil direspon oleh: ${model}`);
+        return content.trim();
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`⚠️ [AI PREMIUM FAIL/TIMEOUT] Model ${model} (${err.message}). Ganti model berikutnya...`);
+    }
+  }
+
+  return "Halo! Terima kasih telah menghubungi kami. Mohon ulangi pesan Anda beberapa saat lagi 🙏";
+}
+
+// Router Utama AI berdasarkan Paket User
+async function fetchAIResponse(messages, plan = "free") {
+  if (plan === "premium") {
+    return await fetchPremiumAIResponse(messages);
+  }
+  return await fetchFreeAIResponse(messages);
 }
 
 function extractMessageText(msg) {
@@ -601,7 +662,7 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
   }
 });
 
-// --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE INDEPENDEN) ---
+// --- WORKER PENJADWAL OTOMATIS ---
 setInterval(async () => {
   try {
     const now = new Date();
@@ -671,38 +732,55 @@ setInterval(async () => {
   }
 }, 4000);
 
-// --- HELPER BALASAN CHAT AI ---
+// --- HELPER PERBAIKAN PENGIRIMAN BALASAN KE WHATSAPP ---
 async function sendHumanizedReply(sock, rawMsg, replyText) {
   try {
     sock.sendPresenceUpdate("available").catch(() => {});
 
-    const targetJids = resolveTargetJids(rawMsg);
-    console.log(`📤 [TARGET JIDS DELIVERY]:`, targetJids);
+    // Target JID utama adalah remoteJid asli tempat pesan diterima
+    const primaryJid = rawMsg?.key?.remoteJid;
+    if (!primaryJid) {
+      console.error("❌ [DELIVERY FAILED] JID asal tidak valid!");
+      return false;
+    }
 
-    let sentSuccess = false;
+    console.log(`📤 [SENDING TO WHATSAPP] Primary JID: ${primaryJid}`);
 
-    for (const jid of targetJids) {
+    const isLid = primaryJid.endsWith("@lid");
+    const options = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
+
+    try {
+      const result = await sock.sendMessage(primaryJid, { text: replyText }, options);
+      if (result?.key?.id) {
+        console.log(`✅ [WA DELIVERED] Berhasil dikirim ke: ${primaryJid} | ID: ${result.key.id}`);
+        return true;
+      }
+    } catch (primaryErr) {
+      console.warn(`⚠️ [PRIMARY DELIVERY FAIL] JID ${primaryJid} gagal: ${primaryErr.message}. Mencoba fallback JID alternatif...`);
+    }
+
+    // Fallback: mencoba daftar JID turunan jika primaryJid mengalami galat
+    const altJids = resolveTargetJids(rawMsg).filter(j => j !== primaryJid);
+    for (const altJid of altJids) {
       try {
-        const isLid = jid.endsWith("@lid");
-        const options = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
+        const isAltLid = altJid.endsWith("@lid");
+        const altOpts = isAltLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
 
-        const result = await sock.sendMessage(jid, { text: replyText }, options);
-        if (result?.key?.id) {
-          console.log(`✅ [MESSAGE DELIVERED] JID: ${jid} | ID: ${result.key.id}`);
-          sentSuccess = true;
+        const altResult = await sock.sendMessage(altJid, { text: replyText }, altOpts);
+        if (altResult?.key?.id) {
+          console.log(`✅ [WA DELIVERED VIA ALT] Berhasil dikirim ke: ${altJid}`);
+          return true;
         }
-      } catch (err) {
-        console.warn(`⚠️ [DELIVERY FAILED] JID: ${jid} - Error: ${err.message}`);
+      } catch (altErr) {
+        console.warn(`⚠️ [ALT DELIVERY FAIL] JID ${altJid}: ${altErr.message}`);
       }
     }
 
-    if (!sentSuccess && rawMsg?.key?.remoteJid) {
-      const fallbackJid = rawMsg.key.remoteJid;
-      console.log(`🔄 [FALLBACK DELIVERY] Kirim ke raw remoteJid: ${fallbackJid}`);
-      await sock.sendMessage(fallbackJid, { text: replyText });
-    }
+    return false;
+
   } catch (err) {
     console.error("❌ Send Reply Error:", err.message);
+    return false;
   }
 }
 
@@ -742,28 +820,43 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
       ...historyForAI
     ];
 
-    console.log(`📡 [AI GENERATION] Memproses respon AI (${user.plan || "free"}) untuk ${senderNumber}...`);
-    const reply = await fetchAIResponse(messagesPayload, user.plan || "free");
+    const userPlan = user.plan || "free";
+    console.log(`📡 [AI GENERATION] Memproses respon AI (${userPlan.toUpperCase()}) untuk ${senderNumber}...`);
+    
+    // Pemanggilan Engine AI sesuai Plan
+    const reply = await fetchAIResponse(messagesPayload, userPlan);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    console.log(`📤 [SENDING REPLY] Mengirim balasan ke ${senderNumber}...`);
-    await sendHumanizedReply(sock, rawMsg, reply);
+    console.log(`📤 [SENDING REPLY] Mengirim balasan ke WhatsApp ${senderNumber}...`);
+    
+    // Kirim pesan ke WhatsApp dan pastikan status pengirimannya berhasil
+    const isDelivered = await sendHumanizedReply(sock, rawMsg, reply);
 
-    await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
+    if (isDelivered) {
+      await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-    io.to(strUserId).emit("chat-log", {
-      time: new Date().toLocaleTimeString(),
-      sender: "BOT AI",
-      text: reply,
-      type: "out"
-    });
+      io.to(strUserId).emit("chat-log", {
+        time: new Date().toLocaleTimeString(),
+        sender: "BOT AI",
+        text: reply,
+        type: "out"
+      });
 
-    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber}: "${reply.slice(0, 30)}..."`);
+      console.log(`✅ [SUCCESS] Pesan balasan sukses terkirim ke WhatsApp ${senderNumber}`);
+    } else {
+      io.to(strUserId).emit("error-log", {
+        time: new Date().toLocaleTimeString(),
+        from: senderNumber,
+        message: "Gagal mengirim balasan ke WhatsApp. Cek koneksi nomor WhatsApp."
+      });
+
+      console.error(`❌ [DELIVERY FAILED] Pesan balasan gagal terkirim ke WhatsApp ${senderNumber}`);
+    }
 
   } catch (err) {
-    console.error("❌ Reply Error:", err.message);
+    console.error("❌ Reply Processing Error:", err.message);
   }
 }
 
