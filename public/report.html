@@ -4,112 +4,85 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pusat Laporan & Bantuan - WhatsApp AutoBot AI</title>
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/layout.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
 
-  <!-- Sidebar / Navigation -->
-  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
-    <div class="space-y-6">
-      <div class="flex items-center gap-3">
-        <img src="/favicon.ico" alt="WA SaaS Logo" class="w-10 h-10 rounded-xl object-cover shadow-lg shadow-emerald-500/20 border border-emerald-500/20">
-        <div>
-          <h1 class="font-bold text-sm text-slate-100 leading-tight">WhatsApp AutoBot AI</h1>
-          <p class="text-[10px] text-slate-400 font-medium">Software As a Service Manager</p>
+  <!-- Sidebar Container -->
+  <div id="app-sidebar"></div>
+
+  <!-- Main Wrapper -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <!-- Topbar Panel Container -->
+    <div id="app-topbar"></div>
+
+    <main class="flex-1 p-6 md:p-10 space-y-6 overflow-y-auto">
+      <div>
+        <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="life-buoy" class="w-5 h-5 text-indigo-400"></i> Layanan Bantuan & Laporan Kendala
+        </h2>
+        <p class="text-xs text-slate-400">Kirimkan tiket kendala kamu dan pantau balasan langsung dari Tim Admin</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Form Buat Laporan -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="send" class="w-4 h-4 text-indigo-400"></i> Buat Tiket Baru
+          </h3>
+
+          <form onsubmit="submitReport(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
+              <select id="categorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+                <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
+                <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
+                <option value="Pembayaran Langganan">Pembayaran Langganan</option>
+                <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
+                <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
+                <option value="Respon AI Lambat">Respon AI Lambat</option>
+                <option value="Spam Balasan / Duplicate Chat">Spam Balasan / Duplicate Chat</option>
+                <option value="Masalah Akun & Akses Login">Masalah Akun & Akses Login</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Subjek Laporan</label>
+              <input type="text" id="subjectInput" required placeholder="Judul ringkas masalah..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Detail Deskripsi Kendala</label>
+              <textarea id="messageInput" rows="5" required placeholder="Jelaskan kendala secara lengkap..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
+            </div>
+
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+              <i data-lucide="send" class="w-4 h-4"></i> Kirim Laporan Kendala
+            </button>
+          </form>
         </div>
-      </div>
 
-      <nav class="space-y-1">
-        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
-        </a>
-        <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
-        </a>
-        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
-        </a>
-        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
-        </a>
-        <a href="/report.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
-          <i data-lucide="help-circle" class="w-4 h-4"></i> Laporkan Kendala
-        </a>
-      </nav>
-    </div>
+        <!-- List Laporan Saya -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4 text-indigo-400"></i> Riwayat Laporan Saya
+          </h3>
 
-    <button onclick="logout()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition w-full">
-      <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
-    </button>
-  </aside>
-
-  <!-- Main Content Area -->
-  <main class="flex-1 p-6 md:p-10 space-y-6 overflow-y-auto">
-    <div>
-      <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
-        <i data-lucide="life-buoy" class="w-5 h-5 text-indigo-400"></i> Layanan Bantuan & Laporan Kendala
-      </h2>
-      <p class="text-xs text-slate-400">Kirimkan tiket kendala kamu dan pantau balasan langsung dari Tim Admin</p>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      <!-- Form Buat Laporan -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-          <i data-lucide="send" class="w-4 h-4 text-indigo-400"></i> Buat Tiket Baru
-        </h3>
-
-        <form onsubmit="submitReport(event)" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
-            <select id="categorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-              <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
-              <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
-              <option value="Pembayaran Langganan">Pembayaran Langganan</option>
-              <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
-              <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
-              <option value="Respon AI Lambat">Respon AI Lambat</option>
-              <option value="Spam Balasan / Duplicate Chat">Spam Balasan / Duplicate Chat</option>
-              <option value="Masalah Akun & Akses Login">Masalah Akun & Akses Login</option>
-              <option value="Lainnya">Lainnya</option>
-            </select>
+          <div id="reportsContainer" class="space-y-3">
+            <p class="text-xs text-slate-500 italic">Memuat riwayat laporan...</p>
           </div>
-
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Subjek Laporan</label>
-            <input type="text" id="subjectInput" required placeholder="Judul ringkas masalah..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Detail Deskripsi Kendala</label>
-            <textarea id="messageInput" rows="5" required placeholder="Jelaskan kendala secara lengkap..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
-          </div>
-
-          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
-            <i data-lucide="paperplane" class="w-4 h-4"></i> Kirim Laporan Kendala
-          </button>
-        </form>
-      </div>
-
-      <!-- List Laporan Saya -->
-      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-          <i data-lucide="history" class="w-4 h-4 text-indigo-400"></i> Riwayat Laporan Saya
-        </h3>
-
-        <div id="reportsContainer" class="space-y-3">
-          <p class="text-xs text-slate-500 italic">Memuat riwayat laporan...</p>
         </div>
-      </div>
 
-    </div>
-  </main>
+      </div>
+    </main>
+  </div>
 
   <script>
-    lucide.createIcons();
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '/login.html';
 
@@ -160,7 +133,7 @@
           container.appendChild(card);
         });
 
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
       } catch (err) {
         console.error(err);
       }
@@ -193,11 +166,6 @@
       } catch {
         alert("Gagal mengirimkan laporan.");
       }
-    }
-
-    function logout() {
-      localStorage.removeItem('token');
-      window.location.href = '/login.html';
     }
 
     loadReports();

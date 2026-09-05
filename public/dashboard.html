@@ -7,358 +7,195 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/layout.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
 
-  <!-- Sidebar / Navigation -->
-  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
-    <div class="space-y-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-          <i data-lucide="bot"></i>
-        </div>
-        <div>
-          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
-          <p class="text-[11px] text-slate-400">SaaS Manager</p>
-        </div>
-      </div>
+  <!-- Sidebar Container (Injected by layout.js) -->
+  <div id="app-sidebar"></div>
 
-      <!-- User Profile Badge & Dropdown -->
-      <div class="relative">
-        <button onclick="toggleUserDropdown()" class="w-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between text-left transition">
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="relative flex-shrink-0">
-              <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 object-cover transition-all duration-300">
-              <div id="premiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
-                <i data-lucide="crown" class="w-3 h-3 fill-slate-950"></i>
-              </div>
-            </div>
-            <div class="overflow-hidden">
-              <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
-              <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
-            </div>
-          </div>
-          <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
-        </button>
+  <!-- Main Area Wrapper -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <!-- Topbar Panel Container (Injected by layout.js) -->
+    <div id="app-topbar"></div>
 
-        <!-- Dropdown Menu -->
-        <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
-          <button onclick="openReportModal()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-400 hover:bg-slate-800 transition">
-            <i data-lucide="alert-circle" class="w-4 h-4"></i> Report Cepat
-          </button>
-          <button onclick="logout()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
-          </button>
-        </div>
-      </div>
+    <!-- Main Content Area -->
+    <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
 
-      <nav class="space-y-1">
-        <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
-        </a>
-        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
-          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
-        </a>
-        <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
-        </a>
-        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
-        </a>
-        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
-        </a>
-        <a href="/report.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="help-circle" class="w-4 h-4"></i> Laporkan Kendala
-        </a>
-      </nav>
-    </div>
-  </aside>
-
-  <!-- Main Content Area -->
-  <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
-
-    <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
       <div>
         <h2 class="text-xl font-bold text-slate-100">Pengaturan & Koneksi Bot</h2>
         <p class="text-xs text-slate-400">Kelola instruksi AI bot dan pantau aktivitas kirim pesan</p>
       </div>
 
-      <!-- Connection Badge Status -->
-      <div id="statusBadge" class="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-xs flex items-center gap-2 self-start">
-        <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-        <span id="statusText" class="font-medium text-amber-300">Menghubungkan...</span>
-      </div>
-    </div>
+      <!-- Top Grid: Config & QR Code -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Top Grid: Config & QR Code -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Column 1: Pelatihan & Instruksi Bot AI -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Pelatihan & Instruksi Bot AI
+            </h3>
 
-      <!-- Column 1: Pelatihan & Instruksi Bot AI -->
-      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
-        <div class="flex justify-between items-center">
-          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Pelatihan & Instruksi Bot AI
-          </h3>
-
-          <button 
-            type="button" 
-            onclick="clearAllHistory()" 
-            class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-medium"
-          >
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Reset History Bot
-          </button>
-        </div>
-
-        <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
-          <!-- System Prompt -->
-          <div class="space-y-3">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label class="block text-xs font-medium text-slate-300">
-                System Prompt / Pelatihan Bot
-              </label>
-
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[11px] text-slate-400 flex items-center gap-1">
-                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i> Auto Generate:
-                </span>
-                <button 
-                  type="button" 
-                  onclick="generatePrompt('detailed')" 
-                  id="btnGenDetailed"
-                  class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
-                >
-                  <span>Detail (~50 kata)</span>
-                </button>
-                <button 
-                  type="button" 
-                  onclick="generatePrompt('very_detailed')" 
-                  id="btnGenVeryDetailed"
-                  class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
-                >
-                  <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400"></i>
-                  <span>Sangat Detail (~300 kata)</span>
-                </button>
-              </div>
-            </div>
-
-            <textarea 
-              id="systemPrompt" 
-              rows="8" 
-              placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu klik tombol Auto Generate di atas..." 
-              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
-            ></textarea>
-          </div>
-
-          <div class="flex justify-end pt-2 border-t border-slate-800">
-            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
-              <i data-lucide="save" class="w-4 h-4"></i> Simpan Instruksi Bot
+            <button 
+              type="button" 
+              onclick="clearAllHistory()" 
+              class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-medium"
+            >
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Reset History Bot
             </button>
           </div>
-        </form>
-      </div>
 
-      <!-- Column 2: QR Code & Status -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
-        <div>
-          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
-            <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
-          </h3>
+          <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
+            <!-- System Prompt -->
+            <div class="space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label class="block text-xs font-medium text-slate-300">
+                  System Prompt / Pelatihan Bot
+                </label>
 
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
-            <div id="qrContainer" class="hidden">
-              <img id="qrCodeImg" src="" class="w-48 h-48 rounded-lg border border-slate-700 bg-white p-2">
-            </div>
-            <div id="qrLoading" class="space-y-2">
-              <div class="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p class="text-xs text-slate-400">Menyiapkan QR Code...</p>
-            </div>
-            <div id="qrConnected" class="hidden space-y-3">
-              <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
-                <i data-lucide="check-circle" class="w-6 h-6"></i>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i> Auto Generate:
+                  </span>
+                  <button 
+                    type="button" 
+                    onclick="generatePrompt('detailed')" 
+                    id="btnGenDetailed"
+                    class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                  >
+                    <span>Detail (~50 kata)</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    onclick="generatePrompt('very_detailed')" 
+                    id="btnGenVeryDetailed"
+                    class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                  >
+                    <i data-lucide="lock" id="lockIcon" class="w-3 h-3 text-amber-400"></i>
+                    <span>Sangat Detail (~300 kata)</span>
+                  </button>
+                </div>
               </div>
-              <p class="text-xs font-bold text-emerald-400">Terhubung ke WhatsApp</p>
-              
-              <button 
-                onclick="disconnectWA()" 
-                class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5 mx-auto"
-              >
-                <i data-lucide="power" class="w-3.5 h-3.5"></i> Putuskan Koneksi WA
+
+              <textarea 
+                id="systemPrompt" 
+                rows="8" 
+                placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu klik tombol Auto Generate di atas..." 
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
+              ></textarea>
+            </div>
+
+            <div class="flex justify-end pt-2 border-t border-slate-800">
+              <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i> Simpan Instruksi Bot
               </button>
             </div>
+          </form>
+        </div>
+
+        <!-- Column 2: QR Code & Status -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
+          <div>
+            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
+              <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
+            </h3>
+
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
+              <div id="qrContainer" class="hidden">
+                <img id="qrCodeImg" src="" class="w-48 h-48 rounded-lg border border-slate-700 bg-white p-2">
+              </div>
+              <div id="qrLoading" class="space-y-2">
+                <div class="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p class="text-xs text-slate-400">Menyiapkan QR Code...</p>
+              </div>
+              <div id="qrConnected" class="hidden space-y-3">
+                <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+                  <i data-lucide="check-circle" class="w-6 h-6"></i>
+                </div>
+                <p class="text-xs font-bold text-emerald-400">Terhubung ke WhatsApp</p>
+                
+                <button 
+                  onclick="disconnectWA()" 
+                  class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5 mx-auto"
+                >
+                  <i data-lucide="power" class="w-3.5 h-3.5"></i> Putuskan Koneksi WA
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-2">
+            <div class="flex justify-between items-center text-slate-400">
+              <span>Kuota Bulanan:</span>
+              <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
+            </div>
+
+            <div id="quotaFullBanner" class="hidden pt-1">
+              <a href="/subscription.html" class="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20">
+                <i data-lucide="crown" class="w-4 h-4"></i> Kuota Habis! Upgrade Premium
+              </a>
+            </div>
           </div>
         </div>
 
-        <div class="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl text-xs space-y-2">
-          <div class="flex justify-between items-center text-slate-400">
-            <span>Kuota Bulanan:</span>
-            <span id="usageStat" class="font-bold text-slate-200">0 / 200</span>
+      </div>
+
+      <!-- SAKELAR KONTROL STATUS BOT AI -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <div id="botActiveIconBg" class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
+            <i data-lucide="bot" class="w-6 h-6"></i>
           </div>
-
-          <div id="quotaFullBanner" class="hidden pt-1">
-            <a href="/subscription.html" class="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20">
-              <i data-lucide="crown" class="w-4 h-4"></i> Kuota Habis! Upgrade Premium
-            </a>
+          <div>
+            <h3 class="font-bold text-sm text-slate-200">Kontrol Respon Otomatis Bot AI</h3>
+            <p id="botActiveTextStatus" class="text-xs font-semibold text-emerald-400">Status: Respon AI Aktif</p>
           </div>
         </div>
-      </div>
 
-    </div>
-
-    <!-- AREA KHUSUS: SAKELAR KONTROL STATUS BOT AI (BERADA DI ANTARA PELATIHAN BOT & CHAT LOG) -->
-    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-3 w-full sm:w-auto">
-        <div id="botActiveIconBg" class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
-          <i data-lucide="bot" class="w-6 h-6"></i>
-        </div>
-        <div>
-          <h3 class="font-bold text-sm text-slate-200">Kontrol Respon Otomatis Bot AI</h3>
-          <p id="botActiveTextStatus" class="text-xs font-semibold text-emerald-400">Status: Respon AI Aktif</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 w-full sm:w-auto">
-        <button 
-          type="button" 
-          onclick="toggleBotEngine(true)" 
-          id="btnEnableBot"
-          class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
-        >
-          <i data-lucide="play-circle" class="w-4 h-4"></i> Aktifkan Bot
-        </button>
-        <button 
-          type="button" 
-          onclick="toggleBotEngine(false)" 
-          id="btnDisableBot"
-          class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2"
-        >
-          <i data-lucide="pause-circle" class="w-4 h-4"></i> Non Aktifkan Bot
-        </button>
-      </div>
-    </div>
-
-    <!-- Live Chat Logs -->
-    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-      <div class="flex justify-between items-center">
-        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-          <i data-lucide="message-square" class="w-4 h-4 text-indigo-400"></i> Chat Log Realtime
-        </h3>
-        <span class="text-[10px] text-slate-500 italic">*Riwayat log otomatis terhapus setelah 5 menit</span>
-      </div>
-
-      <div id="chatLogBox" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
-        <p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>
-      </div>
-    </div>
-
-  </main>
-
-  <!-- POP-UP MODAL REPORT DASAR -->
-  <div id="reportModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl relative">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="life-buoy" class="w-4 h-4 text-indigo-400"></i> Kirim Laporan Kendala Cepat
-        </h3>
-        <button onclick="closeReportModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
-      </div>
-
-      <form onsubmit="submitModalReport(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
-          <select id="modalCategorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
-            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
-            <option value="Pembayaran Langganan">Pembayaran Langganan</option>
-            <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
-            <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
-            <option value="Respon AI Lambat">Respon AI Lambat</option>
-            <option value="Spam Balasan / Duplicate Chat">Spam Balasan / Duplicate Chat</option>
-            <option value="Masalah Akun & Akses Login">Masalah Akun & Akses Login</option>
-            <option value="Lainnya">Lainnya</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Subjek Laporan</label>
-          <input type="text" id="modalSubjectInput" required placeholder="Judul masalah..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Detail Kendala</label>
-          <textarea id="modalMessageInput" rows="4" required placeholder="Jelaskan masalah kamu..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
-        </div>
-
-        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
-          <a href="/report.html" class="text-xs text-indigo-400 hover:underline font-semibold flex items-center gap-1">
-            Lihat Semua Tiket Saya <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-          </a>
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
-            Kirim Laporan
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <button 
+            type="button" 
+            onclick="toggleBotEngine(true)" 
+            id="btnEnableBot"
+            class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+          >
+            <i data-lucide="play-circle" class="w-4 h-4"></i> Aktifkan Bot
+          </button>
+          <button 
+            type="button" 
+            onclick="toggleBotEngine(false)" 
+            id="btnDisableBot"
+            class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2"
+          >
+            <i data-lucide="pause-circle" class="w-4 h-4"></i> Non Aktifkan Bot
           </button>
         </div>
-      </form>
-    </div>
+      </div>
+
+      <!-- Live Chat Logs -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="message-square" class="w-4 h-4 text-indigo-400"></i> Chat Log Realtime
+          </h3>
+          <span class="text-[10px] text-slate-500 italic">*Riwayat log otomatis terhapus setelah 5 menit</span>
+        </div>
+
+        <div id="chatLogBox" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+          <p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>
+        </div>
+      </div>
+
+    </main>
   </div>
 
   <script>
-    lucide.createIcons();
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '/login.html';
 
     const socket = io();
     let currentUserPlan = 'free';
-
-    function toggleUserDropdown() {
-      const dropdown = document.getElementById('userDropdown');
-      if (dropdown) dropdown.classList.toggle('hidden');
-    }
-
-    window.addEventListener('click', (e) => {
-      const dropdown = document.getElementById('userDropdown');
-      const btn = e.target.closest('button[onclick="toggleUserDropdown()"]');
-      if (dropdown && !dropdown.contains(e.target) && !btn) {
-        dropdown.classList.add('hidden');
-      }
-    });
-
-    function openReportModal() {
-      document.getElementById('reportModal').classList.remove('hidden');
-      document.getElementById('userDropdown')?.classList.add('hidden');
-    }
-
-    function closeReportModal() {
-      document.getElementById('reportModal').classList.add('hidden');
-    }
-
-    async function submitModalReport(e) {
-      e.preventDefault();
-      const category = document.getElementById('modalCategorySelect').value;
-      const subject = document.getElementById('modalSubjectInput').value;
-      const message = document.getElementById('modalMessageInput').value;
-
-      try {
-        const res = await fetch('/api/reports', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ category, subject, message })
-        });
-
-        const data = await res.json();
-        alert(data.message);
-
-        if (data.success) {
-          closeReportModal();
-          document.getElementById('modalSubjectInput').value = '';
-          document.getElementById('modalMessageInput').value = '';
-        }
-      } catch {
-        alert("Gagal mengirimkan laporan.");
-      }
-    }
 
     async function loadConfig() {
       try {
@@ -368,28 +205,8 @@
         const data = await res.json();
         
         currentUserPlan = data.plan || 'free';
-
-        document.getElementById('userNickname').innerText = data.nickname;
-        document.getElementById('userPlan').innerText = `${currentUserPlan} Plan`;
-
-        const userAvatar = document.getElementById('userAvatar');
-        userAvatar.src = data.profilePicture;
-
-        if (currentUserPlan === 'premium') {
-          userAvatar.className = 'w-10 h-10 rounded-full bg-slate-700 object-cover transition-all duration-300 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]';
-          document.getElementById('userPlan').className = 'text-[10px] text-amber-400 font-bold uppercase tracking-wider';
-          document.getElementById('premiumCrownBadge')?.classList.remove('hidden');
-          document.getElementById('lockIcon')?.classList.add('hidden');
-        } else {
-          userAvatar.className = 'w-10 h-10 rounded-full bg-slate-700 border border-slate-600 object-cover transition-all duration-300';
-          document.getElementById('userPlan').className = 'text-[10px] text-indigo-400 font-bold uppercase tracking-wider';
-          document.getElementById('premiumCrownBadge')?.classList.add('hidden');
-          document.getElementById('lockIcon')?.classList.remove('hidden');
-        }
-
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
 
-        // TAMPILAN SAKELAR KONTROL STATUS BOT
         const isBotActive = data.isBotActive !== false && data.isBotActive !== "false";
         const textStatus = document.getElementById('botActiveTextStatus');
         const iconBg = document.getElementById('botActiveIconBg');
@@ -400,14 +217,12 @@
           textStatus.innerText = "Status: Respon AI Aktif";
           textStatus.className = "text-xs font-semibold text-emerald-400";
           iconBg.className = "w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0";
-          
           btnEnable.className = "flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400 flex items-center justify-center gap-2 cursor-default";
           btnDisable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
         } else {
           textStatus.innerText = "Status: Respon AI Dinonaktifkan";
           textStatus.className = "text-xs font-semibold text-rose-400";
           iconBg.className = "w-11 h-11 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 flex-shrink-0";
-
           btnEnable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-600/20 text-slate-400 hover:text-emerald-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
           btnDisable.className = "flex-1 sm:flex-none bg-rose-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-rose-600/20 ring-2 ring-rose-400 flex items-center justify-center gap-2 cursor-default";
         }
@@ -423,7 +238,7 @@
           document.getElementById('quotaFullBanner')?.classList.add('hidden');
         }
 
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
 
       } catch (err) {
         console.error("Load Config Error:", err);
@@ -443,7 +258,7 @@
           },
           body: JSON.stringify({ systemPrompt })
         });
-        const data = await res.json();
+        await res.json();
         alert("Instruksi Bot AI berhasil disimpan!");
         loadConfig();
       } catch {
@@ -557,30 +372,27 @@
     socket.emit('start-bot', token);
 
     socket.on('status', (status) => {
-      const statusText = document.getElementById('statusText');
-      const statusDot = document.getElementById('statusDot');
-      statusText.innerText = status;
+      const qrLoading = document.getElementById('qrLoading');
+      const qrContainer = document.getElementById('qrContainer');
+      const qrConnected = document.getElementById('qrConnected');
 
       if (status === 'Connected') {
-        document.getElementById('qrLoading').classList.add('hidden');
-        document.getElementById('qrContainer').classList.add('hidden');
-        document.getElementById('qrConnected').classList.remove('hidden');
-        statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
-        statusText.className = "font-medium text-emerald-400";
+        if (qrLoading) qrLoading.classList.add('hidden');
+        if (qrContainer) qrContainer.classList.add('hidden');
+        if (qrConnected) qrConnected.classList.remove('hidden');
       } else if (status === 'Disconnected') {
-        document.getElementById('qrConnected').classList.add('hidden');
-        document.getElementById('qrContainer').classList.add('hidden');
-        document.getElementById('qrLoading').classList.remove('hidden');
-        statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-400";
-        statusText.className = "font-medium text-rose-400";
+        if (qrConnected) qrConnected.classList.add('hidden');
+        if (qrContainer) qrContainer.classList.add('hidden');
+        if (qrLoading) qrLoading.classList.remove('hidden');
       }
     });
 
     socket.on('qr', (qrUrl) => {
-      document.getElementById('qrLoading').classList.add('hidden');
-      document.getElementById('qrConnected').classList.add('hidden');
-      document.getElementById('qrContainer').classList.remove('hidden');
-      document.getElementById('qrCodeImg').src = qrUrl;
+      document.getElementById('qrLoading')?.classList.add('hidden');
+      document.getElementById('qrConnected')?.classList.add('hidden');
+      document.getElementById('qrContainer')?.classList.remove('hidden');
+      const img = document.getElementById('qrCodeImg');
+      if (img) img.src = qrUrl;
     });
 
     socket.on('chat-log', (log) => {
@@ -596,11 +408,6 @@
       p.innerText = `[${log.time}] ERROR (${log.from}): ${log.message}`;
       appendLogElement(p);
     });
-
-    function logout() {
-      localStorage.removeItem('token');
-      window.location.href = '/login.html';
-    }
 
     loadConfig();
   </script>

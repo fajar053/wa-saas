@@ -6,296 +6,102 @@
   <title>Tutorial & Panduan - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/layout.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
 
-  <!-- Sidebar / Navigation -->
-  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
-    <div class="space-y-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-          <i data-lucide="bot"></i>
-        </div>
-        <div>
-          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
-          <p class="text-[11px] text-slate-400">SaaS Manager</p>
-        </div>
+  <!-- Sidebar Container -->
+  <div id="app-sidebar"></div>
+
+  <!-- Main Wrapper -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <!-- Topbar Panel Container -->
+    <div id="app-topbar"></div>
+
+    <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
+
+      <div>
+        <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="graduation-cap" class="w-6 h-6 text-indigo-400"></i> Pusat Panduan & Tutorial
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">Pelajari cara mengoperasikan WA AutoBot AI mulai dari penautan WhatsApp hingga pelatihan instruksi AI.</p>
       </div>
 
-      <!-- User Profile Badge & Dropdown -->
-      <div class="relative">
-        <button onclick="toggleUserDropdown()" class="w-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between text-left transition">
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="relative flex-shrink-0">
-              <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 object-cover transition-all duration-300">
-              <div id="premiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
-                <i data-lucide="crown" class="w-3 h-3 fill-slate-950"></i>
-              </div>
-            </div>
-            <div class="overflow-hidden">
-              <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
-              <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
-            </div>
-          </div>
-          <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-2 border-b border-slate-800 overflow-x-auto pb-1">
+        <button onclick="switchTab('connect-wa')" id="tab-connect-wa" class="tab-btn active border-b-2 border-indigo-500 text-indigo-400 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
+          <i data-lucide="qr-code" class="w-4 h-4"></i> Koneksi WhatsApp
         </button>
+        <button onclick="switchTab('prompt-ai')" id="tab-prompt-ai" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
+          <i data-lucide="sparkles" class="w-4 h-4"></i> Training Prompt & Auto-Generate
+        </button>
+        <button onclick="switchTab('other-features')" id="tab-other-features" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
+          <i data-lucide="sliders" class="w-4 h-4"></i> Pengaturan & Fitur Lainnya
+        </button>
+      </div>
 
-        <!-- Dropdown Menu -->
-        <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
-          <button onclick="openReportModal()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-400 hover:bg-slate-800 transition">
-            <i data-lucide="alert-circle" class="w-4 h-4"></i> Report Cepat
-          </button>
-          <button onclick="logout()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
-          </button>
+      <!-- TAB 1: Koneksi WhatsApp -->
+      <div id="content-connect-wa" class="tab-content space-y-6">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <i data-lucide="list-checks" class="w-4 h-4 text-indigo-400"></i> Langkah-Langkah Menghubungkan WA
+          </h3>
+
+          <ol class="space-y-3 text-xs text-slate-300 list-decimal list-inside leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <li>Buka halaman <strong>WA Bot AI</strong> utama.</li>
+            <li>Perhatikan kotak <strong class="text-indigo-300">WhatsApp QR Code</strong> di sebelah kanan.</li>
+            <li>Tunggu beberapa detik sampai sistem menampilkan gambar Kode QR.</li>
+            <li>Buka aplikasi <strong>WhatsApp</strong> di HP kamu.</li>
+            <li>Pilih <strong>Perangkat Tertaut (Linked Devices)</strong> &gt; klik <strong>Tautkan Perangkat</strong>.</li>
+            <li>Arahkan kamera HP ke Kode QR di layar. Status akan berubah menjadi <span class="text-emerald-400 font-bold">Terhubung ke WhatsApp</span>.</li>
+          </ol>
         </div>
       </div>
 
-      <nav class="space-y-1">
-        <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
-        </a>
-        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
-        </a>
-        <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
-        </a>
-        <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
-          <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
-        </a>
-        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
-        </a>
-        <a href="/report.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold transition">
-          <i data-lucide="help-circle" class="w-4 h-4"></i> Laporkan Kendala
-        </a>
-      </nav>
-    </div>
-  </aside>
+      <!-- TAB 2: Prompt AI & Auto Generate -->
+      <div id="content-prompt-ai" class="tab-content hidden space-y-6">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i> Melatih Karakter & Respon Bot
+          </h3>
 
-  <!-- Main Content Area -->
-  <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
-
-    <div>
-      <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
-        <i data-lucide="graduation-cap" class="w-6 h-6 text-indigo-400"></i> Pusat Panduan & Tutorial
-      </h2>
-      <p class="text-xs text-slate-400 mt-1">Pelajari cara mengoperasikan WA AutoBot AI mulai dari penautan WhatsApp hingga pelatihan instruksi AI.</p>
-    </div>
-
-    <!-- Navigation Tabs -->
-    <div class="flex items-center gap-2 border-b border-slate-800 overflow-x-auto pb-1">
-      <button onclick="switchTab('connect-wa')" id="tab-connect-wa" class="tab-btn active border-b-2 border-indigo-500 text-indigo-400 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
-        <i data-lucide="qr-code" class="w-4 h-4"></i> Koneksi WhatsApp
-      </button>
-      <button onclick="switchTab('prompt-ai')" id="tab-prompt-ai" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
-        <i data-lucide="sparkles" class="w-4 h-4"></i> Training Prompt & Auto-Generate
-      </button>
-      <button onclick="switchTab('other-features')" id="tab-other-features" class="tab-btn text-slate-400 hover:text-slate-200 px-4 py-2.5 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition">
-        <i data-lucide="sliders" class="w-4 h-4"></i> Pengaturan & Fitur Lainnya
-      </button>
-    </div>
-
-    <!-- TAB 1: Koneksi WhatsApp -->
-    <div id="content-connect-wa" class="tab-content space-y-6">
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="list-checks" class="w-4 h-4 text-indigo-400"></i> Langkah-Langkah Menghubungkan WA
-        </h3>
-
-        <ol class="space-y-3 text-xs text-slate-300 list-decimal list-inside leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <li>Buka halaman <strong>WA Bot AI</strong> utama di WA AutoBot AI.</li>
-          <li>Perhatikan kotak <strong class="text-indigo-300">WhatsApp QR Code</strong> di sebelah kanan.</li>
-          <li>Tunggu beberapa detik sampai sistem menampilkan gambar Kode QR.</li>
-          <li>Buka aplikasi <strong>WhatsApp</strong> di HP kamu.</li>
-          <li>Buka menu titik tiga (Android) atau menu <strong>Settings</strong> (iOS) &gt; pilih <strong>Perangkat Tertaut (Linked Devices)</strong>.</li>
-          <li>Klik <strong>Tautkan Perangkat (Link a Device)</strong>, lalu arahkan kamera HP kamu ke Kode QR di layar komputer.</li>
-          <li>Setelah berhasil, indikator status akan berubah menjadi <span class="text-emerald-400 font-bold">Terhubung ke WhatsApp (Connected)</span>.</li>
-        </ol>
-      </div>
-    </div>
-
-    <!-- TAB 2: Prompt AI & Auto Generate -->
-    <div id="content-prompt-ai" class="tab-content hidden space-y-6">
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i> Melatih Karakter & Respon Bot
-        </h3>
-
-        <div class="space-y-3 text-xs text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <p><strong>Apa itu System Prompt?</strong><br>System Prompt adalah sekumpulan instruksi dasar yang melatih karakter, gaya bahasa, aturan, dan batasan dalam menjawab bagi bot kamu.</p>
-          
-          <p><strong>Cara Menggunakan Fitur Auto-Generate:</strong></p>
-          <ul class="list-disc list-inside space-y-1.5 pl-2 text-slate-400">
-            <li>Ketikkan draf ringkas mengenai peran bot kamu di kolom textarea (misal: <em>"Kamu adalah CS toko online batik yang ramah"</em>).</li>
-            <li>Klik tombol <strong class="text-indigo-400">Detail (~50 kata)</strong> untuk pengguna Free/Premium.</li>
-            <li>Khusus pengguna <strong class="text-amber-400">Premium Plan</strong>, kamu bisa klik tombol <strong class="text-purple-400">Sangat Detail (~300 kata)</strong> untuk menghasilkan instruksi komprehensif lengkap dengan peran, gaya bahasa, batasan, dan contoh respon.</li>
-            <li>Setelah Prompt terisi otomatis, klik <strong>Simpan Pengaturan</strong>.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: Fitur Lainnya -->
-    <div id="content-other-features" class="tab-content hidden space-y-6">
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i> Fitur & Mekanisme Kerja Bot
-        </h3>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-indigo-400 flex items-center gap-1.5"><i data-lucide="power" class="w-4 h-4"></i> Switch Aktifkan Respon Otomatis</h4>
-            <p class="text-slate-400 leading-relaxed">Jika sakelar ini dimatikan (Off), bot secara otomatis nonaktif: <strong>tidak akan membaca chat</strong>, tidak merespon AI, dan tidak memuat log.</p>
-          </div>
-
-          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-emerald-400 flex items-center gap-1.5"><i data-lucide="history" class="w-4 h-4"></i> Memori & Reset Chat</h4>
-            <p class="text-slate-400 leading-relaxed">Bot menyimpan riwayat percakapan agar obrolan bersambung secara alami. Riwayat disinkronkan secara realtime dengan model AI.</p>
-          </div>
-
-          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-purple-400 flex items-center gap-1.5"><i data-lucide="bot" class="w-4 h-4"></i> Mesin AI Berkecepatan Tinggi</h4>
-            <p class="text-slate-400 leading-relaxed">Sistem secara otomatis terhubung ke engine AI super cepat OpenRouter AI untuk menjamin respon singkat dan akurat.</p>
-          </div>
-
-          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <h4 class="font-bold text-amber-400 flex items-center gap-1.5"><i data-lucide="gauge" class="w-4 h-4"></i> Batas Kuota Bulanan</h4>
-            <p class="text-slate-400 leading-relaxed">Akun Free Plan mendapatkan kuota pembalasan otomatis sebesar <strong>200 chat/bulan</strong>. Untuk mendapatkan kuota Unlimited tanpa batas, tingkatkan ke Plan Premium.</p>
+          <div class="space-y-3 text-xs text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <p><strong>Cara Menggunakan Fitur Auto-Generate:</strong></p>
+            <ul class="list-disc list-inside space-y-1.5 pl-2 text-slate-400">
+              <li>Ketikkan draf ringkas mengenai peran bot kamu di kolom textarea.</li>
+              <li>Klik tombol <strong class="text-indigo-400">Detail (~50 kata)</strong> atau <strong class="text-purple-400">Sangat Detail (~300 kata)</strong>.</li>
+              <li>Setelah Prompt terisi otomatis, klik <strong>Simpan Pengaturan</strong>.</li>
+            </ul>
           </div>
         </div>
       </div>
-    </div>
 
-  </main>
+      <!-- TAB 3: Fitur Lainnya -->
+      <div id="content-other-features" class="tab-content hidden space-y-6">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i> Fitur & Mekanisme Kerja Bot
+          </h3>
 
-  <!-- POP-UP MODAL REPORT DASAR -->
-  <div id="reportModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl relative">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-          <i data-lucide="life-buoy" class="w-4 h-4 text-indigo-400"></i> Kirim Laporan Kendala Cepat
-        </h3>
-        <button onclick="closeReportModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <h4 class="font-bold text-indigo-400 flex items-center gap-1.5"><i data-lucide="power" class="w-4 h-4"></i> Switch Respon Otomatis</h4>
+              <p class="text-slate-400 leading-relaxed">Jika sakelar dimatikan (Off), bot secara otomatis nonaktif dan tidak akan membalas chat.</p>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <h4 class="font-bold text-amber-400 flex items-center gap-1.5"><i data-lucide="gauge" class="w-4 h-4"></i> Batas Kuota Bulanan</h4>
+              <p class="text-slate-400 leading-relaxed">Akun Free Plan mendapatkan kuota <strong>200 chat/bulan</strong>. Upgrade ke Premium untuk batas Unlimited.</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <form onsubmit="submitModalReport(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Kategori Kendala</label>
-          <select id="modalCategorySelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-            <option value="Kendala BOT WA Tidak berjalan">Kendala BOT WA Tidak berjalan</option>
-            <option value="Tidak terkoneksi ke WA">Tidak terkoneksi ke WA</option>
-            <option value="Pembayaran Langganan">Pembayaran Langganan</option>
-            <option value="Auto-Generate Prompt Error">Auto-Generate Prompt Error</option>
-            <option value="Kuota Bulanan Bermasalah">Kuota Bulanan Bermasalah</option>
-            <option value="Respon AI Lambat">Respon AI Lambat</option>
-            <option value="Spam Balasan / Duplicate Chat">Spam Balasan / Duplicate Chat</option>
-            <option value="Masalah Akun & Akses Login">Masalah Akun & Akses Login</option>
-            <option value="Lainnya">Lainnya</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Subjek Laporan</label>
-          <input type="text" id="modalSubjectInput" required placeholder="Judul masalah..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Detail Kendala</label>
-          <textarea id="modalMessageInput" rows="4" required placeholder="Jelaskan masalah kamu..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
-        </div>
-
-        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
-          <a href="/report.html" class="text-xs text-indigo-400 hover:underline font-semibold flex items-center gap-1">
-            Lihat Semua Tiket Saya <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-          </a>
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
-            Kirim Laporan
-          </button>
-        </div>
-      </form>
-    </div>
+    </main>
   </div>
 
   <script>
-    lucide.createIcons();
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/login.html';
-
-    function toggleUserDropdown() {
-      const dropdown = document.getElementById('userDropdown');
-      if (dropdown) dropdown.classList.toggle('hidden');
-    }
-
-    window.addEventListener('click', (e) => {
-      const dropdown = document.getElementById('userDropdown');
-      const btn = e.target.closest('button[onclick="toggleUserDropdown()"]');
-      if (dropdown && !dropdown.contains(e.target) && !btn) {
-        dropdown.classList.add('hidden');
-      }
-    });
-
-    function openReportModal() {
-      document.getElementById('reportModal').classList.remove('hidden');
-      document.getElementById('userDropdown')?.classList.add('hidden');
-    }
-
-    function closeReportModal() {
-      document.getElementById('reportModal').classList.add('hidden');
-    }
-
-    async function submitModalReport(e) {
-      e.preventDefault();
-      const category = document.getElementById('modalCategorySelect').value;
-      const subject = document.getElementById('modalSubjectInput').value;
-      const message = document.getElementById('modalMessageInput').value;
-
-      try {
-        const res = await fetch('/api/reports', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ category, subject, message })
-        });
-
-        const data = await res.json();
-        alert(data.message);
-
-        if (data.success) {
-          closeReportModal();
-          document.getElementById('modalSubjectInput').value = '';
-          document.getElementById('modalMessageInput').value = '';
-        }
-      } catch {
-        alert("Gagal mengirimkan laporan.");
-      }
-    }
-
-    async function loadProfile() {
-      try {
-        const res = await fetch('/api/config', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        document.getElementById('userNickname').innerText = data.nickname;
-        document.getElementById('userAvatar').src = data.profilePicture;
-        
-        if (data.plan === 'premium') {
-          document.getElementById('userPlan').innerText = 'Premium Plan';
-          document.getElementById('userPlan').className = 'text-[10px] text-amber-400 font-bold uppercase tracking-wider';
-          document.getElementById('premiumCrownBadge')?.classList.remove('hidden');
-        } else {
-          document.getElementById('userPlan').innerText = 'Free Plan';
-          document.getElementById('userPlan').className = 'text-[10px] text-indigo-400 font-bold uppercase tracking-wider';
-        }
-      } catch (e) {
-        console.error("Profile load error:", e);
-      }
-    }
-
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -303,18 +109,13 @@
         btn.classList.add('text-slate-400');
       });
 
-      document.getElementById(`content-${tabId}`).classList.remove('hidden');
+      document.getElementById(`content-${tabId}`)?.classList.remove('hidden');
       const activeBtn = document.getElementById(`tab-${tabId}`);
-      activeBtn.classList.remove('text-slate-400');
-      activeBtn.classList.add('border-b-2', 'border-indigo-500', 'text-indigo-400');
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('border-b-2', 'border-indigo-500', 'text-indigo-400');
+      }
     }
-
-    function logout() {
-      localStorage.removeItem('token');
-      window.location.href = '/login.html';
-    }
-
-    loadProfile();
   </script>
 </body>
 </html>
