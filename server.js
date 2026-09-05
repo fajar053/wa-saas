@@ -218,6 +218,7 @@ mongoose.connect(process.env.MONGODB_URI)
 const activeSessions = new Map();
 const isStartingSession = new Set();
 const processedMsgIds = new Set();
+const messageBuffers = new Map();
 
 // --- AUTH MIDDLEWARE ---
 app.post("/api/register", async (req, res) => {
@@ -560,7 +561,6 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
 });
 
 // --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE) ---
-// Diproses setiap 3 detik agar jadwal kurang dari 1 menit langsung terakomodasi
 setInterval(async () => {
   try {
     const now = new Date();
@@ -583,7 +583,6 @@ setInterval(async () => {
       try {
         let targetJid = formatWaJid(item.targetJid);
 
-        // Verifikasi JID kontak ke server WA untuk menjamin pengiriman pesan personals
         if (!targetJid.endsWith("@g.us")) {
           try {
             if (typeof sock.onWhatsApp === "function") {
@@ -655,6 +654,107 @@ setInterval(async () => {
     console.error("Scheduler Worker Error:", cronErr.message);
   }
 }, 3000);
+
+// --- HELPER SIMULASI BALASAN HUMANIS / ANTI-BLOKIR ---
+async function sendHumanizedReply(sock, remoteJid, replyText) {
+  try {
+    await sock.sendPresenceUpdate("composing", remoteJid);
+
+    const baseDelay = Math.min(Math.max((replyText || "").length * 35, 1500), 5000);
+    const randomJitter = Math.floor(Math.random() * 800);
+    await sleep(baseDelay + randomJitter);
+
+    await sock.sendPresenceUpdate("paused", remoteJid);
+    await sleep(200);
+
+    if (replyText) {
+      await sock.sendMessage(remoteJid, { text: replyText });
+    }
+  } catch (err) {
+    console.warn("⚠️ Send Reply Fallback:", err.message);
+    if (replyText) {
+      await sock.sendMessage(remoteJid, { text: replyText });
+    }
+  }
+}
+
+// --- PEMROSESAN BALASAN AI ---
+async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
+  try {
+    const user = await User.findById(strUserId);
+    if (!user) return;
+
+    if (user.isBotActive === false || user.isBotActive === "false") {
+      console.log(`⏸️ [BOT NONAKTIF] User ${strUserId} mematikan respon otomatis.`);
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    const currentMonth = today.slice(0, 7);
+
+    if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
+      user.dailyUsageDate = today;
+      user.dailyUsageCount = 0;
+      await user.save();
+    }
+
+    if (user.plan === "free" && user.dailyUsageCount >= 200) {
+      io.to(strUserId).emit("error-log", {
+        time: new Date().toLocaleTimeString(),
+        message: "Batas kuota bulanan (200 pesan) tercapai. Silakan upgrade ke Premium!",
+        from: senderNumber
+      });
+      return;
+    }
+
+    try {
+      await sock.readMessages([{ remoteJid, id: lastMsgId }]);
+    } catch {}
+
+    let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
+    if (!conv) {
+      conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
+    }
+
+    conv.messages.push({ role: "user", content: combinedText });
+
+    const historyForAI = conv.messages.slice(-10).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    const messagesPayload = [
+      { role: "system", content: user.systemPrompt || "Kamu adalah asisten AI yang ramah." },
+      ...historyForAI
+    ];
+
+    console.log(`📡 [AI REPLYING] Generasi balasan untuk ${senderNumber}...`);
+    const reply = await fetchAIResponse(messagesPayload, strUserId);
+
+    conv.messages.push({ role: "assistant", content: reply });
+    await conv.save();
+
+    await sendHumanizedReply(sock, remoteJid, reply);
+    await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
+
+    io.to(strUserId).emit("chat-log", {
+      time: new Date().toLocaleTimeString(),
+      sender: "BOT AI",
+      text: reply,
+      type: "out"
+    });
+
+    console.log(`✅ [AI SUCCESS] Balasan AI berhasil dikirim ke ${senderNumber}`);
+
+  } catch (err) {
+    console.error("❌ Reply Error:", err.message);
+    io.to(strUserId).emit("error-log", {
+      time: new Date().toLocaleTimeString(),
+      message: `Gagal merespon: ${err.message}`,
+      from: senderNumber
+    });
+  }
+}
 
 // --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
@@ -805,11 +905,13 @@ async function startUserBot(userId) {
             !msg.message || 
             msg.key.fromMe || 
             msg.key.remoteJid.endsWith("@g.us") ||
-            msg.key.remoteJid === "status@broadcast"
+            msg.key.remoteJid === "status@broadcast" ||
+            msg.key.remoteJid.endsWith("@newsletter")
           ) continue;
 
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
+          if (processedMsgIds.size > 1000) processedMsgIds.clear();
 
           const text = extractMessageText(msg);
           if (!text) continue;
@@ -822,8 +924,33 @@ async function startUserBot(userId) {
             text: text,
             type: "in"
           });
+
+          // BUFFER PESAN UNTUK MEMANGGIL OPENROUTER AI BOT
+          const bufferKey = `${strUserId}_${senderNumber}`;
+          if (!messageBuffers.has(bufferKey)) {
+            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
+          }
+
+          const buf = messageBuffers.get(bufferKey);
+          buf.messages.push(text);
+          buf.remoteJid = msg.key.remoteJid;
+          buf.lastMsgId = msg.key.id;
+
+          if (buf.timer) clearTimeout(buf.timer);
+
+          buf.timer = setTimeout(async () => {
+            const aggregatedTexts = [...buf.messages];
+            const targetJid = buf.remoteJid;
+            const targetMsgId = buf.lastMsgId;
+            messageBuffers.delete(bufferKey);
+
+            const combinedText = aggregatedTexts.join("\n");
+            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetMsgId);
+          }, 2500);
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("Upsert Error:", err.message);
+      }
     });
 
   } catch (error) {
