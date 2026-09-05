@@ -14,10 +14,9 @@
     // 2. Render Ikon Lucide
     if (typeof lucide !== "undefined") lucide.createIcons();
 
-    // 3. Muat Profil & Koneksi Status WA jika terotentikasi
+    // 3. Muat Profil jika terotentikasi
     if (token) {
       loadGlobalUserProfile(token);
-      initGlobalWaStatusSocket(token);
     }
   });
 
@@ -31,7 +30,7 @@
   function injectLayout() {
     const currentPath = window.location.pathname;
 
-    // A. KODE SIDEBAR BARU (Logo, Profil Badge & Tab Navigasi)
+    // A. KODE SIDEBAR (Logo, Profil Badge & Tab Navigasi)
     const sidebarHTML = `
       <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
         <div class="space-y-6">
@@ -100,17 +99,11 @@
       </aside>
     `;
 
-    // B. KODE TOPBAR BARU (Bar Tersendiri di Atas Ujung Kanan untuk WA Status)
+    // B. KODE TOPBAR (Status Badge WA Telah Dihapus)
     const topbarHTML = `
       <header class="w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold text-slate-400 hidden sm:inline">WA AutoBot AI SaaS Management</span>
-        </div>
-
-        <!-- Connection Badge Status WA di Ujung Kanan Atas -->
-        <div id="statusBadge" class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-2 shadow-inner">
-          <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-          <span id="statusText" class="font-medium text-amber-300">Menghubungkan...</span>
         </div>
       </header>
     `;
@@ -182,7 +175,7 @@
     }
   }
 
-  // --- HENDLER GLOBAL KONTROL USER & MODAL ---
+  // --- HANDLER GLOBAL KONTROL USER & MODAL ---
   window.toggleUserDropdown = function() {
     const dropdown = document.getElementById("userDropdown");
     if (dropdown) dropdown.classList.toggle("hidden");
@@ -273,31 +266,5 @@
     } catch (err) {
       console.error("Load user profile error:", err);
     }
-  }
-
-  function initGlobalWaStatusSocket(token) {
-    if (typeof io === "undefined") return;
-    const socket = io();
-    socket.emit("start-bot", token);
-
-    socket.on("status", (status) => {
-      const dot = document.getElementById("statusDot");
-      const text = document.getElementById("statusText");
-      if (!dot || !text) return;
-
-      if (status === "Connected") {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50";
-        text.className = "font-bold text-emerald-400";
-        text.innerText = "WA Connected";
-      } else if (status === "Disconnected" || status === "Unauthorized") {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-400 shadow-sm shadow-rose-400/50";
-        text.className = "font-bold text-rose-400";
-        text.innerText = "WA Terputus";
-      } else {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping";
-        text.className = "font-medium text-amber-300";
-        text.innerText = status || "Menghubungkan...";
-      }
-    });
   }
 })();
