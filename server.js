@@ -26,7 +26,6 @@ try {
   const storeModule = await import("@whiskeysockets/baileys/lib/Store/index.js");
   makeInMemoryStore = storeModule.default || storeModule.makeInMemoryStore;
 } catch (e) {
-  // Fallback dummy store jika modul sub-path tidak tersedia pada versi/lingkungan tertentu
   makeInMemoryStore = () => ({
     bind: () => {},
     contacts: {},
@@ -754,13 +753,15 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
 
     const targetsMap = new Map();
 
-    // 1. Ambil Riwayat Percakapan dari DB MongoDB (Sangat Akurat untuk Kontak yang Pernah Chat)
+    // 1. Ambil Riwayat Percakapan dari DB MongoDB
     try {
       const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
       for (const conv of conversations) {
-        const jid = conv.senderNumber.includes("@") ? conv.senderNumber : `${conv.senderNumber}@s.whatsapp.net`;
-        const cleanNumber = conv.senderNumber.replace("@s.whatsapp.net", "");
-        const formattedName = cleanNumber.startsWith("+") ? cleanNumber : `+${cleanNumber}`;
+        const cleanNumber = conv.senderNumber.replace("@s.whatsapp.net", "").replace(/[^0-9]/g, "");
+        if (!cleanNumber) continue;
+
+        const jid = `${cleanNumber}@s.whatsapp.net`;
+        const formattedName = `+${cleanNumber}`;
         
         targetsMap.set(jid, {
           jid,
@@ -777,10 +778,13 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
     const userStore = userStores.get(strUserId) || sock.store;
     if (userStore) {
       if (userStore.contacts) {
-        for (const jid in userStore.contacts) {
-          if (jid.endsWith("@s.whatsapp.net")) {
-            const contact = userStore.contacts[jid];
-            const cleanNum = jid.split("@")[0];
+        for (const rawJid in userStore.contacts) {
+          if (rawJid.endsWith("@s.whatsapp.net")) {
+            const contact = userStore.contacts[rawJid];
+            const cleanNum = rawJid.split("@")[0].replace(/[^0-9]/g, "");
+            if (!cleanNum) continue;
+
+            const jid = `${cleanNum}@s.whatsapp.net`;
             const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
             
             if (!targetsMap.has(jid)) {
@@ -801,14 +805,19 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       if (userStore.chats) {
         const chatsList = typeof userStore.chats.all === "function" ? userStore.chats.all() : Object.values(userStore.chats);
         for (const chat of chatsList) {
-          if (chat.id && chat.id.endsWith("@s.whatsapp.net") && !targetsMap.has(chat.id)) {
-            const cleanNum = chat.id.split("@")[0];
-            targetsMap.set(chat.id, {
-              jid: chat.id,
-              name: chat.name || chat.notify ? `${chat.name || chat.notify} (+${cleanNum})` : `+${cleanNum}`,
-              type: "contact",
-              lastTime: chat.conversationTimestamp ? chat.conversationTimestamp * 1000 : 0
-            });
+          if (chat.id && chat.id.endsWith("@s.whatsapp.net")) {
+            const cleanNum = chat.id.split("@")[0].replace(/[^0-9]/g, "");
+            if (!cleanNum) continue;
+
+            const jid = `${cleanNum}@s.whatsapp.net`;
+            if (!targetsMap.has(jid)) {
+              targetsMap.set(jid, {
+                jid,
+                name: chat.name || chat.notify ? `${chat.name || chat.notify} (+${cleanNum})` : `+${cleanNum}`,
+                type: "contact",
+                lastTime: chat.conversationTimestamp ? chat.conversationTimestamp * 1000 : 0
+              });
+            }
           }
         }
       }
@@ -829,7 +838,6 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
       console.warn("⚠️ Gagal mengambil daftar grup:", err.message);
     }
 
-    // Urutkan Kontak berdasarkan aktivitas percakapan terbaru
     const targets = Array.from(targetsMap.values()).sort((a, b) => b.lastTime - a.lastTime);
 
     res.json({ success: true, targets });
@@ -850,10 +858,17 @@ app.get("/api/schedule/list", verifyToken, async (req, res) => {
 app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaFile"), async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
-    const { targetJid, targetName, targetType, message, scheduledTime, isViewOnce } = req.body;
+    let { targetJid, targetName, targetType, message, scheduledTime, isViewOnce } = req.body;
 
     if (!targetJid || !scheduledTime) {
       return res.status(400).json({ success: false, message: "Target dan waktu kirim wajib diisi!" });
+    }
+
+    // Pembersihan JID Kontak di Level Simpan API
+    targetJid = targetJid.trim();
+    if (!targetJid.endsWith("@g.us")) {
+      const cleanNum = targetJid.split("@")[0].replace(/[^0-9]/g, "");
+      targetJid = `${cleanNum}@s.whatsapp.net`;
     }
 
     if (user.plan !== "premium") {
@@ -912,7 +927,7 @@ app.delete("/api/schedule/:id", verifyToken, async (req, res) => {
   }
 });
 
-// --- WORKER PENJADWAL AUTOMATIS DENGAN PROTEKSI ANTI-SPAM ---
+// --- WORKER PENJADWAL AUTOMATIS DENGAN NORMALISASI JID KONTAK & GRUP ---
 setInterval(async () => {
   try {
     const now = new Date();
@@ -925,7 +940,7 @@ setInterval(async () => {
       const strUserId = String(item.userId);
       const sock = activeSessions.get(strUserId);
 
-      // FIX: Cek kredensial aktif jika sock.user bernilai undefined pada Baileys
+      // Cek apakah koneksi sock aktif
       const isConnected = sock && (sock.user || sock.authState?.creds?.me);
 
       if (!isConnected) {
@@ -934,12 +949,30 @@ setInterval(async () => {
       }
 
       try {
-        console.log(`🚀 [SCHEDULE SENDING] Mengirim pesan otomatis ke ${item.targetJid}...`);
+        console.log(`🚀 [SCHEDULE SENDING] Memproses kirim ke ${item.targetName} (${item.targetJid})...`);
 
-        // Format JID Target
-        let targetJid = item.targetJid;
-        if (!targetJid.includes("@")) {
-          targetJid = `${targetJid}@s.whatsapp.net`;
+        // --- NORMALISASI JID KHUSUS KONTAK PERSONALS ---
+        let targetJid = item.targetJid.trim();
+
+        if (targetJid.endsWith("@g.us")) {
+          // JID Grup
+          targetJid = targetJid;
+        } else {
+          // JID Kontak Individu: Saring karakter '+', spasi, strip
+          const cleanNumber = targetJid.split("@")[0].replace(/[^0-9]/g, "");
+          targetJid = `${cleanNumber}@s.whatsapp.net`;
+
+          // Validasi server WA via onWhatsApp untuk verifikasi JID resmi
+          try {
+            if (typeof sock.onWhatsApp === "function") {
+              const [waCheck] = await sock.onWhatsApp(cleanNumber);
+              if (waCheck && waCheck.exists && waCheck.jid) {
+                targetJid = waCheck.jid;
+              }
+            }
+          } catch (checkErr) {
+            console.warn(`⚠️ [ONWHATSAPP CHECK] Warning verifikasi ${cleanNumber}:`, checkErr.message);
+          }
         }
 
         // Simulasi Presence (Ketik)
@@ -983,7 +1016,7 @@ setInterval(async () => {
           type: "out"
         });
 
-        console.log(`✅ [SCHEDULE SUCCESS] Pesan berhasil terkirim ke ${item.targetName}`);
+        console.log(`✅ [SCHEDULE SUCCESS] Pesan berhasil terkirim ke ${item.targetName} (${targetJid})`);
 
       } catch (sendErr) {
         console.error(`❌ [SCHEDULE ERR]:`, sendErr.message);
@@ -1303,7 +1336,6 @@ async function startUserBot(userId) {
     const { state, saveCreds } = await useMongoDBAuthState(strUserId);
     const { version } = await fetchLatestBaileysVersion();
 
-    // Inisialisasi In-Memory Store Baileys
     let store = userStores.get(strUserId);
     if (!store) {
       store = makeInMemoryStore({ logger: globalLogger });
