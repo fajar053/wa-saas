@@ -86,7 +86,7 @@ function normalizeJid(rawJid) {
   return `${cleanNum}@s.whatsapp.net`;
 }
 
-// --- HELPER RESOLUSI MULTI-LAYER JID (LID -> PN JID) ---
+// --- HELPER RESOLUSI MULTI-LAYER JID (LID -> PHONE NUMBER JID) ---
 function resolveRealJid(msg, sock, strUserId) {
   if (!msg || !msg.key) return "";
 
@@ -94,7 +94,7 @@ function resolveRealJid(msg, sock, strUserId) {
   const remoteJidAlt = msg.key.remoteJidAlt || "";
   const participant = msg.key.participant || msg.participant || "";
 
-  // 1. Ekstrak @s.whatsapp.net langsung jika tersedia di key
+  // 1. Ekstrak @s.whatsapp.net langsung dari properti key
   if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
     return normalizeJid(remoteJidAlt);
   }
@@ -105,7 +105,7 @@ function resolveRealJid(msg, sock, strUserId) {
     return normalizeJid(remoteJid);
   }
 
-  // 2. Cari di dalam contextInfo isi pesan
+  // 2. Cari di dalam contextInfo payload pesan
   const m = msg.message;
   if (m) {
     const ctx = m.extendedTextMessage?.contextInfo ||
@@ -113,22 +113,24 @@ function resolveRealJid(msg, sock, strUserId) {
               m.videoMessage?.contextInfo ||
               m.documentMessage?.contextInfo;
 
-    if (ctx && ctx.participant && ctx.participant.endsWith("@s.whatsapp.net")) {
-      return normalizeJid(ctx.participant);
+    if (ctx) {
+      if (ctx.participant && ctx.participant.endsWith("@s.whatsapp.net")) {
+        return normalizeJid(ctx.participant);
+      }
+      if (ctx.remoteJid && ctx.remoteJid.endsWith("@s.whatsapp.net")) {
+        return normalizeJid(ctx.remoteJid);
+      }
     }
   }
 
-  // 3. Cari pemetaan LID -> Phone Number di memori Kontak Store
+  // 3. Cari pemetaan LID -> Nomor HP di memori Kontak Store
   if (remoteJid.endsWith("@lid")) {
     const store = userStores.get(strUserId) || sock?.store;
     if (store && store.contacts) {
       for (const cJid in store.contacts) {
         const c = store.contacts[cJid];
-        if (c) {
-          if (c.lid === remoteJid && cJid.endsWith("@s.whatsapp.net")) {
-            return normalizeJid(cJid);
-          }
-          if (c.id === remoteJid && cJid.endsWith("@s.whatsapp.net")) {
+        if (c && cJid.endsWith("@s.whatsapp.net")) {
+          if (c.lid === remoteJid || c.id === remoteJid) {
             return normalizeJid(cJid);
           }
         }
@@ -681,27 +683,29 @@ setInterval(async () => {
         } catch (e) {}
 
         const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
+        const isLid = targetJid.endsWith("@lid");
+        const sendOptions = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
 
         if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
           await sock.sendMessage(targetJid, {
             image: { url: fullMediaPath },
             caption: item.message,
             viewOnce: item.isViewOnce
-          });
+          }, sendOptions);
         } else if (item.mediaType === "video" && fullMediaPath && fs.existsSync(fullMediaPath)) {
           await sock.sendMessage(targetJid, {
             video: { url: fullMediaPath },
             caption: item.message,
             viewOnce: item.isViewOnce
-          });
+          }, sendOptions);
         } else if (item.mediaType === "document" && fullMediaPath && fs.existsSync(fullMediaPath)) {
           await sock.sendMessage(targetJid, {
             document: { url: fullMediaPath },
             fileName: path.basename(fullMediaPath),
             caption: item.message
-          });
+          }, sendOptions);
         } else {
-          await sock.sendMessage(targetJid, { text: item.message });
+          await sock.sendMessage(targetJid, { text: item.message }, sendOptions);
         }
 
         item.status = "sent";
@@ -730,29 +734,34 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS DENGAN AUTO-RETRY ---
+// --- HELPER SIMULASI BALASAN HUMANIS DENGAN DUAL-OPTION DELIVERY ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
     try {
       await sock.sendPresenceUpdate("composing", targetJid);
     } catch (e) {}
 
-    const baseDelay = Math.min(Math.max((replyText || "").length * 15, 800), 2500);
+    const baseDelay = Math.min(Math.max((replyText || "").length * 15, 800), 2000);
     await sleep(baseDelay);
 
+    const isLid = targetJid.endsWith("@lid");
     let sentMsg;
-    const sendOptions = {};
+
+    // Persiapkan opsi pengiriman
+    const baseOptions = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
+    const sendOptionsWithQuoted = { ...baseOptions };
+
     if (rawMsg && rawMsg.key) {
-      sendOptions.quoted = rawMsg;
+      sendOptionsWithQuoted.quoted = rawMsg;
     }
 
     try {
-      // Upaya 1: Kirim dengan menyertakan quoted context pesan asli
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptions);
+      // Opsi 1: Mengirim balasan beserta quoted context & addressing_mode jika LID
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, sendOptionsWithQuoted);
     } catch (sendErr) {
-      console.warn("⚠️ Quoted send failed, retrying direct send:", sendErr.message);
-      // Upaya 2: Fallback kirim langsung tanpa quoted context
-      sentMsg = await sock.sendMessage(targetJid, { text: replyText });
+      console.warn("⚠️ Quoted send failed, retrying direct fallback send:", sendErr.message);
+      // Opsi 2: Fallback kirim langsung tanpa quoted context
+      sentMsg = await sock.sendMessage(targetJid, { text: replyText }, baseOptions);
     }
 
     try {
@@ -796,9 +805,11 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       return;
     }
 
+    // Tandai pesan telah dibaca (Read Receipt)
     if (rawMsg?.key?.id) {
       try {
-        await sock.readMessages([{ remoteJid: targetJid, id: rawMsg.key.id }]);
+        const readJid = rawMsg.key.remoteJid || targetJid;
+        await sock.readMessages([{ remoteJid: readJid, id: rawMsg.key.id, participant: rawMsg.key.participant }]);
       } catch (e) {}
     }
 
@@ -1018,7 +1029,7 @@ async function startUserBot(userId) {
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          // Resolusi JID tingkat lanjut
+          // Resolusi JID multi-layer (Utamakan @s.whatsapp.net jika tersedia)
           const targetJid = resolveRealJid(msg, sock, strUserId);
           const senderNumber = extractPhoneNumber(targetJid);
 
