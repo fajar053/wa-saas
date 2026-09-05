@@ -16,10 +16,23 @@ import makeWASocket, {
   DisconnectReason, 
   fetchLatestBaileysVersion, 
   initAuthCreds, 
-  BufferJSON,
-  makeInMemoryStore
+  BufferJSON
 } from "@whiskeysockets/baileys";
 import pino from "pino";
+
+// Import makeInMemoryStore secara terpisah dari modul internal Baileys
+let makeInMemoryStore;
+try {
+  const storeModule = await import("@whiskeysockets/baileys/lib/Store/index.js");
+  makeInMemoryStore = storeModule.default || storeModule.makeInMemoryStore;
+} catch (e) {
+  // Fallback dummy store jika modul sub-path tidak tersedia pada versi/lingkungan tertentu
+  makeInMemoryStore = () => ({
+    bind: () => {},
+    contacts: {},
+    chats: { all: () => [] }
+  });
+}
 
 import User from "./models/User.js";
 import Session from "./models/Session.js";
@@ -1269,7 +1282,9 @@ async function startUserBot(userId) {
       getMessage: async () => ({ conversation: "Bot Active" })
     });
 
-    store.bind(sock.ev);
+    if (store && typeof store.bind === "function") {
+      store.bind(sock.ev);
+    }
     sock.store = store;
 
     activeSessions.set(strUserId, sock);
