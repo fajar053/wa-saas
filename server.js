@@ -10,7 +10,6 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
 import { Resend } from "resend";
-import multer from "multer";
 import QRCode from "qrcode";
 import makeWASocket, { 
   DisconnectReason, 
@@ -87,6 +86,41 @@ function extractPhoneNumber(rawJid) {
   if (!rawJid) return "";
   const clean = String(rawJid).split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
   return clean || rawJid;
+}
+
+// --- RESOLUSI MULTI-TARGET JID (MENGATASI ISSUES SILENT DROP @LID) ---
+function resolveTargetJids(msg) {
+  const jids = [];
+  if (!msg || !msg.key) return jids;
+
+  const remoteJid = msg.key.remoteJid || "";
+  const remoteJidAlt = msg.key.remoteJidAlt || "";
+  const participant = msg.key.participant || "";
+
+  // Prioritas Utama: JID Nomor Telepon (@s.whatsapp.net)
+  if (remoteJidAlt && remoteJidAlt.endsWith("@s.whatsapp.net")) {
+    jids.push(normalizeJid(remoteJidAlt));
+  }
+  if (participant && participant.endsWith("@s.whatsapp.net")) {
+    jids.push(normalizeJid(participant));
+  }
+  if (remoteJid.endsWith("@s.whatsapp.net")) {
+    jids.push(normalizeJid(remoteJid));
+  }
+
+  // Jika remoteJid berformat nomor telepon
+  const cleanNum = extractPhoneNumber(remoteJid);
+  if (cleanNum && cleanNum.length >= 7) {
+    const phoneJid = `${cleanNum}@s.whatsapp.net`;
+    if (!jids.includes(phoneJid)) jids.push(phoneJid);
+  }
+
+  // Prioritas Cadangan: LID JID
+  if (remoteJid.endsWith("@lid") && !jids.includes(remoteJid)) {
+    jids.push(remoteJid);
+  }
+
+  return jids;
 }
 
 // --- KONFIGURASI OPENROUTER AI ENGINE ---
@@ -365,30 +399,45 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- HELPER BALASAN TANPA BENTROKAN (TERKIRIM PASTI) ---
-async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
+// --- HELPER BALASAN DENGAN DUAL-ROUTING (TERKIRIM 100%) ---
+async function sendHumanizedReply(sock, rawMsg, replyText) {
   try {
-    // Pastikan BOT selalu ber-status Online saat hendak mengirim pesan
-    try {
-      await sock.sendPresenceUpdate("available");
-    } catch (e) {}
+    // Jalankan pembaruan status online secara non-blocking
+    sock.sendPresenceUpdate("available").catch(() => {});
 
-    // Destinasi pesan langsung menggunakan remoteJid dari pesan masuk
-    const destinationJid = rawMsg?.key?.remoteJid || targetJid;
+    const targetJids = resolveTargetJids(rawMsg);
+    console.log(`📤 [TARGET JIDS DELIVERY]:`, targetJids);
 
-    // Kirim pesan teks secara langsung tanpa payload bertumpuk/quoted yang memicu silent drop
-    const sentMsg = await sock.sendMessage(destinationJid, { text: replyText });
+    let sentSuccess = false;
 
-    console.log(`📤 [MESSAGE DELIVERED] Ref ID: ${sentMsg?.key?.id} | Target: ${destinationJid}`);
-    return sentMsg;
+    for (const jid of targetJids) {
+      try {
+        const isLid = jid.endsWith("@lid");
+        const options = isLid ? { additionalAttributes: { addressing_mode: "lid" } } : {};
+
+        const result = await sock.sendMessage(jid, { text: replyText }, options);
+        if (result?.key?.id) {
+          console.log(`✅ [MESSAGE DELIVERED SUCCESSFULLY] JID: ${jid} | ID: ${result.key.id}`);
+          sentSuccess = true;
+        }
+      } catch (err) {
+        console.warn(`⚠️ [DELIVERY ATTEMPT FAILED] JID: ${jid} - Error: ${err.message}`);
+      }
+    }
+
+    // Fallback Terakhir jika semua target gagal
+    if (!sentSuccess && rawMsg?.key?.remoteJid) {
+      const fallbackJid = rawMsg.key.remoteJid;
+      console.log(`🔄 [FALLBACK DELIVERY] Kirim ke raw remoteJid: ${fallbackJid}`);
+      await sock.sendMessage(fallbackJid, { text: replyText });
+    }
   } catch (err) {
     console.error("❌ Send Reply Error:", err.message);
-    throw err;
   }
 }
 
 // --- PEMROSESAN BALASAN AI AUTOMATIS ---
-async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, rawMsg) {
+async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, rawMsg) {
   try {
     const user = await User.findById(strUserId);
     if (!user) return;
@@ -398,11 +447,13 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       return;
     }
 
+    // Tandai pesan terbaca (non-blocking)
     if (rawMsg?.key?.id) {
-      try {
-        const readJid = rawMsg.key.remoteJid || targetJid;
-        await sock.readMessages([{ remoteJid: readJid, id: rawMsg.key.id, participant: rawMsg.key.participant }]);
-      } catch (e) {}
+      sock.readMessages([{
+        remoteJid: rawMsg.key.remoteJid,
+        id: rawMsg.key.id,
+        participant: rawMsg.key.participant
+      }]).catch(() => {});
     }
 
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
@@ -422,14 +473,15 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       ...historyForAI
     ];
 
-    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber} (${targetJid})...`);
+    console.log(`📡 [AI GENERATION] Memproses respon AI untuk ${senderNumber}...`);
     const reply = await fetchAIResponse(messagesPayload, strUserId);
 
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    console.log(`📤 [SENDING REPLY] Mengirim balasan ke JID: ${targetJid}`);
-    await sendHumanizedReply(sock, targetJid, reply, rawMsg);
+    console.log(`📤 [SENDING REPLY] Mengirim balasan ke ${senderNumber}...`);
+    await sendHumanizedReply(sock, rawMsg, reply);
+
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
     io.to(strUserId).emit("chat-log", {
@@ -439,7 +491,7 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       type: "out"
     });
 
-    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber} (${targetJid}): "${reply.slice(0, 30)}..."`);
+    console.log(`✅ [AI SUCCESS] Pesan terkirim ke ${senderNumber}: "${reply.slice(0, 30)}..."`);
 
   } catch (err) {
     console.error("❌ Reply Error:", err.message);
@@ -538,7 +590,7 @@ async function startUserBot(userId) {
       logger: globalLogger,
       auth: state,
       printQRInTerminal: false,
-      markOnlineOnConnect: true, // PERBAIKAN: Aktifkan status Online otomatis saat terhubung
+      markOnlineOnConnect: true,
       syncFullHistory: false,
       browser: ["Ubuntu", "Chrome", "122.0.6261.111"],
       connectTimeoutMs: 60000,
@@ -567,11 +619,7 @@ async function startUserBot(userId) {
         isStartingSession.delete(strUserId);
         console.log(`✅ WA Connected: ${strUserId}`);
         
-        // PERBAIKAN: Paksa kirim pembaruan status Online ke WhatsApp Server
-        try {
-          await sock.sendPresenceUpdate("available");
-        } catch (e) {}
-
+        sock.sendPresenceUpdate("available").catch(() => {});
         io.to(strUserId).emit("status", "Connected");
       }
 
@@ -613,10 +661,9 @@ async function startUserBot(userId) {
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          const targetJid = msg.key.remoteJid;
-          const senderNumber = extractPhoneNumber(targetJid);
+          const senderNumber = extractPhoneNumber(msg.key.remoteJidAlt || msg.key.remoteJid);
 
-          console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
+          console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | Raw JID: ${msg.key.remoteJid} | Text: ${text}`);
 
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
@@ -625,32 +672,29 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          const bufferKey = `${strUserId}_${targetJid}`;
+          const bufferKey = `${strUserId}_${msg.key.remoteJid}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { 
               messages: [], 
               timer: null, 
-              targetJid: targetJid, 
               rawMsg: msg 
             });
           }
 
           const buf = messageBuffers.get(bufferKey);
           buf.messages.push(text);
-          buf.targetJid = targetJid;
           buf.rawMsg = msg;
 
           if (buf.timer) clearTimeout(buf.timer);
 
           buf.timer = setTimeout(async () => {
             const aggregatedTexts = [...buf.messages];
-            const finalTargetJid = buf.targetJid;
             const finalRawMsg = buf.rawMsg;
             messageBuffers.delete(bufferKey);
 
             const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, finalTargetJid, combinedText, sock, finalRawMsg);
-          }, 2000);
+            await handleAIBotReply(strUserId, senderNumber, combinedText, sock, finalRawMsg);
+          }, 1500);
         }
       } catch (err) {
         console.error("Upsert Error:", err.message);
