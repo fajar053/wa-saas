@@ -927,6 +927,33 @@ app.delete("/api/schedule/:id", verifyToken, async (req, res) => {
   }
 });
 
+// --- API HAPUS MASAL JADWAL (HAPUS BEBERAPA / HAPUS SEMUA) ---
+app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
+  try {
+    const { ids, deleteAll } = req.body;
+
+    if (deleteAll) {
+      const result = await Schedule.deleteMany({ userId: req.user.userId });
+      return res.json({ 
+        success: true, 
+        message: `Semua antrian jadwal (${result.deletedCount} item) berhasil dihapus!` 
+      });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "Pilih minimal satu antrian untuk dihapus." });
+    }
+
+    const result = await Schedule.deleteMany({ _id: { $in: ids }, userId: req.user.userId });
+    res.json({ 
+      success: true, 
+      message: `${result.deletedCount} antrian jadwal berhasil dihapus!` 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // --- WORKER PENJADWAL AUTOMATIS DENGAN NORMALISASI JID KONTAK & GRUP ---
 setInterval(async () => {
   try {

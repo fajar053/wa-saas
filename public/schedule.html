@@ -259,19 +259,41 @@
 
       <!-- Tabel Daftar Antrian Jadwal -->
       <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
           <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
             <i data-lucide="list-todo" class="w-4 h-4 text-indigo-400"></i> Daftar Antrian Pesan
           </h3>
-          <button onclick="loadSchedules()" class="text-xs text-indigo-400 hover:underline flex items-center gap-1">
-            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh Antrian
-          </button>
+
+          <!-- Action Control Buttons -->
+          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <button 
+              id="btnDeleteSelected" 
+              onclick="deleteSelectedSchedules()" 
+              class="hidden bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-semibold"
+            >
+              <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Hapus Terpilih (<span id="selectedCount">0</span>)
+            </button>
+
+            <button 
+              onclick="deleteAllSchedules()" 
+              class="bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-400 hover:text-rose-300 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-semibold"
+            >
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus Semua
+            </button>
+
+            <button onclick="loadSchedules()" class="text-xs text-indigo-400 hover:underline flex items-center gap-1 ml-auto sm:ml-0">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh Antrian
+            </button>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left text-slate-300">
             <thead class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
               <tr>
+                <th class="p-3 w-10 text-center">
+                  <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-0 cursor-pointer">
+                </th>
                 <th class="p-3">Target</th>
                 <th class="p-3">Pesan / Media</th>
                 <th class="p-3">Waktu Kirim</th>
@@ -281,7 +303,7 @@
             </thead>
             <tbody id="scheduleTableBody">
               <tr>
-                <td colspan="5" class="p-4 text-center text-slate-500 italic">Memuat antrian jadwal...</td>
+                <td colspan="6" class="p-4 text-center text-slate-500 italic">Memuat antrian jadwal...</td>
               </tr>
             </tbody>
           </table>
@@ -589,16 +611,24 @@
         const tbody = document.getElementById('scheduleTableBody');
         tbody.innerHTML = '';
 
+        // Reset Checkbox Pilihan
+        const selectAllBox = document.getElementById('selectAllCheckbox');
+        if (selectAllBox) selectAllBox.checked = false;
+        updateSelectedCount();
+
         if (data.success && data.data.length > 0) {
           data.data.forEach(item => {
             const tr = document.createElement('tr');
-            tr.className = 'border-b border-slate-800/50 hover:bg-slate-800/30';
+            tr.className = 'border-b border-slate-800/50 hover:bg-slate-800/30 transition';
             
             let statusBadge = '<span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">Pending</span>';
             if (item.status === 'sent') statusBadge = '<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-bold">Terkirim</span>';
             if (item.status === 'failed') statusBadge = '<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded text-[10px] font-bold">Gagal</span>';
 
             tr.innerHTML = `
+              <td class="p-3 text-center">
+                <input type="checkbox" value="${item._id}" onchange="updateSelectedCount()" class="schedule-checkbox w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-0 cursor-pointer">
+              </td>
               <td class="p-3 font-semibold text-slate-200">${item.targetName}</td>
               <td class="p-3 text-slate-400 max-w-xs truncate">${item.message || item.mediaType} ${item.isViewOnce ? '👁️' : ''}</td>
               <td class="p-3 font-mono text-indigo-300">${new Date(item.scheduledTime).toLocaleString('id-ID')}</td>
@@ -613,10 +643,86 @@
           });
           lucide.createIcons();
         } else {
-          tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">Belum ada antrian jadwal.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">Belum ada antrian jadwal.</td></tr>';
         }
       } catch {
         console.warn("Gagal memuat antrian.");
+      }
+    }
+
+    // --- LOGIK MANAJEMEN CHECKLIST DAN HAPUS MASAL ---
+    function toggleSelectAll(master) {
+      const checkboxes = document.querySelectorAll('.schedule-checkbox');
+      checkboxes.forEach(cb => cb.checked = master.checked);
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const checkedList = document.querySelectorAll('.schedule-checkbox:checked');
+      const count = checkedList.length;
+      const btnSelected = document.getElementById('btnDeleteSelected');
+      const countSpan = document.getElementById('selectedCount');
+
+      if (countSpan) countSpan.innerText = count;
+
+      if (count > 0) {
+        btnSelected.classList.remove('hidden');
+      } else {
+        btnSelected.classList.add('hidden');
+      }
+
+      // Update status Master Checkbox jika semua item individual tercentang
+      const allCheckboxes = document.querySelectorAll('.schedule-checkbox');
+      const masterCheckbox = document.getElementById('selectAllCheckbox');
+      if (masterCheckbox && allCheckboxes.length > 0) {
+        masterCheckbox.checked = (checkedList.length === allCheckboxes.length);
+      }
+    }
+
+    async function deleteSelectedSchedules() {
+      const checkedBoxes = document.querySelectorAll('.schedule-checkbox:checked');
+      const ids = Array.from(checkedBoxes).map(cb => cb.value);
+
+      if (ids.length === 0) return alert("Pilih minimal satu antrian untuk dihapus!");
+
+      if (!confirm(`Apakah Anda yakin ingin menghapus ${ids.length} antrian jadwal yang dipilih?`)) return;
+
+      try {
+        const res = await fetch('/api/schedule/delete-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ ids, deleteAll: false })
+        });
+
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) loadSchedules();
+      } catch {
+        alert("Gagal menghapus antrian terpilih.");
+      }
+    }
+
+    async function deleteAllSchedules() {
+      if (!confirm("⚠️ PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA antrian jadwal pesan?")) return;
+
+      try {
+        const res = await fetch('/api/schedule/delete-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ deleteAll: true })
+        });
+
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) loadSchedules();
+      } catch {
+        alert("Gagal menghapus semua antrian.");
       }
     }
 
