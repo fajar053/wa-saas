@@ -113,14 +113,26 @@
         </h3>
 
         <form id="scheduleForm" onsubmit="submitSchedule(event)" class="space-y-4">
-          <!-- Target Selector -->
+          <!-- Target Selector dengan Filter Tipe -->
           <div>
             <label class="block text-xs font-medium text-slate-300 mb-1">Target Kirim Pesan</label>
+            
+            <!-- Filter Kategori Tipe Target -->
+            <div class="mb-2">
+              <select id="targetTypeFilter" onchange="filterAndRenderTargets()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
+                <option value="all">🔍 Semua Tipe (Kontak, Grup, Channel)</option>
+                <option value="contact">👤 Kontak Pribadi</option>
+                <option value="group">👥 Grup WhatsApp</option>
+                <option value="channel">📢 Channel / Saluran</option>
+              </select>
+            </div>
+
+            <!-- Select Target Kontak / Grup / Channel -->
             <div class="flex gap-2">
               <select id="targetSelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-                <option value="">-- Muat Target Kontak / Grup --</option>
+                <option value="">-- Memuat Target... --</option>
               </select>
-              <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition" title="Refresh Target">
+              <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
                 <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
               </button>
             </div>
@@ -254,6 +266,7 @@
     if (!token) window.location.href = '/login.html';
 
     let userPlan = 'free';
+    let allTargets = [];
 
     function toggleUserDropdown() {
       const dropdown = document.getElementById('userDropdown');
@@ -345,26 +358,76 @@
 
     async function loadTargets() {
       try {
+        const select = document.getElementById('targetSelect');
+        select.innerHTML = '<option value="">-- Memuat Target... --</option>';
+
         const res = await fetch('/api/schedule/targets', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        const select = document.getElementById('targetSelect');
-        select.innerHTML = '<option value="">-- Pilih Target Kontak / Grup --</option>';
 
         if (data.success && data.targets) {
-          data.targets.forEach(t => {
+          allTargets = data.targets;
+          filterAndRenderTargets();
+        } else {
+          select.innerHTML = '<option value="">-- Target Tidak Ditemukan --</option>';
+        }
+      } catch {
+        console.warn("Gagal memuat target WA.");
+        document.getElementById('targetSelect').innerHTML = '<option value="">-- Gagal Memuat Target --</option>';
+      }
+    }
+
+    function filterAndRenderTargets() {
+      const select = document.getElementById('targetSelect');
+      const filterType = document.getElementById('targetTypeFilter').value;
+      select.innerHTML = '<option value="">-- Pilih Target Kirim --</option>';
+
+      const filtered = allTargets.filter(t => {
+        if (filterType === 'all') return true;
+        return t.type === filterType;
+      });
+
+      if (filtered.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = "";
+        opt.disabled = true;
+        opt.innerText = "Tidak ada target untuk kategori ini";
+        select.appendChild(opt);
+        return;
+      }
+
+      // Kelompokkan opsi berdasarkan kategori
+      const categories = {
+        contact: { label: '👤 Kontak Pribadi', items: [] },
+        group: { label: '👥 Grup WhatsApp', items: [] },
+        channel: { label: '📢 Channel / Saluran', items: [] },
+        other: { label: '📌 Target Lainnya', items: [] }
+      };
+
+      filtered.forEach(t => {
+        const typeKey = categories[t.type] ? t.type : 'other';
+        categories[typeKey].items.push(t);
+      });
+
+      Object.keys(categories).forEach(key => {
+        const cat = categories[key];
+        if (cat.items.length > 0) {
+          const groupEl = document.createElement('optgroup');
+          groupEl.label = `${cat.label} (${cat.items.length})`;
+          
+          cat.items.forEach(t => {
             const opt = document.createElement('option');
             opt.value = t.jid;
             opt.dataset.name = t.name;
             opt.dataset.type = t.type;
             opt.innerText = `[${t.type.toUpperCase()}] ${t.name}`;
-            select.appendChild(opt);
+            groupEl.appendChild(opt);
           });
+
+          select.appendChild(groupEl);
         }
-      } catch {
-        console.warn("Gagal memuat target WA.");
-      }
+      });
     }
 
     async function loadSchedules() {
