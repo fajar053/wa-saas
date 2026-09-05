@@ -60,16 +60,18 @@ const globalLogger = pino({ level: "fatal" });
 
 const userStores = new Map();
 
-// --- HELPER NORMALISASI JID WHATSAPP ---
+// --- HELPER NORMALISASI JID WHATSAPP (KONTAK & GRUP) ---
 function formatWaJid(rawJid) {
   if (!rawJid) return "";
-  let jid = rawJid.trim();
+  let jid = String(rawJid).trim();
   
-  if (jid.endsWith("@g.us")) return jid;
+  if (jid.endsWith("@g.us") || jid.endsWith("@newsletter")) return jid;
 
   let cleanNum = jid.split("@")[0].replace(/[^0-9]/g, "");
   if (cleanNum.startsWith("0")) {
     cleanNum = "62" + cleanNum.slice(1);
+  } else if (cleanNum.startsWith("8")) {
+    cleanNum = "62" + cleanNum;
   }
 
   return `${cleanNum}@s.whatsapp.net`;
@@ -216,7 +218,6 @@ mongoose.connect(process.env.MONGODB_URI)
 const activeSessions = new Map();
 const isStartingSession = new Set();
 const processedMsgIds = new Set();
-const messageBuffers = new Map();
 
 // --- AUTH MIDDLEWARE ---
 app.post("/api/register", async (req, res) => {
@@ -315,18 +316,6 @@ const verifyToken = (req, res, next) => {
     next();
   } catch {
     res.status(401).json({ message: "Token Invalid" });
-  }
-};
-
-const verifyAdmin = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ success: false, message: "Akses ditolak! Khusus administrator." });
-    }
-    next();
-  } catch (err) {
-    res.status(403).json({ success: false, message: "Akses terlarang." });
   }
 };
 
@@ -571,13 +560,14 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
 });
 
 // --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE) ---
+// Diproses setiap 3 detik agar jadwal kurang dari 1 menit langsung terakomodasi
 setInterval(async () => {
   try {
     const now = new Date();
     const pendingSchedules = await Schedule.find({
       status: "pending",
       scheduledTime: { $lte: now }
-    }).limit(5);
+    }).limit(10);
 
     for (const item of pendingSchedules) {
       const strUserId = String(item.userId);
@@ -591,12 +581,28 @@ setInterval(async () => {
       }
 
       try {
-        const targetJid = formatWaJid(item.targetJid);
+        let targetJid = formatWaJid(item.targetJid);
+
+        // Verifikasi JID kontak ke server WA untuk menjamin pengiriman pesan personals
+        if (!targetJid.endsWith("@g.us")) {
+          try {
+            if (typeof sock.onWhatsApp === "function") {
+              const cleanNum = targetJid.split("@")[0];
+              const [waCheck] = await sock.onWhatsApp(cleanNum);
+              if (waCheck && waCheck.exists && waCheck.jid && waCheck.jid.endsWith("@s.whatsapp.net")) {
+                targetJid = waCheck.jid;
+              }
+            }
+          } catch (e) {
+            console.warn("⚠️ onWhatsApp check bypassed:", e.message);
+          }
+        }
+
         console.log(`🚀 [SCHEDULE SENDING] Mengirim pesan ke ${item.targetName} (${targetJid})...`);
 
         try {
           await sock.sendPresenceUpdate("composing", targetJid);
-          await sleep(1500);
+          await sleep(1000);
           await sock.sendPresenceUpdate("paused", targetJid);
         } catch (e) {}
 
@@ -643,12 +649,12 @@ setInterval(async () => {
         await item.save();
       }
 
-      await sleep(2500);
+      await sleep(1500);
     }
   } catch (cronErr) {
     console.error("Scheduler Worker Error:", cronErr.message);
   }
-}, 10000);
+}, 3000);
 
 // --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
