@@ -380,29 +380,34 @@ app.get("/api/config", verifyToken, async (req, res) => {
   });
 });
 
-// FIX: Menggunakan findByIdAndUpdate dengan strict: false agar Mongoose memaksa penyimpan variabel isBotActive ke MongoDB
+// MEMPROSES UPDATE TERPISAH UNTUK INSTRUKSI MAUPUN SAKELAR ISBOTACTIVE
 app.post("/api/config", verifyToken, async (req, res) => {
   try {
     const { systemPrompt, isBotActive } = req.body;
-    const activeStatus = Boolean(isBotActive);
+    const updateFields = {};
+
+    if (systemPrompt !== undefined) {
+      updateFields.systemPrompt = systemPrompt;
+    }
+
+    if (isBotActive !== undefined) {
+      updateFields.isBotActive = Boolean(isBotActive);
+    }
 
     await User.findByIdAndUpdate(
       req.user.userId,
-      { 
-        $set: { 
-          systemPrompt: systemPrompt,
-          isBotActive: activeStatus 
-        } 
-      },
+      { $set: updateFields },
       { strict: false, new: true }
     );
 
-    res.json({ 
-      success: true, 
-      message: activeStatus 
-        ? "Pengaturan disimpan. Respon otomatis Bot telah AKTIF!" 
-        : "Pengaturan disimpan. Respon otomatis Bot telah DINONAKTIFKAN!" 
-    });
+    let message = "Pengaturan berhasil disimpan!";
+    if (isBotActive !== undefined) {
+      message = isBotActive 
+        ? "Respon Otomatis Bot telah BERHASIL DIAKTIFKAN!" 
+        : "Respon Otomatis Bot telah BERHASIL DINONAKTIFKAN!";
+    }
+
+    res.json({ success: true, message });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -1095,7 +1100,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
     const user = await User.findById(strUserId);
     if (!user) return;
 
-    // PENGECEKAN KETAT UNTUK FITUR ISBOTACTIVE
     if (user.isBotActive === false || user.isBotActive === "false") {
       console.log(`⏸️ [BOT NONAKTIF] User ${strUserId} mematikan respon otomatis.`);
       io.to(strUserId).emit("chat-log", {
@@ -1104,7 +1108,7 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
         text: `[Pesan Masuk (Bot Off)]: ${combinedText}`,
         type: "in"
       });
-      return; // BERHENTI DI SINI AGAR BOT TIDAK MEMBALAS AUTOMATIS
+      return;
     }
 
     const today = new Date().toISOString().split("T")[0];

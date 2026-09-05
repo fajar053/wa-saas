@@ -91,9 +91,10 @@
       </div>
     </div>
 
+    <!-- Top Grid: Config & QR Code -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <!-- Column 1: Config Form -->
+      <!-- Column 1: Pelatihan & Instruksi Bot AI -->
       <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
@@ -149,18 +150,9 @@
             ></textarea>
           </div>
 
-          <!-- SAKELAR AKTIFKAN RESPON OTOMATIS -->
-          <div class="flex items-center justify-between pt-4 border-t border-slate-800">
-            <div class="flex items-center gap-3">
-              <input type="checkbox" id="isBotActive" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-0 cursor-pointer">
-              <div>
-                <label for="isBotActive" class="text-xs font-medium text-slate-200 cursor-pointer">Aktifkan Respon Otomatis Bot</label>
-                <p class="text-[10px] text-slate-400">Jika dimatikan, WA tetap terhubung namun AI tidak akan membalas pesan masuk.</p>
-              </div>
-            </div>
-
-            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
-              Simpan Pengaturan
+          <div class="flex justify-end pt-2 border-t border-slate-800">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+              <i data-lucide="save" class="w-4 h-4"></i> Simpan Instruksi Bot
             </button>
           </div>
         </form>
@@ -211,6 +203,38 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- AREA KHUSUS: SAKELAR KONTROL STATUS BOT AI (BERADA DI ANTARA PELATIHAN BOT & CHAT LOG) -->
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <div id="botActiveIconBg" class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
+          <i data-lucide="bot" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm text-slate-200">Kontrol Respon Otomatis Bot AI</h3>
+          <p id="botActiveTextStatus" class="text-xs font-semibold text-emerald-400">Status: Respon AI Aktif</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <button 
+          type="button" 
+          onclick="toggleBotEngine(true)" 
+          id="btnEnableBot"
+          class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+        >
+          <i data-lucide="play-circle" class="w-4 h-4"></i> Aktifkan Bot
+        </button>
+        <button 
+          type="button" 
+          onclick="toggleBotEngine(false)" 
+          id="btnDisableBot"
+          class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2"
+        >
+          <i data-lucide="pause-circle" class="w-4 h-4"></i> Non Aktifkan Bot
+        </button>
+      </div>
     </div>
 
     <!-- Live Chat Logs -->
@@ -364,7 +388,29 @@
         }
 
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
-        document.getElementById('isBotActive').checked = data.isBotActive !== false;
+
+        // TAMPILAN SAKELAR KONTROL STATUS BOT
+        const isBotActive = data.isBotActive !== false && data.isBotActive !== "false";
+        const textStatus = document.getElementById('botActiveTextStatus');
+        const iconBg = document.getElementById('botActiveIconBg');
+        const btnEnable = document.getElementById('btnEnableBot');
+        const btnDisable = document.getElementById('btnDisableBot');
+
+        if (isBotActive) {
+          textStatus.innerText = "Status: Respon AI Aktif";
+          textStatus.className = "text-xs font-semibold text-emerald-400";
+          iconBg.className = "w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0";
+          
+          btnEnable.className = "flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400 flex items-center justify-center gap-2 cursor-default";
+          btnDisable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
+        } else {
+          textStatus.innerText = "Status: Respon AI Dinonaktifkan";
+          textStatus.className = "text-xs font-semibold text-rose-400";
+          iconBg.className = "w-11 h-11 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 flex-shrink-0";
+
+          btnEnable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-600/20 text-slate-400 hover:text-emerald-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
+          btnDisable.className = "flex-1 sm:flex-none bg-rose-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-rose-600/20 ring-2 ring-rose-400 flex items-center justify-center gap-2 cursor-default";
+        }
 
         const isFull = currentUserPlan === 'free' && data.dailyUsage >= 200;
         document.getElementById('usageStat').innerText = currentUserPlan === 'premium' ? `${data.dailyUsage} / Unlimited` : `${data.dailyUsage} / 200`;
@@ -387,12 +433,6 @@
     async function saveConfig(e) {
       e.preventDefault();
       const systemPrompt = document.getElementById('systemPrompt').value;
-      const isBotActive = document.getElementById('isBotActive').checked;
-
-      const payload = {
-        systemPrompt,
-        isBotActive
-      };
 
       try {
         const res = await fetch('/api/config', {
@@ -401,13 +441,31 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ systemPrompt })
+        });
+        const data = await res.json();
+        alert("Instruksi Bot AI berhasil disimpan!");
+        loadConfig();
+      } catch {
+        alert("Gagal menyimpan instruksi.");
+      }
+    }
+
+    async function toggleBotEngine(activeState) {
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ isBotActive: activeState })
         });
         const data = await res.json();
         alert(data.message);
         loadConfig();
       } catch {
-        alert("Gagal menyimpan pengaturan.");
+        alert("Gagal mengubah status bot.");
       }
     }
 
