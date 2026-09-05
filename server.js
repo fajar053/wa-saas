@@ -66,7 +66,6 @@ function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
 
-  // Hapus suffix device ID (misal: 628123:12@s.whatsapp.net -> 628123@s.whatsapp.net)
   if (jid.includes(":")) {
     const parts = jid.split("@");
     const cleanUser = parts[0].split(":")[0];
@@ -185,6 +184,7 @@ function extractMessageText(msg) {
 
 app.use(express.json());
 
+// --- MIDDLEWARE HTML INJECTION (DIBAIKI: BEBAS DARI WA-STATUS.JS) ---
 app.use((req, res, next) => {
   if (req.method === "GET" && (req.path.endsWith(".html") || req.path === "/")) {
     const fileName = req.path === "/" ? "index.html" : req.path;
@@ -194,7 +194,6 @@ app.use((req, res, next) => {
       let html = fs.readFileSync(filePath, "utf8");
       const scriptsToInject = `
         <script src="/socket.io/socket.io.js"></script>
-        <script src="/js/wa-status.js"></script>
         </body>
       `;
 
@@ -244,7 +243,7 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- AUTH MIDDLEWARE ---
+// --- AUTH ROUTES ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -679,7 +678,7 @@ setInterval(async () => {
   }
 }, 3000);
 
-// --- HELPER SIMULASI BALASAN HUMANIS DENGAN DUAL SEND FALLBACK ---
+// --- HELPER SIMULASI BALASAN HUMANIS ---
 async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
   try {
     try {
@@ -691,11 +690,9 @@ async function sendHumanizedReply(sock, targetJid, replyText, rawMsg) {
 
     let sentMsg;
     try {
-      // Opsi 1: Mengirim balasan dengan quote konteks pesan asli
       sentMsg = await sock.sendMessage(targetJid, { text: replyText }, { quoted: rawMsg });
     } catch (quoteErr) {
       console.warn("⚠️ Quoted send failed, falling back to direct send:", quoteErr.message);
-      // Opsi 2: Kirim langsung tanpa quote jika quote gagal
       sentMsg = await sock.sendMessage(targetJid, { text: replyText });
     }
 
@@ -740,7 +737,6 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
       return;
     }
 
-    // Read Receipt
     if (rawMsg?.key?.id) {
       try {
         await sock.readMessages([{ remoteJid: targetJid, id: rawMsg.key.id }]);
@@ -770,12 +766,10 @@ async function handleAIBotReply(strUserId, senderNumber, targetJid, combinedText
     conv.messages.push({ role: "assistant", content: reply });
     await conv.save();
 
-    // Kirim Balasan ke WhatsApp Kontak
     console.log(`📤 [SENDING REPLY] Mengirim balasan ke JID: ${targetJid}`);
     await sendHumanizedReply(sock, targetJid, reply, rawMsg);
     await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-    // Emit Log Realtime ke Dashboard
     io.to(strUserId).emit("chat-log", {
       time: new Date().toLocaleTimeString(),
       sender: "BOT AI",
@@ -949,7 +943,6 @@ async function startUserBot(userId) {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          // 1. Abaikan pesan kosong, pesan dari bot sendiri, grup, status, dan channel
           if (
             !msg ||
             !msg.message || 
@@ -959,22 +952,18 @@ async function startUserBot(userId) {
             msg.key.remoteJid?.endsWith("@newsletter")
           ) continue;
 
-          // 2. Ekstrak teks pesan TERLEBIH DAHULU
           const text = extractMessageText(msg);
           if (!text || text.trim() === "") continue;
 
-          // 3. Periksa deduplikasi ID HANYA jika teks valid ada
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
           if (processedMsgIds.size > 2000) processedMsgIds.clear();
 
-          // Normalize JID dan nomor telepon
           const targetJid = normalizeJid(msg.key.remoteJid);
           const senderNumber = extractPhoneNumber(targetJid);
 
           console.log(`📩 [INCOMING CHAT] User: ${strUserId} | Sender: ${senderNumber} | JID: ${targetJid} | Text: ${text}`);
 
-          // Emit Log Masuk Realtime
           io.to(strUserId).emit("chat-log", {
             time: new Date().toLocaleTimeString(),
             sender: senderNumber,
@@ -982,7 +971,6 @@ async function startUserBot(userId) {
             type: "in"
           });
 
-          // Buffer Agregasi Pesan (2 Detik Delay)
           const bufferKey = `${strUserId}_${targetJid}`;
           if (!messageBuffers.has(bufferKey)) {
             messageBuffers.set(bufferKey, { 
