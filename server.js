@@ -139,7 +139,7 @@ function resolveTargetJids(msg) {
   return jids;
 }
 
-// --- KONFIGURASI OPENROUTER AI ENGINE (FREE vs PREMIUM) ---
+// --- KONFIGURASI OPENROUTER AI ENGINE ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -165,15 +165,15 @@ const OPENROUTER_CONFIG = {
   ]
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function fetchAIResponse(messages, plan = "free", timeoutMs = 8000) {
+async function fetchAIResponse(messages, plan = "free") {
   if (!OPENROUTER_CONFIG.apiKey) {
     console.error("❌ [OPENROUTER] API Key tidak ditemukan!");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
   const models = plan === "premium" ? OPENROUTER_CONFIG.premiumModels : OPENROUTER_CONFIG.freeModels;
+  // Timeout 3.5 detik per model untuk free plan agar cepat berpindah jika lelet/hang
+  const timeoutMs = plan === "premium" ? 6000 : 3500;
 
   for (const model of models) {
     const controller = new AbortController();
@@ -197,8 +197,7 @@ async function fetchAIResponse(messages, plan = "free", timeoutMs = 8000) {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.warn(`⚠️ [AI MODEL ERROR] Model ${model} status: ${response.status}. Beralih ke model berikutnya...`);
-        await sleep(150);
+        console.warn(`⚠️ [AI MODEL ERROR] Model ${model} status: ${response.status}. Beralih cepat ke model berikutnya...`);
         continue;
       }
 
@@ -212,8 +211,7 @@ async function fetchAIResponse(messages, plan = "free", timeoutMs = 8000) {
 
     } catch (err) {
       clearTimeout(timeoutId);
-      console.warn(`⚠️ [AI MODEL FAIL] Model ${model} error/timeout (${err.message}). Beralih ke model berikutnya...`);
-      await sleep(150);
+      console.warn(`⚠️ [AI MODEL FAIL/TIMEOUT] Model ${model} error/timeout (${err.message}). Langsung beralih ke model berikutnya...`);
     }
   }
 
