@@ -20,7 +20,6 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 
-// Import makeInMemoryStore secara terpisah dari modul internal Baileys
 let makeInMemoryStore;
 try {
   const storeModule = await import("@whiskeysockets/baileys/lib/Store/index.js");
@@ -59,10 +58,24 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- MAP UNTUK MENYIMPAN MEMORY STORE SETIAP USER ---
 const userStores = new Map();
 
-// --- KONFIGURASI SINGLE PROVIDER: OPENROUTER ENGINE ---
+// --- HELPER NORMALISASI JID WHATSAPP ---
+function formatWaJid(rawJid) {
+  if (!rawJid) return "";
+  let jid = rawJid.trim();
+  
+  if (jid.endsWith("@g.us")) return jid;
+
+  let cleanNum = jid.split("@")[0].replace(/[^0-9]/g, "");
+  if (cleanNum.startsWith("0")) {
+    cleanNum = "62" + cleanNum.slice(1);
+  }
+
+  return `${cleanNum}@s.whatsapp.net`;
+}
+
+// --- KONFIGURASI OPENROUTER AI ENGINE ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -77,18 +90,14 @@ const OPENROUTER_CONFIG = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER CALL OPENROUTER AI ENGINE ---
 async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
   if (!OPENROUTER_CONFIG.apiKey) {
-    console.error("❌ [OPENROUTER ERROR] API Key tidak ditemukan di environment variable OPENROUTER_API_KEY");
     return "Maaf, konfigurasi API Key server belum diatur dengan benar 🙏";
   }
 
   for (const model of OPENROUTER_CONFIG.models) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    console.log(`📡 [OPENROUTER AI] Requesting model: ${model}`);
 
     try {
       const response = await fetch(OPENROUTER_CONFIG.baseUrl, {
@@ -100,27 +109,11 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
           "X-Title": "WA AutoBot SaaS",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         },
-        body: JSON.stringify({
-          model: model,
-          messages: messages
-        }),
+        body: JSON.stringify({ model, messages }),
         signal: controller.signal
       });
 
       clearTimeout(timeoutId);
-
-      if ([400, 401, 403, 404].includes(response.status)) {
-        const errJson = await response.json().catch(() => null);
-        console.warn(`❌ [OPENROUTER HTTP ${response.status}] ${JSON.stringify(errJson)}`);
-        await sleep(300);
-        continue;
-      }
-
-      if (response.status === 429) {
-        console.warn(`⚠️ [RATE LIMIT 429] Model ${model} sibuk, mencoba model cadangan...`);
-        await sleep(500);
-        continue;
-      }
 
       if (!response.ok) {
         await sleep(300);
@@ -131,14 +124,11 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
       const content = data?.choices?.[0]?.message?.content;
 
       if (content && content.trim()) {
-        console.log(`✅ [OPENROUTER SUCCESS] Berhasil merespon menggunakan model: ${model}`);
         return content.trim();
       }
 
     } catch (err) {
       clearTimeout(timeoutId);
-      const errDetail = err.cause?.message || err.message;
-      console.warn(`⚠️ [OPENROUTER TIMEOUT/ERR] Model ${model}: ${errDetail}`);
       await sleep(300);
     }
   }
@@ -146,7 +136,6 @@ async function fetchAIResponse(messages, strUserId = "", timeoutMs = 12000) {
   return "Halo! Terima kasih telah menghubungi kami. Saat ini sistem balasan otomatis sedang diproses, mohon ulangi pesan Anda beberapa saat lagi 🙏";
 }
 
-// --- HELPER EKSTRAKSI TEKS PESAN WHATSAPP ---
 function extractMessageText(msg) {
   if (!msg || !msg.message) return "";
   let m = msg.message;
@@ -164,17 +153,12 @@ function extractMessageText(msg) {
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
     m.documentMessage?.caption ||
-    m.buttonsResponseMessage?.selectedButtonId ||
-    m.buttonsResponseMessage?.selectedDisplayText ||
-    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
-    m.templateButtonReplyMessage?.selectedId ||
     ""
   ).trim();
 }
 
 app.use(express.json());
 
-// --- MIDDLEWARE AUTO-INJECT SCRIPT STATUS WA KE SEMUA HALAMAN HTML ---
 app.use((req, res, next) => {
   if (req.method === "GET" && (req.path.endsWith(".html") || req.path === "/")) {
     const fileName = req.path === "/" ? "index.html" : req.path;
@@ -182,19 +166,13 @@ app.use((req, res, next) => {
 
     if (fs.existsSync(filePath)) {
       let html = fs.readFileSync(filePath, "utf8");
-      
       const scriptsToInject = `
         <script src="/socket.io/socket.io.js"></script>
         <script src="/js/wa-status.js"></script>
         </body>
       `;
 
-      if (html.includes("</body>")) {
-        html = html.replace("</body>", scriptsToInject);
-      } else {
-        html += scriptsToInject;
-      }
-
+      html = html.includes("</body>") ? html.replace("</body>", scriptsToInject) : html + scriptsToInject;
       return res.send(html);
     }
   }
@@ -212,27 +190,6 @@ if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `avatar_${req.user.userId}_${Date.now()}${ext}`);
-  }
-});
-
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 1 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) return cb(null, true);
-    cb(new Error("Hanya file gambar yang diperbolehkan!"));
-  }
-});
-
-// --- KONFIGURASI MULTER UNTUK KONTEN MEDIA SCHEDULED CHAT ---
 const scheduleStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -246,21 +203,12 @@ const uploadScheduleMedia = multer({
   limits: { fileSize: 15 * 1024 * 1024 },
 });
 
-// Database Connection & Auto-Assign Admin
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("✅ DB Connected");
-
     try {
-      await User.updateOne(
-        { email: "fajar.stmikplk@gmail.com" },
-        { $set: { role: "admin" } }
-      );
-      console.log("👑 Status Admin untuk fajar.stmikplk@gmail.com berhasil diaktifkan!");
-    } catch (err) {
-      console.error("⚠️ Gagal update status admin:", err.message);
-    }
-
+      await User.updateOne({ email: "fajar.stmikplk@gmail.com" }, { $set: { role: "admin" } });
+    } catch (err) {}
     autoStartAllSessions();
   })
   .catch(err => console.error("❌ DB Error:", err));
@@ -270,7 +218,7 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- AUTHENTICATION & MIDDLEWARE ---
+// --- AUTH MIDDLEWARE ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -310,7 +258,7 @@ app.post("/api/register", async (req, res) => {
       });
       res.json({ success: true, message: "Pendaftaran berhasil! Cek email untuk verifikasi." });
     } catch {
-      res.json({ success: true, message: `Pendaftaran berhasil! Klik link verifikasi ini: ${verifyLink}` });
+      res.json({ success: true, message: `Pendaftaran berhasil! Link verifikasi: ${verifyLink}` });
     }
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -333,7 +281,7 @@ app.get("/api/verify-email", async (req, res) => {
         localStorage.setItem('token', '${loginToken}');
         window.location.href = '/dashboard.html';
       </script>
-      <h2>Verifikasi Berhasil! Mengalihkan ke Dashboard...</h2>
+      <h2>Verifikasi Berhasil! Mengalihkan...</h2>
     `);
   } catch {
     res.status(500).send("Terjadi kesalahan.");
@@ -386,29 +334,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
-  const today = new Date().toISOString().split("T")[0];
-  const currentMonth = today.slice(0, 7);
-
-  if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
-    user.dailyUsageDate = today;
-    user.dailyUsageCount = 0;
-    await user.save();
-  }
-
-  let remainingDays = 0;
-  if (user.plan === "premium" && user.expiredAt) {
-    const now = new Date();
-    if (user.expiredAt < now) {
-      user.plan = "free";
-      await user.save();
-    } else {
-      const diffTime = user.expiredAt.getTime() - now.getTime();
-      remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    }
-  }
-
-  const isBotActive = user.isBotActive !== false && user.isBotActive !== "false";
-
   res.json({
     email: user.email,
     nickname: user.nickname,
@@ -416,9 +341,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
     role: user.role || "user",
     profilePicture: user.profilePicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`,
     systemPrompt: user.systemPrompt,
-    isBotActive: isBotActive,
+    isBotActive: user.isBotActive !== false,
     plan: user.plan || "free",
-    remainingDays: remainingDays,
     dailyUsage: user.dailyUsageCount || 0,
     dailyLimit: user.plan === "premium" ? "Unlimited" : 200
   });
@@ -428,29 +352,11 @@ app.post("/api/config", verifyToken, async (req, res) => {
   try {
     const { systemPrompt, isBotActive } = req.body;
     const updateFields = {};
+    if (systemPrompt !== undefined) updateFields.systemPrompt = systemPrompt;
+    if (isBotActive !== undefined) updateFields.isBotActive = Boolean(isBotActive);
 
-    if (systemPrompt !== undefined) {
-      updateFields.systemPrompt = systemPrompt;
-    }
-
-    if (isBotActive !== undefined) {
-      updateFields.isBotActive = Boolean(isBotActive);
-    }
-
-    await User.findByIdAndUpdate(
-      req.user.userId,
-      { $set: updateFields },
-      { strict: false, new: true }
-    );
-
-    let message = "Pengaturan berhasil disimpan!";
-    if (isBotActive !== undefined) {
-      message = isBotActive 
-        ? "Respon Otomatis Bot telah BERHASIL DIAKTIFKAN!" 
-        : "Respon Otomatis Bot telah BERHASIL DINONAKTIFKAN!";
-    }
-
-    res.json({ success: true, message });
+    await User.findByIdAndUpdate(req.user.userId, { $set: updateFields });
+    res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -497,7 +403,6 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR AUTO GENERATE PROMPT ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
@@ -525,223 +430,7 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
-// --- FITUR INTEGRASI PEMBAYARAN AUTOMATIS MOOTA ---
-app.post("/api/subscribe/create-moota", verifyToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { planType } = req.body;
-
-    let baseAmount = 29000;
-    let durationDays = 30;
-
-    if (planType === "6_months") {
-      baseAmount = 149000;
-      durationDays = 180;
-    } else if (planType === "1_year") {
-      baseAmount = 259000;
-      durationDays = 365;
-    }
-
-    let existingTx = await Transaction.findOne({ userId, status: "pending", planType: planType || "1_month" });
-    
-    if (existingTx) {
-      if (existingTx.baseAmount !== baseAmount) {
-        await Transaction.deleteOne({ _id: existingTx._id });
-        existingTx = null;
-      } else {
-        return res.json({
-          success: true,
-          data: {
-            orderId: existingTx.orderId,
-            totalAmount: existingTx.totalAmount,
-            uniqueCode: existingTx.uniqueCode,
-            bankName: "BNI",
-            accountNumber: "1275951171",
-            accountHolder: "Muhammad Fajar Firdaus"
-          }
-        });
-      }
-    }
-
-    let uniqueCode;
-    let isCodeTaken = true;
-    while (isCodeTaken) {
-      uniqueCode = Math.floor(100 + Math.random() * 900);
-      const checkTx = await Transaction.findOne({ totalAmount: baseAmount + uniqueCode, status: "pending" });
-      if (!checkTx) isCodeTaken = false;
-    }
-
-    const totalAmount = baseAmount + uniqueCode;
-    const orderId = `INV-${Date.now()}`;
-
-    await Transaction.create({
-      userId,
-      orderId,
-      planType: planType || "1_month",
-      durationDays,
-      baseAmount,
-      uniqueCode,
-      totalAmount
-    });
-
-    res.json({
-      success: true,
-      data: {
-        orderId,
-        totalAmount,
-        uniqueCode,
-        bankName: "BNI",
-        accountNumber: "1275951171",
-        accountHolder: "Muhammad Fajar Firdaus"
-      }
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/subscribe/moota-webhook", async (req, res) => {
-  try {
-    const mootaSecret = process.env.MOOTA_SECRET_TOKEN;
-    
-    const incomingSignature = 
-      req.headers["signature"] || 
-      req.headers["secret-token"] || 
-      req.headers["x-moota-secret"] ||
-      req.headers["authorization"]?.replace("Bearer ", "") ||
-      req.body?.secret_token;
-
-    const isTestCheck = !req.body || (Array.isArray(req.body) && req.body.length === 0) || Object.keys(req.body || {}).length === 0;
-
-    if (isTestCheck) {
-      console.log("✅ [MOOTA WEBHOOK] Check URL / Ping test berhasil!");
-      return res.status(200).json({ status: "success", message: "Webhook URL valid & ready" });
-    }
-
-    if (mootaSecret && incomingSignature && incomingSignature !== mootaSecret) {
-      console.warn(`⚠️ [MOOTA MISMATCH] Env: "${mootaSecret}" vs Received: "${incomingSignature}"`);
-      return res.status(401).json({ success: false, message: "Unauthorized Signature" });
-    }
-
-    const mutations = Array.isArray(req.body) ? req.body : [req.body];
-
-    for (const item of mutations) {
-      const isCredit = item.type?.toUpperCase() === "CR" || item.type?.toLowerCase() === "credit";
-      
-      if (isCredit) {
-        const amountReceived = Math.round(Number(item.amount));
-        console.log(`📩 [MOOTA WEBHOOK] Transaksi Masuk Detected: Rp ${amountReceived}`);
-
-        const tx = await Transaction.findOne({ totalAmount: amountReceived, status: "pending" });
-
-        if (tx) {
-          tx.status = "completed";
-          await tx.save();
-
-          const user = await User.findById(tx.userId);
-          if (user) {
-            const now = new Date();
-            const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
-
-            let newExpiredAt;
-            if (user.plan === "premium" && user.expiredAt && user.expiredAt > now) {
-              newExpiredAt = new Date(user.expiredAt.getTime() + durationMs);
-            } else {
-              newExpiredAt = new Date(now.getTime() + durationMs);
-            }
-
-            user.plan = "premium";
-            user.expiredAt = newExpiredAt;
-            await user.save();
-
-            console.log(`✅ [MOOTA] Pembayaran Rp ${amountReceived} Sukses! User ID ${tx.userId}`);
-
-            io.to(String(tx.userId)).emit("payment-success", {
-              message: "Pembayaran Berhasil! Akun Anda telah di-upgrade ke Premium.",
-              plan: user.plan,
-              expiredAt: user.expiredAt
-            });
-          }
-        }
-      }
-    }
-
-    res.status(200).json({ status: "success" });
-
-  } catch (err) {
-    console.error("❌ Moota Webhook Error:", err.message);
-    res.status(500).json({ status: "error", message: err.message });
-  }
-});
-
-app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-
-    const tx = await Transaction.findOne({ userId, status: "pending" }).sort({ createdAt: -1 });
-    if (!tx) {
-      return res.status(404).json({ success: false, message: "Tidak ada transaksi pending yang ditemukan." });
-    }
-
-    const mootaApiToken = process.env.MOOTA_API_TOKEN;
-    
-    if (mootaApiToken) {
-      try {
-        console.log(`🔍 [MOOTA API SEARCH] Memeriksa mutasi untuk Rp ${tx.totalAmount}...`);
-        
-        const mootaRes = await fetch(`https://api.moota.co/v1/mutation?amount=${tx.totalAmount}&type=CR`, {
-          headers: {
-            "Authorization": `Bearer ${mootaApiToken}`,
-            "Accept": "application/json"
-          }
-        });
-
-        if (mootaRes.ok) {
-          const mootaData = await mootaRes.json();
-          const mutations = mootaData?.data || mootaData || [];
-
-          const match = Array.isArray(mutations) && mutations.some(m => Math.round(Number(m.amount)) === tx.totalAmount);
-
-          if (match) {
-            tx.status = "completed";
-            await tx.save();
-
-            const user = await User.findById(userId);
-            if (user) {
-              const now = new Date();
-              const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
-              user.plan = "premium";
-              user.expiredAt = user.expiredAt && user.expiredAt > now 
-                ? new Date(user.expiredAt.getTime() + durationMs) 
-                : new Date(now.getTime() + durationMs);
-              await user.save();
-            }
-
-            return res.json({
-              success: true,
-              completed: true,
-              message: "Pembayaran berhasil diverifikasi! Akun Anda kini Aktif Premium."
-            });
-          }
-        }
-      } catch (apiErr) {
-        console.warn("⚠️ Gagal koneksi Moota API:", apiErr.message);
-      }
-    }
-
-    res.json({
-      success: true,
-      completed: false,
-      message: "Mutasi belum terdeteksi di server bank/Moota. Mohon tunggu 1-2 menit lagi lalu klik tombol ini kembali."
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// --- API WA SCHEDULE CHAT DENGAN PEMBACAAN KONTAK & PERCAKAPAN LENGKAP ---
+// --- API WA SCHEDULE ---
 app.get("/api/schedule/targets", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -753,77 +442,36 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
 
     const targetsMap = new Map();
 
-    // 1. Ambil Riwayat Percakapan dari DB MongoDB
     try {
       const conversations = await Conversation.find({ botUserId: strUserId }).sort({ updatedAt: -1 });
       for (const conv of conversations) {
-        const cleanNumber = conv.senderNumber.replace("@s.whatsapp.net", "").replace(/[^0-9]/g, "");
-        if (!cleanNumber) continue;
-
-        const jid = `${cleanNumber}@s.whatsapp.net`;
-        const formattedName = `+${cleanNumber}`;
-        
+        const jid = formatWaJid(conv.senderNumber);
+        const cleanNum = jid.split("@")[0];
         targetsMap.set(jid, {
           jid,
-          name: formattedName,
+          name: `+${cleanNum}`,
           type: "contact",
           lastTime: conv.updatedAt ? new Date(conv.updatedAt).getTime() : 0
         });
       }
-    } catch (dbErr) {
-      console.warn("⚠️ Gagal mengambil riwayat DB:", dbErr.message);
-    }
+    } catch (err) {}
 
-    // 2. Ambil dari Baileys In-Memory Store & Contacts
     const userStore = userStores.get(strUserId) || sock.store;
-    if (userStore) {
-      if (userStore.contacts) {
-        for (const rawJid in userStore.contacts) {
-          if (rawJid.endsWith("@s.whatsapp.net")) {
-            const contact = userStore.contacts[rawJid];
-            const cleanNum = rawJid.split("@")[0].replace(/[^0-9]/g, "");
-            if (!cleanNum) continue;
-
-            const jid = `${cleanNum}@s.whatsapp.net`;
-            const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
-            
-            if (!targetsMap.has(jid)) {
-              targetsMap.set(jid, {
-                jid,
-                name: displayName,
-                type: "contact",
-                lastTime: 0
-              });
-            } else if (contact.name || contact.notify) {
-              const existing = targetsMap.get(jid);
-              existing.name = `${contact.name || contact.notify} (+${cleanNum})`;
-            }
-          }
-        }
-      }
-
-      if (userStore.chats) {
-        const chatsList = typeof userStore.chats.all === "function" ? userStore.chats.all() : Object.values(userStore.chats);
-        for (const chat of chatsList) {
-          if (chat.id && chat.id.endsWith("@s.whatsapp.net")) {
-            const cleanNum = chat.id.split("@")[0].replace(/[^0-9]/g, "");
-            if (!cleanNum) continue;
-
-            const jid = `${cleanNum}@s.whatsapp.net`;
-            if (!targetsMap.has(jid)) {
-              targetsMap.set(jid, {
-                jid,
-                name: chat.name || chat.notify ? `${chat.name || chat.notify} (+${cleanNum})` : `+${cleanNum}`,
-                type: "contact",
-                lastTime: chat.conversationTimestamp ? chat.conversationTimestamp * 1000 : 0
-              });
-            }
+    if (userStore && userStore.contacts) {
+      for (const rawJid in userStore.contacts) {
+        if (rawJid.endsWith("@s.whatsapp.net")) {
+          const contact = userStore.contacts[rawJid];
+          const jid = formatWaJid(rawJid);
+          const cleanNum = jid.split("@")[0];
+          const displayName = contact.name || contact.notify ? `${contact.name || contact.notify} (+${cleanNum})` : `+${cleanNum}`;
+          
+          if (!targetsMap.has(jid)) {
+            targetsMap.set(jid, { jid, name: displayName, type: "contact", lastTime: 0 });
           }
         }
       }
     }
 
-    // 3. Fetch Grup WA
     try {
       const groups = await sock.groupFetchAllParticipating();
       for (const jid in groups) {
@@ -834,12 +482,9 @@ app.get("/api/schedule/targets", verifyToken, async (req, res) => {
           lastTime: Date.now()
         });
       }
-    } catch (err) {
-      console.warn("⚠️ Gagal mengambil daftar grup:", err.message);
-    }
+    } catch (err) {}
 
     const targets = Array.from(targetsMap.values()).sort((a, b) => b.lastTime - a.lastTime);
-
     res.json({ success: true, targets });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -864,29 +509,7 @@ app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaF
       return res.status(400).json({ success: false, message: "Target dan waktu kirim wajib diisi!" });
     }
 
-    // Pembersihan JID Kontak di Level Simpan API
-    targetJid = targetJid.trim();
-    if (!targetJid.endsWith("@g.us")) {
-      const cleanNum = targetJid.split("@")[0].replace(/[^0-9]/g, "");
-      targetJid = `${cleanNum}@s.whatsapp.net`;
-    }
-
-    if (user.plan !== "premium") {
-      const pendingCount = await Schedule.countDocuments({ userId: user._id, status: "pending" });
-      if (pendingCount >= 2) {
-        return res.status(403).json({
-          success: false,
-          message: "Batas antrian Free Plan (maksimal 2 antrian) tercapai. Upgrade ke Premium untuk antrian unlimited!"
-        });
-      }
-
-      if (req.file || isViewOnce === "true") {
-        return res.status(403).json({
-          success: false,
-          message: "Fitur kirim media (gambar/video/file) dan Sekali Lihat khusus untuk pengguna Premium!"
-        });
-      }
-    }
+    targetJid = formatWaJid(targetJid);
 
     let mediaUrl = "";
     let mediaType = "none";
@@ -927,17 +550,13 @@ app.delete("/api/schedule/:id", verifyToken, async (req, res) => {
   }
 });
 
-// --- API HAPUS MASAL JADWAL (HAPUS BEBERAPA / HAPUS SEMUA) ---
 app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
   try {
     const { ids, deleteAll } = req.body;
 
     if (deleteAll) {
       const result = await Schedule.deleteMany({ userId: req.user.userId });
-      return res.json({ 
-        success: true, 
-        message: `Semua antrian jadwal (${result.deletedCount} item) berhasil dihapus!` 
-      });
+      return res.json({ success: true, message: `Semua antrian jadwal (${result.deletedCount} item) berhasil dihapus!` });
     }
 
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -945,16 +564,13 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
     }
 
     const result = await Schedule.deleteMany({ _id: { $in: ids }, userId: req.user.userId });
-    res.json({ 
-      success: true, 
-      message: `${result.deletedCount} antrian jadwal berhasil dihapus!` 
-    });
+    res.json({ success: true, message: `${result.deletedCount} antrian jadwal berhasil dihapus!` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// --- WORKER PENJADWAL AUTOMATIS DENGAN NORMALISASI JID KONTAK & GRUP ---
+// --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE) ---
 setInterval(async () => {
   try {
     const now = new Date();
@@ -967,50 +583,25 @@ setInterval(async () => {
       const strUserId = String(item.userId);
       const sock = activeSessions.get(strUserId);
 
-      // Cek apakah koneksi sock aktif
       const isConnected = sock && (sock.user || sock.authState?.creds?.me);
 
       if (!isConnected) {
-        console.warn(`⏳ [SCHEDULE DELAY] Session User ${strUserId} belum siap.`);
+        console.warn(`⏳ [SCHEDULE DELAY] WA Session untuk User ${strUserId} belum terhubung.`);
         continue;
       }
 
       try {
-        console.log(`🚀 [SCHEDULE SENDING] Memproses kirim ke ${item.targetName} (${item.targetJid})...`);
+        const targetJid = formatWaJid(item.targetJid);
+        console.log(`🚀 [SCHEDULE SENDING] Mengirim pesan ke ${item.targetName} (${targetJid})...`);
 
-        // --- NORMALISASI JID KHUSUS KONTAK PERSONALS ---
-        let targetJid = item.targetJid.trim();
-
-        if (targetJid.endsWith("@g.us")) {
-          // JID Grup
-          targetJid = targetJid;
-        } else {
-          // JID Kontak Individu: Saring karakter '+', spasi, strip
-          const cleanNumber = targetJid.split("@")[0].replace(/[^0-9]/g, "");
-          targetJid = `${cleanNumber}@s.whatsapp.net`;
-
-          // Validasi server WA via onWhatsApp untuk verifikasi JID resmi
-          try {
-            if (typeof sock.onWhatsApp === "function") {
-              const [waCheck] = await sock.onWhatsApp(cleanNumber);
-              if (waCheck && waCheck.exists && waCheck.jid) {
-                targetJid = waCheck.jid;
-              }
-            }
-          } catch (checkErr) {
-            console.warn(`⚠️ [ONWHATSAPP CHECK] Warning verifikasi ${cleanNumber}:`, checkErr.message);
-          }
-        }
-
-        // Simulasi Presence (Ketik)
-        await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
-        const randomJitter = Math.floor(Math.random() * 2000) + 1000;
-        await sleep(randomJitter);
-        await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
+        try {
+          await sock.sendPresenceUpdate("composing", targetJid);
+          await sleep(1500);
+          await sock.sendPresenceUpdate("paused", targetJid);
+        } catch (e) {}
 
         const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
 
-        // Eksekusi Kirim Berdasarkan Tipe Media
         if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
           await sock.sendMessage(targetJid, {
             image: { url: fullMediaPath },
@@ -1043,7 +634,7 @@ setInterval(async () => {
           type: "out"
         });
 
-        console.log(`✅ [SCHEDULE SUCCESS] Pesan berhasil terkirim ke ${item.targetName} (${targetJid})`);
+        console.log(`✅ [SCHEDULE SUCCESS] Terkirim ke ${item.targetName} (${targetJid})`);
 
       } catch (sendErr) {
         console.error(`❌ [SCHEDULE ERR]:`, sendErr.message);
@@ -1052,117 +643,12 @@ setInterval(async () => {
         await item.save();
       }
 
-      await sleep(3000);
+      await sleep(2500);
     }
   } catch (cronErr) {
     console.error("Scheduler Worker Error:", cronErr.message);
   }
 }, 10000);
-
-// --- USER REPORT API ---
-app.post("/api/reports", verifyToken, async (req, res) => {
-  try {
-    const { category, subject, message } = req.body;
-    const user = await User.findById(req.user.userId);
-    
-    if (!category || !subject || !message) {
-      return res.status(400).json({ success: false, message: "Semua kolom laporan wajib diisi." });
-    }
-
-    const reportId = `RPT-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    const newReport = await Report.create({
-      reportId,
-      userId: user._id,
-      userEmail: user.email,
-      userNickname: user.nickname,
-      category,
-      subject,
-      message
-    });
-
-    res.json({ success: true, message: `Laporan berhasil dikirim! ID Laporan: ${reportId}`, data: newReport });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
-  try {
-    const reports = await Report.find({ userId: req.user.userId }).sort({ createdAt: -1 });
-    res.json({ success: true, data: reports });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// --- ADMIN API ---
-app.get("/api/admin/pending-payments", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const transactions = await Transaction.find({ status: "pending" }).populate("userId", "nickname email").sort({ createdAt: -1 });
-    res.json({ success: true, data: transactions });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/admin/approve-payment", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { transactionId } = req.body;
-    const tx = await Transaction.findById(transactionId);
-    if (!tx) return res.status(404).json({ success: false, message: "Transaksi tidak ditemukan" });
-
-    tx.status = "completed";
-    await tx.save();
-
-    const user = await User.findById(tx.userId);
-    if (user) {
-      const now = new Date();
-      const durationMs = (tx.durationDays || 30) * 24 * 60 * 60 * 1000;
-      user.plan = "premium";
-      user.expiredAt = user.expiredAt && user.expiredAt > now 
-        ? new Date(user.expiredAt.getTime() + durationMs) 
-        : new Date(now.getTime() + durationMs);
-      await user.save();
-
-      io.to(String(user._id)).emit("payment-success", {
-        message: "Pembayaran Anda telah disetujui secara manual oleh Admin!",
-        plan: user.plan,
-        expiredAt: user.expiredAt
-      });
-    }
-
-    res.json({ success: true, message: "Pembayaran berhasil dikonfirmasi & status User telah di-upgrade ke Premium!" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.get("/api/admin/all-reports", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const reports = await Report.find().sort({ createdAt: -1 });
-    res.json({ success: true, data: reports });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/admin/reply-report", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { reportId, adminReply, status } = req.body;
-    const report = await Report.findOne({ reportId });
-    if (!report) return res.status(404).json({ success: false, message: "Laporan tidak ditemukan" });
-
-    report.adminReply = adminReply;
-    report.status = status || "Resolved";
-    report.repliedAt = new Date();
-    await report.save();
-
-    res.json({ success: true, message: "Tanggapan berhasil dikirim ke User!" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
 
 // --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
@@ -1186,9 +672,7 @@ async function useMongoDBAuthState(userId) {
     try {
       const dataStr = JSON.stringify({ creds, keys }, BufferJSON.replacer);
       await Session.findOneAndUpdate({ userId: String(userId) }, { data: dataStr }, { upsert: true });
-    } catch (err) {
-      console.error(`Error saving creds:`, err.message);
-    }
+    } catch (err) {}
   };
 
   return {
@@ -1226,125 +710,9 @@ async function autoStartAllSessions() {
         startUserBot(String(s.userId));
       }
     }
-  } catch (e) {
-    console.error("AutoStart Error:", e.message);
-  }
+  } catch (e) {}
 }
 
-// --- HELPER SIMULASI KIRIM BALASAN HUMANIS / ANTI-BLOKIR ---
-async function sendHumanizedReply(sock, remoteJid, replyText, imageUrl = null) {
-  try {
-    await sock.sendPresenceUpdate("composing", remoteJid);
-
-    const baseDelay = Math.min(Math.max((replyText || "").length * 35, 2000), 6000);
-    const randomJitter = Math.floor(Math.random() * 1200);
-    const totalTypingTime = baseDelay + randomJitter;
-
-    await sleep(totalTypingTime);
-
-    await sock.sendPresenceUpdate("paused", remoteJid);
-    await sleep(300);
-
-    if (imageUrl) {
-      await sock.sendMessage(remoteJid, {
-        image: { url: imageUrl },
-        caption: replyText || ""
-      });
-    } else if (replyText) {
-      await sock.sendMessage(remoteJid, { text: replyText });
-    }
-  } catch (err) {
-    console.warn("⚠️ Anti-Ban Send Fallback:", err.message);
-    if (imageUrl) {
-      await sock.sendMessage(remoteJid, { image: { url: imageUrl }, caption: replyText || "" });
-    } else if (replyText) {
-      await sock.sendMessage(remoteJid, { text: replyText });
-    }
-  }
-}
-
-// --- PEMROSESAN BALASAN AI ---
-async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText, sock, lastMsgId) {
-  try {
-    const user = await User.findById(strUserId);
-    if (!user) return;
-
-    if (user.isBotActive === false || user.isBotActive === "false") {
-      console.log(`⏸️ [BOT NONAKTIF] User ${strUserId} mematikan respon otomatis.`);
-      io.to(strUserId).emit("chat-log", {
-        time: new Date().toLocaleTimeString(),
-        sender: senderNumber,
-        text: `[Pesan Masuk (Bot Off)]: ${combinedText}`,
-        type: "in"
-      });
-      return;
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-    const currentMonth = today.slice(0, 7);
-
-    if (!user.dailyUsageDate || user.dailyUsageDate.slice(0, 7) !== currentMonth) {
-      user.dailyUsageDate = today;
-      user.dailyUsageCount = 0;
-      await user.save();
-    }
-
-    if (user.plan === "free" && user.dailyUsageCount >= 200) {
-      io.to(strUserId).emit("error-log", {
-        time: new Date().toLocaleTimeString(),
-        message: "Batas kuota bulanan (200 pesan) tercapai. Silakan upgrade ke Premium!",
-        from: senderNumber
-      });
-      return;
-    }
-
-    try {
-      await sock.readMessages([{ remoteJid, id: lastMsgId }]);
-    } catch {}
-
-    let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
-    if (!conv) {
-      conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });
-    }
-
-    conv.messages.push({ role: "user", content: combinedText });
-
-    const historyForAI = conv.messages.slice(-10).map(m => ({
-      role: m.role,
-      content: m.content
-    }));
-
-    const messagesPayload = [
-      { role: "system", content: user.systemPrompt || "Kamu adalah asisten AI yang ramah." },
-      ...historyForAI
-    ];
-
-    const reply = await fetchAIResponse(messagesPayload, strUserId);
-
-    conv.messages.push({ role: "assistant", content: reply });
-    await conv.save();
-
-    await sendHumanizedReply(sock, remoteJid, reply);
-    await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
-
-    io.to(strUserId).emit("chat-log", {
-      time: new Date().toLocaleTimeString(),
-      sender: senderNumber,
-      text: reply,
-      type: "out"
-    });
-
-  } catch (err) {
-    console.error("❌ Reply Error:", err.message);
-    io.to(strUserId).emit("error-log", {
-      time: new Date().toLocaleTimeString(),
-      message: `Gagal merespon: ${err.message}`,
-      from: senderNumber
-    });
-  }
-}
-
-// --- BOT WA ENGINE ---
 async function startUserBot(userId) {
   const strUserId = String(userId);
 
@@ -1376,12 +744,10 @@ async function startUserBot(userId) {
       printQRInTerminal: false,
       markOnlineOnConnect: false,
       syncFullHistory: false,
-      generateHighQualityLinkPreview: false,
       browser: ["Ubuntu", "Chrome", "122.0.6261.111"],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
-      keepAliveIntervalMs: 30000,
-      getMessage: async () => ({ conversation: "Bot Active" })
+      keepAliveIntervalMs: 30000
     });
 
     if (store && typeof store.bind === "function") {
@@ -1403,7 +769,7 @@ async function startUserBot(userId) {
 
       if (connection === "open") {
         isStartingSession.delete(strUserId);
-        console.log(`✅ WA Connected for User: ${strUserId}`);
+        console.log(`✅ WA Connected: ${strUserId}`);
         io.to(strUserId).emit("status", "Connected");
       }
 
@@ -1413,8 +779,6 @@ async function startUserBot(userId) {
 
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
-        console.log(`🔌 [WA CLOSED] User: ${strUserId} | Reason: ${statusCode} | Reconnect: ${shouldReconnect}`);
 
         if (shouldReconnect) {
           setTimeout(() => startUserBot(strUserId), 5000);
@@ -1435,13 +799,11 @@ async function startUserBot(userId) {
             !msg.message || 
             msg.key.fromMe || 
             msg.key.remoteJid.endsWith("@g.us") ||
-            msg.key.remoteJid === "status@broadcast" ||
-            msg.key.remoteJid.endsWith("@newsletter")
+            msg.key.remoteJid === "status@broadcast"
           ) continue;
 
           if (processedMsgIds.has(msg.key.id)) continue;
           processedMsgIds.add(msg.key.id);
-          if (processedMsgIds.size > 1000) processedMsgIds.clear();
 
           const text = extractMessageText(msg);
           if (!text) continue;
@@ -1454,47 +816,20 @@ async function startUserBot(userId) {
             text: text,
             type: "in"
           });
-
-          const bufferKey = `${strUserId}_${senderNumber}`;
-          if (!messageBuffers.has(bufferKey)) {
-            messageBuffers.set(bufferKey, { messages: [], timer: null, remoteJid: msg.key.remoteJid, lastMsgId: msg.key.id });
-          }
-
-          const buf = messageBuffers.get(bufferKey);
-          buf.messages.push(text);
-          buf.remoteJid = msg.key.remoteJid;
-          buf.lastMsgId = msg.key.id;
-
-          if (buf.timer) clearTimeout(buf.timer);
-
-          buf.timer = setTimeout(async () => {
-            const aggregatedTexts = [...buf.messages];
-            const targetJid = buf.remoteJid;
-            const targetMsgId = buf.lastMsgId;
-            messageBuffers.delete(bufferKey);
-
-            const combinedText = aggregatedTexts.join("\n");
-            await handleAIBotReply(strUserId, senderNumber, targetJid, combinedText, sock, targetMsgId);
-          }, 2500);
         }
-      } catch (err) {
-        console.error("Upsert Error:", err.message);
-      }
+      } catch (err) {}
     });
 
   } catch (error) {
-    console.error("Bot Start Error:", error.message);
     isStartingSession.delete(strUserId);
   }
 }
 
-// SOCKET.IO REALTIME ROOM MANAGEMENT
 io.on("connection", (socket) => {
   socket.on("start-bot", (token) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const strUserId = String(decoded.userId);
-      
       socket.join(strUserId);
       startUserBot(strUserId);
     } catch {
