@@ -26,6 +26,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Transaction from "./models/Transaction.js";
 import Report from "./models/Report.js";
+import Schedule from "./models/Schedule.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -96,7 +97,6 @@ async function createAutoSpreadsheetForUser(user) {
       name: `[WA AutoBot] Database Auto-Reply - ${user.nickname}`,
     };
 
-    // Mengarahkan lokasi penyimpanan ke Folder Drive milik akun utama (penyedia kuota)
     if (process.env.GOOGLE_DRIVE_FOLDER_ID) {
       requestBody.parents = [process.env.GOOGLE_DRIVE_FOLDER_ID];
     }
@@ -294,6 +294,20 @@ const upload = multer({
     if (extname && mimetype) return cb(null, true);
     cb(new Error("Hanya file gambar yang diperbolehkan!"));
   }
+});
+
+// --- KONFIGURASI MULTER UNTUK KONTEN MEDIA SCHEDULED CHAT ---
+const scheduleStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `schedule_${req.user.userId}_${Date.now()}${ext}`);
+  }
+});
+
+const uploadScheduleMedia = multer({
+  storage: scheduleStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
 });
 
 // Database Connection & Auto-Assign Admin
@@ -781,6 +795,198 @@ app.post("/api/subscribe/check-manual", verifyToken, async (req, res) => {
   }
 });
 
+// --- API WA SCHEDULE CHAT ---
+app.get("/api/schedule/targets", verifyToken, async (req, res) => {
+  try {
+    const strUserId = String(req.user.userId);
+    const sock = activeSessions.get(strUserId);
+
+    if (!sock || !sock.user) {
+      return res.status(400).json({ success: false, message: "WhatsApp belum terhubung!" });
+    }
+
+    const targets = [];
+
+    // 1. Fetch Grup WA
+    try {
+      const groups = await sock.groupFetchAllParticipating();
+      for (const jid in groups) {
+        targets.push({
+          jid: jid,
+          name: groups[jid].subject || "Grup Tanpa Nama",
+          type: "group"
+        });
+      }
+    } catch (err) {
+      console.warn("⚠️ Gagal mengambil daftar grup:", err.message);
+    }
+
+    // 2. Fetch Kontak
+    if (sock.store && sock.store.contacts) {
+      for (const jid in sock.store.contacts) {
+        if (jid.endsWith("@s.whatsapp.net")) {
+          const contact = sock.store.contacts[jid];
+          targets.push({
+            jid: jid,
+            name: contact.name || contact.notify || jid.split("@")[0],
+            type: "contact"
+          });
+        }
+      }
+    }
+
+    res.json({ success: true, targets });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/schedule/list", verifyToken, async (req, res) => {
+  try {
+    const schedules = await Schedule.find({ userId: req.user.userId }).sort({ scheduledTime: 1 });
+    res.json({ success: true, data: schedules });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaFile"), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    const { targetJid, targetName, targetType, message, scheduledTime, isViewOnce } = req.body;
+
+    if (!targetJid || !scheduledTime) {
+      return res.status(400).json({ success: false, message: "Target dan waktu kirim wajib diisi!" });
+    }
+
+    if (user.plan !== "premium") {
+      const pendingCount = await Schedule.countDocuments({ userId: user._id, status: "pending" });
+      if (pendingCount >= 2) {
+        return res.status(403).json({
+          success: false,
+          message: "Batas antrian Free Plan (maksimal 2 antrian) tercapai. Upgrade ke Premium untuk antrian unlimited!"
+        });
+      }
+
+      if (req.file || isViewOnce === "true") {
+        return res.status(403).json({
+          success: false,
+          message: "Fitur kirim media (gambar/video/file) dan Sekali Lihat khusus untuk pengguna Premium!"
+        });
+      }
+    }
+
+    let mediaUrl = "";
+    let mediaType = "none";
+
+    if (req.file) {
+      mediaUrl = `/uploads/${req.file.filename}`;
+      const mime = req.file.mimetype;
+      if (mime.startsWith("image/")) mediaType = "image";
+      else if (mime.startsWith("video/")) mediaType = "video";
+      else mediaType = "document";
+    }
+
+    const newSchedule = await Schedule.create({
+      userId: user._id,
+      targetJid,
+      targetName: targetName || targetJid,
+      targetType: targetType || "contact",
+      message: message || "",
+      mediaUrl,
+      mediaType,
+      isViewOnce: isViewOnce === "true",
+      scheduledTime: new Date(scheduledTime),
+      status: "pending"
+    });
+
+    res.json({ success: true, message: "Jadwal pesan berhasil disimpan!", data: newSchedule });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete("/api/schedule/:id", verifyToken, async (req, res) => {
+  try {
+    await Schedule.deleteOne({ _id: req.params.id, userId: req.user.userId });
+    res.json({ success: true, message: "Jadwal pesan berhasil dihapus!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- WORKER PENJADWAL AUTOMATIS DENGAN PROTEKSI ANTI-SPAM ---
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const pendingSchedules = await Schedule.find({
+      status: "pending",
+      scheduledTime: { $lte: now }
+    }).limit(5);
+
+    for (const item of pendingSchedules) {
+      const strUserId = String(item.userId);
+      const sock = activeSessions.get(strUserId);
+
+      if (!sock || !sock.user) {
+        console.warn(`⏳ [SCHEDULE DELAY] Bot User ${strUserId} belum terhubung WA.`);
+        continue;
+      }
+
+      try {
+        await sock.sendPresenceUpdate("composing", item.targetJid);
+        const randomJitter = Math.floor(Math.random() * 4000) + 3000;
+        await sleep(randomJitter);
+        await sock.sendPresenceUpdate("paused", item.targetJid);
+
+        const fullMediaPath = item.mediaUrl ? path.join(__dirname, item.mediaUrl) : null;
+
+        if (item.mediaType === "image" && fullMediaPath) {
+          await sock.sendMessage(item.targetJid, {
+            image: { url: fullMediaPath },
+            caption: item.message,
+            viewOnce: item.isViewOnce
+          });
+        } else if (item.mediaType === "video" && fullMediaPath) {
+          await sock.sendMessage(item.targetJid, {
+            video: { url: fullMediaPath },
+            caption: item.message,
+            viewOnce: item.isViewOnce
+          });
+        } else if (item.mediaType === "document" && fullMediaPath) {
+          await sock.sendMessage(item.targetJid, {
+            document: { url: fullMediaPath },
+            fileName: path.basename(fullMediaPath),
+            caption: item.message
+          });
+        } else {
+          await sock.sendMessage(item.targetJid, { text: item.message });
+        }
+
+        item.status = "sent";
+        await item.save();
+
+        io.to(strUserId).emit("chat-log", {
+          time: new Date().toLocaleTimeString(),
+          sender: "SCHEDULED BOT",
+          text: `[Terkirim ke ${item.targetName}] ${item.message}`,
+          type: "out"
+        });
+
+      } catch (sendErr) {
+        console.error(`❌ [SCHEDULE ERR]:`, sendErr.message);
+        item.status = "failed";
+        item.errorMessage = sendErr.message;
+        await item.save();
+      }
+
+      await sleep(5000);
+    }
+  } catch (cronErr) {
+    console.error("Scheduler Worker Error:", cronErr.message);
+  }
+}, 15000);
+
 // --- USER REPORT API ---
 app.post("/api/reports", verifyToken, async (req, res) => {
   try {
@@ -1022,7 +1228,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       await sock.readMessages([{ remoteJid, id: lastMsgId }]);
     } catch {}
 
-    // --- 1. CEK SPREADSHEET KUSTOM USER ---
     if (user.googleSpreadsheetId) {
       const userRows = await fetchUserSheetData(user.googleSpreadsheetId);
       const matchedData = findSheetKeywordMatch(combinedText, userRows);
@@ -1044,7 +1249,6 @@ async function handleAIBotReply(strUserId, senderNumber, remoteJid, combinedText
       }
     }
 
-    // --- 2. FALLBACK AI OPENROUTER ---
     let conv = await Conversation.findOne({ botUserId: strUserId, senderNumber });
     if (!conv) {
       conv = await Conversation.create({ botUserId: strUserId, senderNumber, messages: [] });

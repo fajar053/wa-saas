@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WA Chat Schedule - WA AutoBot AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/data"></script>
+  <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+
+  <!-- Sidebar Navigasi -->
+  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6 flex-shrink-0">
+    <div class="space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+          <i data-lucide="bot"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base text-slate-100">WA AutoBot AI</h1>
+          <p class="text-[11px] text-slate-400">Scheduler Manager</p>
+        </div>
+      </div>
+
+      <nav class="space-y-1">
+        <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+        </a>
+        <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
+          <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
+        </a>
+        <a href="/subscription.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 text-xs font-semibold">
+          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Upgrade Premium
+        </a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
+
+    <!-- Header & Waktu Realtime -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
+      <div>
+        <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="clock" class="w-5 h-5 text-indigo-400"></i> Penjadwalan Pesan WhatsApp
+        </h2>
+        <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak, Grup, atau Channel di waktu mendatang</p>
+      </div>
+
+      <!-- Live Realtime Clock Box -->
+      <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
+        <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00 WITA</p>
+        <p id="liveDate" class="text-[11px] text-slate-400">Sabtu, 5 September 2026</p>
+      </div>
+    </div>
+
+    <!-- Peringatan Anti-Spam Pembatasan WA -->
+    <div class="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-start gap-3">
+      <i data-lucide="shield-alert" class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"></i>
+      <div class="text-xs text-amber-200/90 leading-relaxed">
+        <p class="font-bold text-amber-300 mb-0.5">Peringatan Keamanan & Anti-Spam WhatsApp:</p>
+        Hindari membuat puluhan jadwal dalam rentang waktu yang sangat berdekatan. Sistem kami telah melengkapi jeda pengiriman acak (3-7 detik) untuk menyamarkan aktivitas bot agar terhindar dari pemblokiran akun oleh WhatsApp.
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Form Buat Jadwal -->
+      <div class="lg:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-indigo-400"></i> Buat Jadwal Baru
+        </h3>
+
+        <form id="scheduleForm" onsubmit="submitSchedule(event)" class="space-y-4">
+          <!-- Target Selector -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Target Kirim Pesan</label>
+            <div class="flex gap-2">
+              <select id="targetSelect" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+                <option value="">-- Muat Target Kontak / Grup --</option>
+              </select>
+              <button type="button" onclick="loadTargets()" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition" title="Refresh Target">
+                <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Input Pesan Teks + Emoji Picker -->
+          <div class="relative">
+            <label class="block text-xs font-medium text-slate-300 mb-1">Pesan WhatsApp</label>
+            <textarea id="scheduleMessage" rows="4" placeholder="Ketik pesan..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"></textarea>
+            
+            <button type="button" onclick="toggleEmojiPicker()" class="absolute right-3 bottom-3 text-slate-400 hover:text-amber-400 transition">
+              <i data-lucide="smile" class="w-4 h-4"></i>
+            </button>
+            <div id="emojiPickerContainer" class="hidden absolute right-0 bottom-12 z-50"></div>
+          </div>
+
+          <!-- Waktu Kirim -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Waktu & Tanggal Kirim</label>
+            <input type="datetime-local" id="scheduleTime" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+          </div>
+
+          <!-- File Media Upload (Khusus Premium) -->
+          <div id="mediaUploadBox" class="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-medium text-slate-300">Lampiran Media (Gambar/Video/File)</label>
+              <span id="premiumLockBadge" class="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1">
+                <i data-lucide="lock" class="w-3 h-3"></i> Premium Only
+              </span>
+            </div>
+            <input type="file" id="mediaFile" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
+            
+            <!-- Fitur Sekali Lihat -->
+            <div class="flex items-center gap-2 pt-1">
+              <input type="checkbox" id="isViewOnce" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-800 rounded">
+              <label for="isViewOnce" class="text-xs text-slate-300">Aktifkan Pesan Sekali Lihat (View Once)</label>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+            <i data-lucide="send" class="w-4 h-4"></i> Simpan Penjadwalan
+          </button>
+        </form>
+      </div>
+
+      <!-- Tabel Daftar Antrian Jadwal -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="list-todo" class="w-4 h-4 text-indigo-400"></i> Daftar Antrian Pesan
+          </h3>
+          <button onclick="loadSchedules()" class="text-xs text-indigo-400 hover:underline flex items-center gap-1">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh Antrian
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left text-slate-300">
+            <thead class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
+              <tr>
+                <th class="p-3">Target</th>
+                <th class="p-3">Pesan / Media</th>
+                <th class="p-3">Waktu Kirim</th>
+                <th class="p-3">Status</th>
+                <th class="p-3 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleTableBody">
+              <tr>
+                <td colspan="5" class="p-4 text-center text-slate-500 italic">Memuat antrian jadwal...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    let userPlan = 'free';
+
+    // Realtime Clock Function
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveTime').innerText = now.toLocaleTimeString('id-ID') + " WITA";
+      document.getElementById('liveDate').innerText = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Emoji Picker Setup
+    let picker;
+    function toggleEmojiPicker() {
+      const container = document.getElementById('emojiPickerContainer');
+      if (container.classList.contains('hidden')) {
+        if (!picker) {
+          picker = new EmojiMart.Picker({
+            onEmojiSelect: (emoji) => {
+              const txt = document.getElementById('scheduleMessage');
+              txt.value += emoji.native;
+            }
+          });
+          container.appendChild(picker);
+        }
+        container.classList.remove('hidden');
+      } else {
+        container.classList.add('hidden');
+      }
+    }
+
+    async function loadTargets() {
+      try {
+        const res = await fetch('/api/schedule/targets', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const select = document.getElementById('targetSelect');
+        select.innerHTML = '<option value="">-- Pilih Target Kontak / Grup --</option>';
+
+        if (data.success && data.targets) {
+          data.targets.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.jid;
+            opt.dataset.name = t.name;
+            opt.dataset.type = t.type;
+            opt.innerText = `[${t.type.toUpperCase()}] ${t.name}`;
+            select.appendChild(opt);
+          });
+        }
+      } catch {
+        console.warn("Gagal memuat target WA.");
+      }
+    }
+
+    async function loadSchedules() {
+      try {
+        const res = await fetch('/api/schedule/list', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const tbody = document.getElementById('scheduleTableBody');
+        tbody.innerHTML = '';
+
+        if (data.success && data.data.length > 0) {
+          data.data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-800/50 hover:bg-slate-800/30';
+            
+            let statusBadge = '<span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">Pending</span>';
+            if (item.status === 'sent') statusBadge = '<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-bold">Terkirim</span>';
+            if (item.status === 'failed') statusBadge = '<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded text-[10px] font-bold">Gagal</span>';
+
+            tr.innerHTML = `
+              <td class="p-3 font-semibold text-slate-200">${item.targetName}</td>
+              <td class="p-3 text-slate-400 max-w-xs truncate">${item.message || item.mediaType} ${item.isViewOnce ? '👁️' : ''}</td>
+              <td class="p-3 font-mono text-indigo-300">${new Date(item.scheduledTime).toLocaleString('id-ID')}</td>
+              <td class="p-3">${statusBadge}</td>
+              <td class="p-3 text-center">
+                <button onclick="deleteSchedule('${item._id}')" class="text-rose-400 hover:text-rose-300 p-1">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+          lucide.createIcons();
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">Belum ada antrian jadwal.</td></tr>';
+        }
+      } catch {
+        console.warn("Gagal memuat antrian.");
+      }
+    }
+
+    async function submitSchedule(e) {
+      e.preventDefault();
+      const select = document.getElementById('targetSelect');
+      const selectedOpt = select.options[select.selectedIndex];
+      
+      const formData = new FormData();
+      formData.append('targetJid', select.value);
+      formData.append('targetName', selectedOpt ? selectedOpt.dataset.name : '');
+      formData.append('targetType', selectedOpt ? selectedOpt.dataset.type : 'contact');
+      formData.append('message', document.getElementById('scheduleMessage').value);
+      formData.append('scheduledTime', document.getElementById('scheduleTime').value);
+      formData.append('isViewOnce', document.getElementById('isViewOnce').checked);
+
+      const fileInput = document.getElementById('mediaFile');
+      if (fileInput.files[0]) {
+        formData.append('mediaFile', fileInput.files[0]);
+      }
+
+      try {
+        const res = await fetch('/api/schedule/create', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) {
+          document.getElementById('scheduleForm').reset();
+          loadSchedules();
+        }
+      } catch {
+        alert("Gagal menyimpan jadwal.");
+      }
+    }
+
+    async function deleteSchedule(id) {
+      if (!confirm("Batalkan dan hapus antrian ini?")) return;
+      try {
+        const res = await fetch(`/api/schedule/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadSchedules();
+      } catch {
+        alert("Gagal menghapus antrian.");
+      }
+    }
+
+    async function initPage() {
+      const configRes = await fetch('/api/config', { headers: { 'Authorization': `Bearer ${token}` } });
+      const configData = await configRes.json();
+      userPlan = configData.plan || 'free';
+
+      if (userPlan === 'free') {
+        document.getElementById('mediaFile').disabled = true;
+        document.getElementById('isViewOnce').disabled = true;
+      } else {
+        document.getElementById('premiumLockBadge').classList.add('hidden');
+      }
+
+      loadTargets();
+      loadSchedules();
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
