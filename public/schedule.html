@@ -87,9 +87,16 @@
         <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak atau Grup di waktu mendatang</p>
       </div>
 
-      <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
-        <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
-        <p id="liveDate" class="text-[11px] text-slate-400">---</p>
+      <!-- Container Kanan: Indikator WA Connected & Jam Realtime -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <!-- Target Slot untuk Badge Status WA -->
+        <div id="waStatusTarget"></div>
+
+        <!-- Box Waktu Realtime -->
+        <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
+          <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
+          <p id="liveDate" class="text-[11px] text-slate-400">---</p>
+        </div>
       </div>
     </div>
 

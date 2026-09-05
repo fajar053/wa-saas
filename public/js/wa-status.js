@@ -11,9 +11,13 @@ document.addEventListener("DOMContentLoaded", () => {
     <span id="globalWaStatusText" class="text-slate-400">Memeriksa WA...</span>
   `;
 
-  // 2. Tempelkan Badge ke Header/Main atau Melayang di Pojok Kanan Atas
+  // 2. Utamakan pasang di Slot Target Khusus (#waStatusTarget) jika tersedia
+  const targetSlot = document.getElementById("waStatusTarget");
   const headerContainer = document.querySelector("main .flex-col.sm\\:flex-row") || document.querySelector("header");
-  if (headerContainer) {
+
+  if (targetSlot) {
+    targetSlot.appendChild(statusContainer);
+  } else if (headerContainer) {
     headerContainer.appendChild(statusContainer);
   } else {
     statusContainer.classList.add("fixed", "top-4", "right-4", "z-50");
