@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WA Chat Schedule - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
   <script src="/js/layout.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
 
   <!-- Sidebar Container -->
   <div id="app-sidebar"></div>
@@ -21,41 +21,41 @@
     <!-- Topbar Panel Container -->
     <div id="app-topbar"></div>
 
-    <main class="flex-1 p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
+    <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
 
       <!-- Header & Waktu Realtime -->
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
         <div>
-          <h2 class="text-base sm:text-xl font-bold text-slate-100 flex items-center gap-2">
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
             <i data-lucide="clock" class="w-5 h-5 text-indigo-400"></i> Penjadwalan Pesan WhatsApp
           </h2>
           <p class="text-xs text-slate-400">Kirim pesan otomatis ke Kontak atau Grup di waktu mendatang</p>
         </div>
 
-        <div class="bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-left sm:text-right w-full sm:w-auto">
-          <p id="liveTime" class="text-xs sm:text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
-          <p id="liveDate" class="text-[10px] sm:text-[11px] text-slate-400">---</p>
+        <div class="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-right">
+          <p id="liveTime" class="text-sm font-bold text-indigo-400 font-mono">00:00:00</p>
+          <p id="liveDate" class="text-[11px] text-slate-400">---</p>
         </div>
       </div>
 
-      <!-- Banner Kuota Schedule -->
-      <div id="freePlanLimitNotice" class="hidden bg-indigo-950/40 border border-indigo-800/50 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-200">
+      <!-- Banner Kuota Schedule untuk Free Plan -->
+      <div id="freePlanLimitNotice" class="hidden bg-indigo-950/40 border border-indigo-800/50 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-200">
         <div class="flex items-center gap-2">
           <i data-lucide="info" class="w-4 h-4 text-indigo-400 flex-shrink-0"></i>
-          <span class="text-[11px] sm:text-xs">
-            <strong>Batas Free Plan:</strong> Maksimal <strong>2 Antrian Chat</strong> dan Penjadwalan Maksimal <strong>7 Hari ke depan</strong> (Teks).
+          <span>
+            <strong>Batas Free Plan:</strong> Maksimal <strong>2 Antrian Chat</strong> dan Penjadwalan Maksimal <strong>7 Hari ke depan</strong> (Hanya Teks).
           </span>
         </div>
-        <a href="/subscription.html" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-xl transition flex justify-center items-center gap-1 shadow-md">
+        <a href="/subscription.html" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-xl transition flex-shrink-0 flex items-center gap-1 shadow-md">
           <i data-lucide="crown" class="w-3.5 h-3.5 text-amber-400"></i> Upgrade Premium
         </a>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- Form Buat Jadwal -->
-        <div class="lg:col-span-1 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl space-y-4">
-          <h3 class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
+        <div class="lg:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
             <i data-lucide="plus-circle" class="w-4 h-4 text-indigo-400"></i> Buat Jadwal Baru
           </h3>
 
@@ -74,37 +74,37 @@
                   type="text" 
                   id="targetSearchInput" 
                   oninput="onSearchInputChanged()" 
-                  placeholder="🔍 Cari nama/nomor..." 
+                  placeholder="🔍 Cari nama/nomor kontak atau grup..." 
                   class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                 >
 
                 <div class="flex gap-2">
                   <select id="targetTypeFilter" onchange="onSearchInputChanged()" class="w-1/3 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500">
-                    <option value="all">Semua</option>
+                    <option value="all">Semua Tipe</option>
                     <option value="contact">👤 Kontak</option>
                     <option value="group">👥 Grup</option>
                   </select>
 
-                  <select id="targetSelect" required class="w-2/3 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-200 truncate">
-                    <option value="">-- Memuat... --</option>
+                  <select id="targetSelect" required class="w-2/3 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
+                    <option value="">-- Memuat Target... --</option>
                   </select>
 
-                  <button type="button" onclick="loadTargets()" class="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh">
+                  <button type="button" onclick="loadTargets()" class="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0" title="Refresh Target">
                     <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
                   </button>
                 </div>
 
-                <div class="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 pt-1 px-1">
+                <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 px-1">
                   <span id="targetCountInfo">Menampilkan 0 target</span>
                   <button type="button" id="btnLoadMoreTargets" onclick="showMoreTargets()" class="text-indigo-400 hover:underline font-semibold hidden">
-                    + Lebih Banyak
+                    + Tampilkan Lebih Banyak
                   </button>
                 </div>
               </div>
 
               <div id="manualInputBox" class="hidden space-y-2 pt-1">
                 <input type="text" id="manualPhoneInput" placeholder="Contoh: 6281234567890" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200">
-                <p class="text-[10px] text-slate-400">Gunakan kode negara tanpa +/spasi (6281234567890).</p>
+                <p class="text-[10px] text-slate-400">Gunakan format kode negara tanpa +/spasi (contoh: 6281234567890).</p>
               </div>
             </div>
 
@@ -123,18 +123,18 @@
 
               <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl space-y-3">
                 <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span class="text-[10px] sm:text-[11px] text-slate-400">Waktu Acuan:</span>
+                  <span class="text-[11px] text-slate-400">Waktu Acuan Saat Ini:</span>
                   <span id="formClockRef" class="text-xs font-mono font-bold text-indigo-400">00:00:00</span>
                 </div>
 
-                <div class="grid grid-cols-4 gap-1">
-                  <button type="button" onclick="setQuickTime(5)" class="py-1 px-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold text-center">+5 Mnt</button>
-                  <button type="button" onclick="setQuickTime(15)" class="py-1 px-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold text-center">+15 Mnt</button>
-                  <button type="button" onclick="setQuickTime(30)" class="py-1 px-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold text-center">+30 Mnt</button>
-                  <button type="button" onclick="setQuickTime(60)" class="py-1 px-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold text-center">+1 Jam</button>
+                <div class="grid grid-cols-4 gap-1.5">
+                  <button type="button" onclick="setQuickTime(5)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+5 Mnt</button>
+                  <button type="button" onclick="setQuickTime(15)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+15 Mnt</button>
+                  <button type="button" onclick="setQuickTime(30)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+30 Mnt</button>
+                  <button type="button" onclick="setQuickTime(60)" class="py-1 px-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-semibold transition text-center">+1 Jam</button>
                 </div>
 
-                <div class="grid grid-cols-3 gap-1.5">
+                <div class="grid grid-cols-3 gap-2">
                   <div>
                     <label class="block text-[10px] text-slate-400 mb-0.5">Tanggal</label>
                     <select id="schedDay" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></select>
@@ -142,7 +142,18 @@
                   <div>
                     <label class="block text-[10px] text-slate-400 mb-0.5">Bulan</label>
                     <select id="schedMonth" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-                      <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option><option value="5">Mei</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Agu</option><option value="9">Sep</option><option value="10">Okt</option><option value="11">Nov</option><option value="12">Des</option>
+                      <option value="1">Januari</option>
+                      <option value="2">Februari</option>
+                      <option value="3">Maret</option>
+                      <option value="4">April</option>
+                      <option value="5">Mei</option>
+                      <option value="6">Juni</option>
+                      <option value="7">Juli</option>
+                      <option value="8">Agustus</option>
+                      <option value="9">September</option>
+                      <option value="10">Oktober</option>
+                      <option value="11">November</option>
+                      <option value="12">Desember</option>
                     </select>
                   </div>
                   <div>
@@ -168,14 +179,14 @@
               <div class="flex items-center justify-between">
                 <label class="text-xs font-medium text-slate-300">Lampiran Media</label>
                 <span id="premiumLockBadge" class="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1">
-                  <i data-lucide="lock" class="w-3 h-3"></i> Premium
+                  <i data-lucide="lock" class="w-3 h-3"></i> Premium Only
                 </span>
               </div>
-              <input type="file" id="mediaFile" class="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
+              <input type="file" id="mediaFile" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
               
               <div class="flex items-center gap-2 pt-1">
                 <input type="checkbox" id="isViewOnce" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-800 rounded">
-                <label for="isViewOnce" class="text-xs text-slate-300">Pesan Sekali Lihat (View Once)</label>
+                <label for="isViewOnce" class="text-xs text-slate-300">Aktifkan Pesan Sekali Lihat (View Once)</label>
               </div>
             </div>
 
@@ -186,9 +197,9 @@
         </div>
 
         <!-- Tabel Antrian -->
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl space-y-4 overflow-hidden">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
-            <h3 class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
+            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
               <i data-lucide="list-todo" class="w-4 h-4 text-indigo-400"></i> Daftar Antrian Pesan
             </h3>
 
@@ -196,37 +207,36 @@
               <button 
                 id="btnDeleteSelected" 
                 onclick="deleteSelectedSchedules()" 
-                class="hidden bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-[11px] sm:text-xs px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 font-semibold"
+                class="hidden bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-semibold"
               >
-                <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Terpilih (<span id="selectedCount">0</span>)
+                <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Hapus Terpilih (<span id="selectedCount">0</span>)
               </button>
 
               <button 
                 onclick="deleteAllSchedules()" 
-                class="bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] sm:text-xs px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 font-semibold"
+                class="bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-400 hover:text-rose-300 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-semibold"
               >
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus Semua
               </button>
 
               <button onclick="loadSchedules()" class="text-xs text-indigo-400 hover:underline flex items-center gap-1 ml-auto sm:ml-0">
-                <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
+                <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh Antrian
               </button>
             </div>
           </div>
 
-          <!-- Wrapper Scroll Horizontal Tabel untuk Layar HP -->
-          <div class="overflow-x-auto w-full -mx-1 sm:mx-0">
-            <table class="w-full text-xs text-left text-slate-300 min-w-[500px]">
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left text-slate-300">
               <thead class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
                 <tr>
-                  <th class="p-2.5 w-8 text-center">
+                  <th class="p-3 w-10 text-center">
                     <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-0 cursor-pointer">
                   </th>
-                  <th class="p-2.5">Target</th>
-                  <th class="p-2.5">Pesan</th>
-                  <th class="p-2.5">Waktu Kirim</th>
-                  <th class="p-2.5">Status</th>
-                  <th class="p-2.5 text-center">Aksi</th>
+                  <th class="p-3">Target</th>
+                  <th class="p-3">Pesan / Media</th>
+                  <th class="p-3">Waktu Kirim</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody id="scheduleTableBody">
@@ -353,7 +363,7 @@
     async function loadTargets() {
       try {
         const select = document.getElementById('targetSelect');
-        select.innerHTML = '<option value="">-- Memuat... --</option>';
+        select.innerHTML = '<option value="">-- Memuat Target... --</option>';
 
         const res = await fetch('/api/schedule/targets', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -365,11 +375,11 @@
           displayedLimit = 10;
           filterAndRenderTargets();
         } else {
-          select.innerHTML = '<option value="">-- Kosong --</option>';
+          select.innerHTML = '<option value="">-- Tidak ada target ditemukan --</option>';
           document.getElementById('targetCountInfo').innerText = "Menampilkan 0 target";
         }
       } catch {
-        document.getElementById('targetSelect').innerHTML = '<option value="">-- Gagal Memuat --</option>';
+        document.getElementById('targetSelect').innerHTML = '<option value="">-- Gagal Memuat Target --</option>';
       }
     }
 
@@ -383,7 +393,7 @@
       const filterType = document.getElementById('targetTypeFilter').value;
       const searchQuery = document.getElementById('targetSearchInput').value.toLowerCase().trim();
 
-      select.innerHTML = '<option value="">-- Pilih Target --</option>';
+      select.innerHTML = '<option value="">-- Pilih Target Kirim --</option>';
 
       const filtered = allTargets.filter(t => {
         const matchesType = (filterType === 'all') || (t.type === filterType);
@@ -398,13 +408,13 @@
         const opt = document.createElement('option');
         opt.value = "";
         opt.disabled = true;
-        opt.innerText = searchQuery ? "Tidak cocok" : "Tidak ada target";
+        opt.innerText = searchQuery ? "Tidak ada kontak/grup yang cocok" : "Tidak ada target ditemukan";
         select.appendChild(opt);
       } else {
         const categories = {
-          contact: { label: '👤 Kontak', items: [] },
-          group: { label: '👥 Grup', items: [] },
-          other: { label: '📌 Lainnya', items: [] }
+          contact: { label: '👤 Kontak Percakapan Terakhir', items: [] },
+          group: { label: '👥 Grup WhatsApp', items: [] },
+          other: { label: '📌 Target Lainnya', items: [] }
         };
 
         visibleTargets.forEach(t => {
@@ -432,7 +442,7 @@
         });
       }
 
-      document.getElementById('targetCountInfo').innerText = `Menampilkan ${visibleTargets.length} dari ${totalFiltered}`;
+      document.getElementById('targetCountInfo').innerText = `Menampilkan ${visibleTargets.length} dari ${totalFiltered} target`;
       const btnLoadMore = document.getElementById('btnLoadMoreTargets');
       if (totalFiltered > displayedLimit) btnLoadMore.classList.remove('hidden');
       else btnLoadMore.classList.add('hidden');
@@ -464,14 +474,14 @@
             if (item.status === 'failed') statusBadge = '<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded text-[10px] font-bold">Gagal</span>';
 
             tr.innerHTML = `
-              <td class="p-2.5 text-center">
+              <td class="p-3 text-center">
                 <input type="checkbox" value="${item._id}" onchange="updateSelectedCount()" class="schedule-checkbox w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-0 cursor-pointer">
               </td>
-              <td class="p-2.5 font-semibold text-slate-200 truncate max-w-[120px]">${item.targetName}</td>
-              <td class="p-2.5 text-slate-400 max-w-[140px] truncate">${item.message || item.mediaType} ${item.isViewOnce ? '👁️' : ''}</td>
-              <td class="p-2.5 font-mono text-indigo-300 text-[11px]">${new Date(item.scheduledTime).toLocaleString('id-ID')}</td>
-              <td class="p-2.5">${statusBadge}</td>
-              <td class="p-2.5 text-center">
+              <td class="p-3 font-semibold text-slate-200">${item.targetName}</td>
+              <td class="p-3 text-slate-400 max-w-xs truncate">${item.message || item.mediaType} ${item.isViewOnce ? '👁️' : ''}</td>
+              <td class="p-3 font-mono text-indigo-300">${new Date(item.scheduledTime).toLocaleString('id-ID')}</td>
+              <td class="p-3">${statusBadge}</td>
+              <td class="p-3 text-center">
                 <button onclick="deleteSchedule('${item._id}')" class="text-rose-400 hover:text-rose-300 p-1">
                   <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
@@ -524,7 +534,7 @@
     }
 
     async function deleteAllSchedules() {
-      if (!confirm("PERINGATAN: Hapus SEMUA antrian?")) return;
+      if (!confirm("⚠️ PERINGATAN: Hapus SEMUA antrian?")) return;
       try {
         const res = await fetch('/api/schedule/delete-batch', {
           method: 'POST',
@@ -566,10 +576,11 @@
       const scheduledDateObj = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
       const now = new Date();
 
+      // Validasi Frontend untuk Free Plan
       if (userPlan !== 'premium') {
         const maxAllowedDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         if (scheduledDateObj > maxAllowedDate) {
-          return alert("Pengguna Free Plan hanya dapat membuat penjadwalan maksimal 7 hari ke depan!");
+          return alert("🔒 Pengguna Free Plan hanya dapat membuat penjadwalan maksimal 7 hari ke depan. Silakan upgrade ke Premium!");
         }
       }
 
