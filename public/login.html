@@ -83,6 +83,23 @@
   <script>
     lucide.createIcons();
 
+    // Auto-redirect jika token masih valid (< 1 jam)
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await fetch('/api/config', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            window.location.href = '/dashboard.html';
+          } else {
+            localStorage.removeItem('token');
+          }
+        } catch {}
+      }
+    });
+
     function showAlert(title, message, type = 'error') {
       const alertBox = document.getElementById('alertBox');
       const alertTitle = document.getElementById('alertTitle');

@@ -366,7 +366,7 @@ const verifyToken = (req, res, next) => {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
-    res.status(401).json({ message: "Token Invalid" });
+    res.status(401).json({ message: "Token Invalid / Expired" });
   }
 };
 
@@ -426,7 +426,8 @@ app.get("/api/verify-email", async (req, res) => {
     user.verificationToken = null;
     await user.save();
 
-    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+    // JWT Expire dalam 1 Jam
+    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.send(`
       <script>
         localStorage.setItem('token', '${loginToken}');
@@ -451,7 +452,8 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ success: false, message: "Akun belum diverifikasi!" });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+    // JWT Expire dalam 1 Jam (Save Login 1 Jam)
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.json({ success: true, token, user });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -562,7 +564,6 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
 
     const orderId = `SUBS-${user._id.toString().slice(-5)}-${Date.now()}`;
 
-    // Penambahan eksplisit parameter QRIS dan GoPay agar dipaksa muncul di Snap
     const parameter = {
       transaction_details: {
         order_id: orderId,
