@@ -59,9 +59,13 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- KONFIGURASI MIDTRANS SNAP ---
+// --- DETEKSI OTOMATIS MODE MIDTRANS (PRODUCTION / SANDBOX) ---
+const isMidtransProd = Boolean(
+  process.env.MIDTRANS_SERVER_KEY && !process.env.MIDTRANS_SERVER_KEY.startsWith("SB-")
+);
+
 const snap = new midtransClient.Snap({
-  isProduction: false, // Ubah ke 'true' jika sudah di lingkungan Production
+  isProduction: isMidtransProd,
   serverKey: process.env.MIDTRANS_SERVER_KEY || "",
   clientKey: process.env.MIDTRANS_CLIENT_KEY || ""
 });
@@ -468,7 +472,9 @@ app.get("/api/config", verifyToken, async (req, res) => {
     isBotActive: user.isBotActive !== false,
     plan: user.plan || "free",
     dailyUsage: user.dailyUsageCount || 0,
-    dailyLimit: user.plan === "premium" ? "Unlimited" : 200
+    dailyLimit: user.plan === "premium" ? "Unlimited" : 200,
+    midtransClientKey: process.env.MIDTRANS_CLIENT_KEY || "",
+    isMidtransProd
   });
 });
 
