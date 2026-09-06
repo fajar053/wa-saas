@@ -68,7 +68,7 @@
 
             <!-- Dropdown Menu Desktop -->
             <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
-              <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition ${isActivePath('/profile.html', currentPath)}">
+              <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
                 <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
               </a>
               <button onclick="logout()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition">
@@ -84,6 +84,9 @@
             </a>
             <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/schedule.html', currentPath)}">
               <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
+            </a>
+            <a href="/analytics.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/analytics.html', currentPath)}">
+              <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analisis & Performa
             </a>
             <a href="/tutorial.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/tutorial.html', currentPath)}">
               <i data-lucide="book-open" class="w-4 h-4"></i> Tutorial & Panduan
@@ -165,6 +168,9 @@
           </a>
           <a href="/schedule.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/schedule.html', currentPath)}">
             <i data-lucide="calendar-clock" class="w-4 h-4"></i> Schedule
+          </a>
+          <a href="/analytics.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/analytics.html', currentPath)}">
+            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analisis
           </a>
           <a href="/tutorial.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/tutorial.html', currentPath)}">
             <i data-lucide="book-open" class="w-4 h-4"></i> Panduan
