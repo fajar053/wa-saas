@@ -562,7 +562,7 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
 
     const orderId = `SUBS-${user._id.toString().slice(-5)}-${Date.now()}`;
 
-    // enabled_payments sengaja tidak dibatasi agar menampilkan semua metode aktif di Dashboard Midtrans
+    // Penambahan eksplisit parameter QRIS dan GoPay agar dipaksa muncul di Snap
     const parameter = {
       transaction_details: {
         order_id: orderId,
@@ -572,6 +572,10 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
         first_name: user.nickname || user.username,
         email: user.email
       },
+      enabled_payments: ["qris", "gopay", "shopeepay"],
+      qris: {
+        acquirer: "gopay"
+      },
       item_details: [{
         id: planType,
         price: amount,
@@ -579,6 +583,8 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
         name: `Sewa WA AutoBot Premium - ${planType.replace('_', ' ').toUpperCase()}`
       }]
     };
+
+    console.log(`💳 [MIDTRANS SNAP] Creating transaction: ${orderId} | Mode: ${isMidtransProd ? "PRODUCTION" : "SANDBOX"}`);
 
     const transaction = await snap.createTransaction(parameter);
 
@@ -597,7 +603,7 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
       redirectUrl: transaction.redirect_url
     });
   } catch (err) {
-    console.error("Payment Create Error:", err.message);
+    console.error("❌ Payment Create Error:", err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });
