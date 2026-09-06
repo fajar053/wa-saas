@@ -562,6 +562,7 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
 
     const orderId = `SUBS-${user._id.toString().slice(-5)}-${Date.now()}`;
 
+    // enabled_payments sengaja tidak dibatasi agar menampilkan semua metode aktif di Dashboard Midtrans
     const parameter = {
       transaction_details: {
         order_id: orderId,
@@ -571,7 +572,6 @@ app.post("/api/payment/create", verifyToken, async (req, res) => {
         first_name: user.nickname || user.username,
         email: user.email
       },
-      enabled_payments: ["gopay", "qris", "shopeepay"],
       item_details: [{
         id: planType,
         price: amount,
