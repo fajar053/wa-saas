@@ -2,14 +2,14 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>WA Bot AI - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/layout.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row overflow-x-hidden">
 
   <!-- Sidebar Container (Injected by layout.js) -->
   <div id="app-sidebar"></div>
@@ -20,35 +20,35 @@
     <div id="app-topbar"></div>
 
     <!-- Main Content Area -->
-    <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
+    <main class="flex-1 p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
 
       <div>
-        <h2 class="text-xl font-bold text-slate-100">Pengaturan & Koneksi Bot</h2>
+        <h2 class="text-lg sm:text-xl font-bold text-slate-100">Pengaturan & Koneksi Bot</h2>
         <p class="text-xs text-slate-400">Kelola instruksi AI bot dan pantau aktivitas kirim pesan</p>
       </div>
 
       <!-- Top Grid: Config & QR Code -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
 
         <!-- Column 1: Pelatihan & Instruksi Bot AI -->
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-6">
-          <div class="flex justify-between items-center">
-            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl space-y-4 sm:space-y-6">
+          <div class="flex flex-wrap justify-between items-center gap-2">
+            <h3 class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
               <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Pelatihan & Instruksi Bot AI
             </h3>
 
             <button 
               type="button" 
               onclick="clearAllHistory()" 
-              class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-medium"
+              class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-[11px] sm:text-xs px-2.5 py-1.5 rounded-xl transition flex items-center gap-1.5 font-medium ml-auto sm:ml-0"
             >
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Reset History Bot
             </button>
           </div>
 
-          <form id="configForm" onsubmit="saveConfig(event)" class="space-y-5">
+          <form id="configForm" onsubmit="saveConfig(event)" class="space-y-4 sm:space-y-5">
             <!-- System Prompt -->
-            <div class="space-y-3">
+            <div class="space-y-2.5">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label class="block text-xs font-medium text-slate-300">
                   System Prompt / Pelatihan Bot
@@ -62,19 +62,19 @@
 
                   <select 
                     id="promptWordTarget" 
-                    class="bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-200 px-3 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                    class="bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
                   >
-                    <option value="50">50 Kata (Free Plan)</option>
-                    <option value="150" id="opt150">150 Kata (Premium 🔒)</option>
-                    <option value="250" id="opt250">250 Kata (Premium 🔒)</option>
-                    <option value="500" id="opt500">500 Kata (Premium 🔒)</option>
+                    <option value="50">50 Kata (Free)</option>
+                    <option value="150" id="opt150">150 Kata (Premium)</option>
+                    <option value="250" id="opt250">250 Kata (Premium)</option>
+                    <option value="500" id="opt500">500 Kata (Premium)</option>
                   </select>
 
                   <button 
                     type="button" 
                     onclick="handleGeneratePrompt()" 
                     id="btnGeneratePrompt"
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-md shadow-indigo-600/20"
                   >
                     <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> Terapkan
                   </button>
@@ -83,14 +83,14 @@
 
               <textarea 
                 id="systemPrompt" 
-                rows="8" 
+                rows="7" 
                 placeholder="Ketik instruksi singkat di sini (misal: 'Kamu adalah CS toko online ramah'), lalu pilih target kata di atas dan klik Terapkan..." 
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
               ></textarea>
             </div>
 
             <div class="flex justify-end pt-2 border-t border-slate-800">
-              <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+              <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
                 <i data-lucide="save" class="w-4 h-4"></i> Simpan Instruksi Bot
               </button>
             </div>
@@ -98,15 +98,15 @@
         </div>
 
         <!-- Column 2: QR Code & Status -->
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
+        <div class="bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-4 sm:space-y-6">
           <div>
-            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 mb-4">
+            <h3 class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-2 mb-3 sm:mb-4">
               <i data-lucide="qr-code" class="w-4 h-4 text-indigo-400"></i> WhatsApp QR Code
             </h3>
 
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center min-h-[200px] text-center">
               <div id="qrContainer" class="hidden">
-                <img id="qrCodeImg" src="" class="w-48 h-48 rounded-lg border border-slate-700 bg-white p-2">
+                <img id="qrCodeImg" src="" class="w-40 h-40 sm:w-48 sm:h-48 rounded-lg border border-slate-700 bg-white p-2">
               </div>
               <div id="qrLoading" class="space-y-2">
                 <div class="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -145,47 +145,47 @@
       </div>
 
       <!-- SAKELAR KONTROL STATUS BOT AI -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-3 w-full sm:w-auto">
-          <div id="botActiveIconBg" class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
-            <i data-lucide="bot" class="w-6 h-6"></i>
+          <div id="botActiveIconBg" class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
+            <i data-lucide="bot" class="w-5 h-5 sm:w-6 sm:h-6"></i>
           </div>
           <div>
-            <h3 class="font-bold text-sm text-slate-200">Kontrol Respon Otomatis Bot AI</h3>
-            <p id="botActiveTextStatus" class="text-xs font-semibold text-emerald-400">Status: Respon AI Aktif</p>
+            <h3 class="font-bold text-xs sm:text-sm text-slate-200">Kontrol Respon Otomatis Bot AI</h3>
+            <p id="botActiveTextStatus" class="text-[11px] sm:text-xs font-semibold text-emerald-400">Status: Respon AI Aktif</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-3 w-full sm:w-auto">
+        <div class="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
           <button 
             type="button" 
             onclick="toggleBotEngine(true)" 
             id="btnEnableBot"
-            class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+            class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5"
           >
-            <i data-lucide="play-circle" class="w-4 h-4"></i> Aktifkan Bot
+            <i data-lucide="play-circle" class="w-4 h-4"></i> Aktifkan
           </button>
           <button 
             type="button" 
             onclick="toggleBotEngine(false)" 
             id="btnDisableBot"
-            class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2"
+            class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition flex items-center justify-center gap-1.5"
           >
-            <i data-lucide="pause-circle" class="w-4 h-4"></i> Non Aktifkan Bot
+            <i data-lucide="pause-circle" class="w-4 h-4"></i> Non-Aktifkan
           </button>
         </div>
       </div>
 
       <!-- Live Chat Logs -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+      <div class="bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl space-y-3 sm:space-y-4">
         <div class="flex justify-between items-center">
-          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+          <h3 class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
             <i data-lucide="message-square" class="w-4 h-4 text-indigo-400"></i> Chat Log Realtime
           </h3>
-          <span class="text-[10px] text-slate-500 italic">*Riwayat log otomatis terhapus setelah 5 menit</span>
+          <span class="text-[10px] text-slate-500 italic hidden sm:inline">*Riwayat log otomatis terhapus setelah 5 menit</span>
         </div>
 
-        <div id="chatLogBox" class="bg-slate-950 border border-slate-800 rounded-xl p-4 h-48 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+        <div id="chatLogBox" class="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 h-48 overflow-y-auto space-y-2 font-mono text-[11px] sm:text-xs text-slate-300">
           <p class="text-slate-500 italic">[Sistem] Menunggu aktivitas percakapan...</p>
         </div>
       </div>
@@ -210,7 +210,6 @@
         currentUserPlan = data.plan || 'free';
         document.getElementById('systemPrompt').value = data.systemPrompt || '';
 
-        // Atur Status Opsi kata Premium pada Dropdown
         const opt150 = document.getElementById('opt150');
         const opt250 = document.getElementById('opt250');
         const opt500 = document.getElementById('opt500');
@@ -233,16 +232,16 @@
 
         if (isBotActive) {
           textStatus.innerText = "Status: Respon AI Aktif";
-          textStatus.className = "text-xs font-semibold text-emerald-400";
-          iconBg.className = "w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0";
-          btnEnable.className = "flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400 flex items-center justify-center gap-2 cursor-default";
-          btnDisable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
+          textStatus.className = "text-[11px] sm:text-xs font-semibold text-emerald-400";
+          iconBg.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0";
+          btnEnable.className = "flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400 flex items-center justify-center gap-1.5 cursor-default";
+          btnDisable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition flex items-center justify-center gap-1.5";
         } else {
           textStatus.innerText = "Status: Respon AI Dinonaktifkan";
-          textStatus.className = "text-xs font-semibold text-rose-400";
-          iconBg.className = "w-11 h-11 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 flex-shrink-0";
-          btnEnable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-600/20 text-slate-400 hover:text-emerald-300 font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-2";
-          btnDisable.className = "flex-1 sm:flex-none bg-rose-600 text-white font-bold text-xs px-5 py-3 rounded-xl transition shadow-lg shadow-rose-600/20 ring-2 ring-rose-400 flex items-center justify-center gap-2 cursor-default";
+          textStatus.className = "text-[11px] sm:text-xs font-semibold text-rose-400";
+          iconBg.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 flex-shrink-0";
+          btnEnable.className = "flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-600/20 text-slate-400 hover:text-emerald-300 font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition flex items-center justify-center gap-1.5";
+          btnDisable.className = "flex-1 sm:flex-none bg-rose-600 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition shadow-lg shadow-rose-600/20 ring-2 ring-rose-400 flex items-center justify-center gap-1.5 cursor-default";
         }
 
         const isFull = currentUserPlan === 'free' && data.dailyUsage >= 200;
@@ -336,7 +335,7 @@
       const targetWords = parseInt(mode) || 50;
 
       if (targetWords > 50 && currentUserPlan !== 'premium') {
-        alert("🔒 Fitur Auto-Generate di atas 50 kata khusus untuk pengguna Premium. Silakan upgrade paket Anda!");
+        alert("Fitur Auto-Generate di atas 50 kata khusus untuk pengguna Premium. Silakan upgrade paket Anda!");
         return;
       }
 
@@ -349,7 +348,7 @@
       }
 
       const originalText = promptInput.value;
-      promptInput.value = `🤖 Mengisi & mengembangkan System Prompt (~${targetWords} kata)...`;
+      promptInput.value = `Mengembangkan System Prompt (~${targetWords} kata)...`;
 
       try {
         const res = await fetch('/api/generate-prompt', {

@@ -2,20 +2,22 @@
 <html lang="id" class="scroll-smooth">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>WA AutoBot AI - Balas WhatsApp Otomatis Berbasis AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+<body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white overflow-x-hidden">
 
   <!-- Navbar Header -->
-  <header class="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
-    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2 font-extrabold text-xl text-indigo-400 tracking-wide">
-        <i data-lucide="bot" class="w-7 h-7 text-indigo-500"></i> WA AutoBot AI
+  <header class="fixed top-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2 font-extrabold text-lg sm:text-xl text-indigo-400 tracking-wide">
+        <i data-lucide="bot" class="w-6 h-6 sm:w-7 sm:h-7 text-indigo-500"></i> 
+        <span>WA AutoBot AI</span>
       </div>
 
+      <!-- Desktop Nav Link -->
       <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
         <a href="#fitur" class="hover:text-indigo-400 transition">Fitur Utama</a>
         <a href="#tutorial" class="hover:text-indigo-400 transition">Panduan Daftar</a>
@@ -23,8 +25,8 @@
         <a href="#harga" class="hover:text-indigo-400 transition">Harga Paket</a>
       </nav>
 
-      <!-- Area Tombol Auth Dinamis -->
-      <div id="authButtons" class="flex items-center gap-3">
+      <!-- Desktop Auth Buttons -->
+      <div id="authButtons" class="hidden md:flex items-center gap-3">
         <a href="/login.html" class="text-sm font-semibold px-4 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition">
           Masuk
         </a>
@@ -32,184 +34,165 @@
           Daftar Gratis
         </a>
       </div>
+
+      <!-- Mobile Hamburger Button -->
+      <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-300 hover:text-white focus:outline-none" aria-label="Toggle Menu">
+        <i id="menuIcon" data-lucide="menu" class="w-6 h-6"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer Menu -->
+    <div id="mobileMenu" class="hidden md:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-6 space-y-4">
+      <nav class="flex flex-col space-y-3 text-sm font-medium text-slate-300">
+        <a href="#fitur" onclick="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-slate-900 hover:text-indigo-400 transition">Fitur Utama</a>
+        <a href="#tutorial" onclick="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-slate-900 hover:text-indigo-400 transition">Panduan Daftar</a>
+        <a href="#cara-kerja" onclick="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-slate-900 hover:text-indigo-400 transition">Cara Kerja</a>
+        <a href="#harga" onclick="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-slate-900 hover:text-indigo-400 transition">Harga Paket</a>
+      </nav>
+      <div id="mobileAuthButtons" class="pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+        <a href="/login.html" class="w-full text-center text-sm font-semibold py-2.5 rounded-xl bg-slate-800 text-slate-200">
+          Masuk
+        </a>
+        <a href="/register.html" class="w-full text-center text-sm font-semibold py-2.5 rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
+          Daftar Gratis
+        </a>
+      </div>
     </div>
   </header>
 
   <!-- Hero Section -->
-  <section class="pt-32 pb-20 px-6 max-w-7xl mx-auto text-center relative overflow-hidden">
-    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+  <section class="pt-28 sm:pt-36 pb-16 sm:pb-24 px-4 sm:px-6 max-w-7xl mx-auto text-center relative overflow-hidden">
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[300px] sm:w-[600px] h-[200px] sm:h-[300px] bg-indigo-600/20 blur-[80px] sm:blur-[120px] rounded-full pointer-events-none"></div>
 
-    <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-6">
-      <i data-lucide="sparkles" class="w-4 h-4"></i> Didukung AI Terunggul via OpenRouter
+    <span class="inline-flex items-center gap-1.5 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] sm:text-xs font-semibold mb-6">
+      <i data-lucide="sparkles" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i> Didukung AI Terunggul via OpenRouter
     </span>
 
-    <h1 class="text-4xl md:text-6xl font-black text-slate-100 tracking-tight leading-tight max-w-4xl mx-auto">
+    <h1 class="text-2xl sm:text-4xl md:text-6xl font-black text-slate-100 tracking-tight leading-snug sm:leading-tight max-w-4xl mx-auto">
       Otomatisasi Balasan WhatsApp Customer Service Kamu dengan <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">Kecerdasan Buatan</span>
     </h1>
 
-    <p class="mt-6 text-slate-400 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
+    <p class="mt-4 sm:mt-6 text-slate-400 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed px-2">
       Tingkatkan respon bisnis 24/7 tanpa henti. Hubungkan nomor WhatsApp kamu, latih instruksi AI sesuai bisnis kamu, dan biarkan bot menjawab pesan calon pembeli secara pintar & otomatis.
     </p>
 
-    <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-      <a id="heroCtaBtn" href="/register.html" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-xl shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+    <div class="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-2">
+      <a id="heroCtaBtn" href="/register.html" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-xs sm:text-sm shadow-xl shadow-indigo-600/30 transition flex items-center justify-center gap-2">
         Coba Gratis Sekarang <i data-lucide="arrow-right" class="w-4 h-4"></i>
       </a>
-      <a href="#tutorial" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 font-semibold text-slate-200 transition flex items-center justify-center gap-2">
-        <i data-lucide="book-open" class="w-4 h-4 text-indigo-400"></i> Lihat Panduan Daftar
+      <a href="#tutorial" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 font-semibold text-slate-200 text-xs sm:text-sm transition flex items-center justify-center gap-2">
+        <i data-lucide="book-open" class="w-4 h-4 text-indigo-400"></i> Panduan Daftar
       </a>
     </div>
   </section>
 
   <!-- Fitur Utama -->
-  <section id="fitur" class="py-20 bg-slate-950/60 border-y border-slate-800/60 px-6">
+  <section id="fitur" class="py-16 sm:py-20 bg-slate-950/60 border-y border-slate-800/60 px-4 sm:px-6">
     <div class="max-w-7xl mx-auto">
-      <div class="text-center max-w-xl mx-auto mb-16">
-        <h2 class="text-2xl md:text-3xl font-bold text-slate-100">Fitur Canggih untuk Bisnis Anda</h2>
-        <p class="text-slate-400 text-sm mt-2">Dibuat khusus untuk mempermudah operasional dan komunikasi bisnis kamu.</p>
+      <div class="text-center max-w-xl mx-auto mb-12 sm:mb-16">
+        <h2 class="text-xl sm:text-3xl font-bold text-slate-100">Fitur Canggih untuk Bisnis Anda</h2>
+        <p class="text-slate-400 text-xs sm:text-sm mt-2">Dibuat khusus untuk mempermudah operasional dan komunikasi bisnis kamu.</p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
-          <div class="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8">
+        <div class="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-2xl space-y-3 sm:space-y-4 hover:border-indigo-500/50 transition">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
             <i data-lucide="qr-code"></i>
           </div>
-          <h3 class="font-bold text-lg text-slate-100">Koneksi QR Tanpa Ribet</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">Scan QR Code langsung dari WhatsApp di HP kamu tanpa perlu setup server yang rumit.</p>
+          <h3 class="font-bold text-base sm:text-lg text-slate-100">Koneksi QR Tanpa Ribet</h3>
+          <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">Scan QR Code langsung dari WhatsApp di HP kamu tanpa perlu setup server yang rumit.</p>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
-          <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+        <div class="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-2xl space-y-3 sm:space-y-4 hover:border-indigo-500/50 transition">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
             <i data-lucide="brain-circuit"></i>
           </div>
-          <h3 class="font-bold text-lg text-slate-100">Kustomisasi Prompt AI</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">Atur karakter, nada bicara, dan pengetahuan AI agar dapat menjawab pertanyaan sesuai SOP bisnismu.</p>
+          <h3 class="font-bold text-base sm:text-lg text-slate-100">Kustomisasi Prompt AI</h3>
+          <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">Atur karakter, nada bicara, dan pengetahuan AI agar dapat menjawab pertanyaan sesuai SOP bisnismu.</p>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-indigo-500/50 transition">
-          <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400">
+        <div class="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-2xl space-y-3 sm:space-y-4 hover:border-indigo-500/50 transition sm:col-span-2 md:col-span-1">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400">
             <i data-lucide="message-square"></i>
           </div>
-          <h3 class="font-bold text-lg text-slate-100">Live Activity Monitor</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">Pantau percakapan masuk dan balasan bot secara real-time langsung melalui dashboard interaktif.</p>
+          <h3 class="font-bold text-base sm:text-lg text-slate-100">Live Activity Monitor</h3>
+          <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">Pantau percakapan masuk dan balasan bot secara real-time langsung melalui dashboard interaktif.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- HALAMAN TUTORIAL PENDAFTARAN -->
-  <section id="tutorial" class="py-20 px-6 max-w-5xl mx-auto">
-    <div class="text-center max-w-2xl mx-auto mb-12">
-      <span class="px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-wider">
+  <section id="tutorial" class="py-16 sm:py-20 px-4 sm:px-6 max-w-5xl mx-auto">
+    <div class="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
+      <span class="px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
         Panduan Pengguna Baru
       </span>
-      <h2 class="text-3xl md:text-4xl font-bold text-slate-100 mt-4">Panduan Mudah Cara Mendaftar</h2>
-      <p class="text-slate-400 text-sm mt-2">Ikuti panduan langkah demi langkah di bawah ini untuk membuat akun dalam hitungan detik.</p>
+      <h2 class="text-2xl sm:text-4xl font-bold text-slate-100 mt-3 sm:mt-4">Panduan Mudah Cara Mendaftar</h2>
+      <p class="text-slate-400 text-xs sm:text-sm mt-2">Ikuti panduan langkah demi langkah di bawah ini untuk membuat akun dalam hitungan detik.</p>
     </div>
 
-    <!-- Panduan Teks Step-by-Step -->
-    <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6">
-      <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-4">
+    <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 sm:p-8 space-y-6">
+      <h3 class="text-base sm:text-lg font-bold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3 sm:pb-4">
         <i data-lucide="list-checks" class="text-indigo-400 w-5 h-5"></i> 4 Langkah Mudah Mendaftar Akun
       </h3>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Step 1 -->
-        <div class="flex items-start gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800/80">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-sm shadow-md">
-            1
-          </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div class="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-slate-900 border border-slate-800/80">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs sm:text-sm shadow-md">1</div>
           <div>
-            <h4 class="font-bold text-slate-100 text-sm">Buka Halaman Pendaftaran</h4>
-            <p class="text-slate-400 text-xs mt-1 leading-relaxed">
-              Klik tombol <strong class="text-indigo-400">"Daftar Gratis"</strong> yang ada di bagian kanan atas halaman ini untuk menuju formulir registrasi.
+            <h4 class="font-bold text-slate-100 text-xs sm:text-sm">Buka Halaman Pendaftaran</h4>
+            <p class="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
+              Klik tombol <strong class="text-indigo-400">"Daftar Gratis"</strong> yang ada di bagian atas untuk menuju formulir registrasi.
             </p>
           </div>
         </div>
 
-        <!-- Step 2 -->
-        <div class="flex items-start gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800/80">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-sm shadow-md">
-            2
-          </div>
+        <div class="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-slate-900 border border-slate-800/80">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs sm:text-sm shadow-md">2</div>
           <div>
-            <h4 class="font-bold text-slate-100 text-sm">Isi Lengkap Data Diri</h4>
-            <p class="text-slate-400 text-xs mt-1 leading-relaxed">
+            <h4 class="font-bold text-slate-100 text-xs sm:text-sm">Isi Lengkap Data Diri</h4>
+            <p class="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
               Masukkan nama lengkap, buat nama pengguna (username), alamat email aktif, dan kata sandi yang aman.
             </p>
           </div>
         </div>
 
-        <!-- Step 3 -->
-        <div class="flex items-start gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800/80">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-sm shadow-md">
-            3
-          </div>
+        <div class="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-slate-900 border border-slate-800/80">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs sm:text-sm shadow-md">3</div>
           <div>
-            <h4 class="font-bold text-slate-100 text-sm">Cek Email & Verifikasi</h4>
-            <p class="text-slate-400 text-xs mt-1 leading-relaxed">
-              Setelah muncul notifikasi berhasil, segera buka kotak masuk (inbox/spam) email kamu, lalu klik tombol <strong class="text-indigo-400">"Aktivasi Akun Saya"</strong>.
+            <h4 class="font-bold text-slate-100 text-xs sm:text-sm">Cek Email & Verifikasi</h4>
+            <p class="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
+              Setelah muncul notifikasi berhasil, segera buka kotak masuk email kamu, lalu klik tombol <strong class="text-indigo-400">"Aktivasi Akun Saya"</strong>.
             </p>
           </div>
         </div>
 
-        <!-- Step 4 -->
-        <div class="flex items-start gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800/80">
-          <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-sm shadow-md">
-            4
-          </div>
+        <div class="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-slate-900 border border-slate-800/80">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs sm:text-sm shadow-md">4</div>
           <div>
-            <h4 class="font-bold text-slate-100 text-sm">Masuk Dashboard & Siap Pakai!</h4>
-            <p class="text-slate-400 text-xs mt-1 leading-relaxed">
-              Begitu akun aktif, kamu akan otomatis masuk ke Dashboard utama dan aplikasi siap untuk dikonfigurasi.
+            <h4 class="font-bold text-slate-100 text-xs sm:text-sm">Masuk Dashboard & Siap Pakai!</h4>
+            <p class="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
+              Begitu akun aktif, kamu akan otomatis masuk ke Dashboard utama dan aplikasi siap dikonfigurasi.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Call to Action di Bawah Tutorial -->
-      <div class="pt-4 text-center">
-        <a href="/register.html" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-xs shadow-lg shadow-indigo-600/30 transition">
+      <div class="pt-2 text-center">
+        <a href="/register.html" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-xs shadow-lg shadow-indigo-600/30 transition">
           Saya Mengerti, Buat Akun Sekarang <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </a>
       </div>
     </div>
   </section>
 
-  <!-- Cara Kerja -->
-  <section id="cara-kerja" class="py-20 bg-slate-950/60 border-t border-slate-800/60 px-6">
-    <div class="text-center max-w-xl mx-auto mb-16">
-      <h2 class="text-2xl md:text-3xl font-bold text-slate-100">3 Langkah Mudah Memulai Bot</h2>
-      <p class="text-slate-400 text-sm mt-2">Mulai aktifkan bot pembalas otomatis dalam kurun waktu kurang dari 5 menit.</p>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center max-w-7xl mx-auto">
-      <div class="space-y-3">
-        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">1</div>
-        <h4 class="font-bold text-slate-200">Daftar Akun & Login</h4>
-        <p class="text-slate-400 text-xs leading-relaxed">Buat akun gratis dan verifikasi email kamu untuk masuk ke dashboard utama.</p>
-      </div>
-
-      <div class="space-y-3">
-        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">2</div>
-        <h4 class="font-bold text-slate-200">Scan QR WhatsApp</h4>
-        <p class="text-slate-400 text-xs leading-relaxed">Tautkan akun WhatsApp bisnismu melalui fitur Scan QR Code yang tersedia.</p>
-      </div>
-
-      <div class="space-y-3">
-        <div class="w-10 h-10 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center mx-auto text-lg shadow-lg shadow-indigo-600/30">3</div>
-        <h4 class="font-bold text-slate-200">Isi System Prompt & Aktifkan</h4>
-        <p class="text-slate-400 text-xs leading-relaxed">Masukkan instruksi System Prompt AI kamu, bot kamu siap bekerja otomatis!</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Pricing Sesuai Halaman Subscription -->
-  <section id="harga" class="py-20 px-6 border-t border-slate-800/60">
+  <!-- Pricing -->
+  <section id="harga" class="py-16 sm:py-20 px-4 sm:px-6 border-t border-slate-800/60">
     <div class="max-w-6xl mx-auto">
-      <div class="text-center max-w-xl mx-auto mb-16">
-        <h2 class="text-2xl md:text-3xl font-bold text-slate-100">Pilihan Paket Langganan</h2>
-        <p class="text-slate-400 text-sm mt-2">Pilih paket yang paling sesuai dengan kebutuhan skala bisnismu.</p>
+      <div class="text-center max-w-xl mx-auto mb-12 sm:mb-16">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-100">Pilihan Paket Langganan</h2>
+        <p class="text-slate-400 text-xs sm:text-sm mt-2">Pilih paket yang paling sesuai dengan kebutuhan skala bisnismu.</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
@@ -317,14 +300,18 @@
   </section>
 
   <!-- Footer -->
-  <footer class="border-t border-slate-800 py-8 text-center text-xs text-slate-500">
+  <footer class="border-t border-slate-800 py-6 sm:py-8 text-center text-xs text-slate-500 px-4">
     <p>&copy; 2026 WA AutoBot AI. Seluruh Hak Cipta Dilindungi.</p>
   </footer>
 
   <script>
     lucide.createIcons();
 
-    // --- PEMERIKSAAN STATUS LOGIN OTOMATIS (1 JAM VALIDITAS) ---
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('hidden');
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       const token = localStorage.getItem('token');
       if (!token) return;
@@ -337,19 +324,21 @@
         if (res.ok) {
           const user = await res.json();
           const authButtons = document.getElementById('authButtons');
+          const mobileAuthButtons = document.getElementById('mobileAuthButtons');
           const heroCtaBtn = document.getElementById('heroCtaBtn');
 
-          if (authButtons) {
-            authButtons.innerHTML = `
-              <a href="/dashboard.html" class="flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
-                <img src="${user.profilePicture}" alt="Avatar" class="w-6 h-6 rounded-full bg-slate-900 border border-indigo-500/50">
-                <span>Dashboard</span>
-              </a>
-              <button onclick="handleLogout()" class="text-sm font-semibold px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 transition">
-                Keluar
-              </button>
-            `;
-          }
+          const userMenuHtml = `
+            <a href="/dashboard.html" class="flex items-center justify-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+              <img src="${user.profilePicture}" alt="Avatar" class="w-6 h-6 rounded-full bg-slate-900 border border-indigo-500/50">
+              <span>Dashboard</span>
+            </a>
+            <button onclick="handleLogout()" class="text-sm font-semibold px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 transition">
+              Keluar
+            </button>
+          `;
+
+          if (authButtons) authButtons.innerHTML = userMenuHtml;
+          if (mobileAuthButtons) mobileAuthButtons.innerHTML = userMenuHtml;
 
           if (heroCtaBtn) {
             heroCtaBtn.href = '/dashboard.html';
