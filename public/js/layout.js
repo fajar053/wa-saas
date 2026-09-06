@@ -1,6 +1,8 @@
-// public/js/layout.js - Master Layout Engine (Responsive Desktop & Mobile Engine)
+// public/js/layout.js - Master Layout Engine (Responsive Desktop & Mobile Engine with WA Connected Indicator)
 
 (function() {
+  let socketInstance = null;
+
   document.addEventListener("DOMContentLoaded", () => {
     const token = localStorage.getItem("token");
     if (!token && !window.location.pathname.includes("login.html") && !window.location.pathname.includes("index.html")) {
@@ -14,9 +16,10 @@
     // 2. Render Ikon Lucide
     if (typeof lucide !== "undefined") lucide.createIcons();
 
-    // 3. Muat Profil jika terotentikasi
+    // 3. Muat Profil & Inisialisasi Socket Realtime Status WA
     if (token) {
       loadGlobalUserProfile(token);
+      initGlobalWaSocket(token);
     }
   });
 
@@ -99,7 +102,7 @@
       </aside>
     `;
 
-    // B. KODE TOPBAR & MOBILE DRAWER NAVIGATION
+    // B. KODE TOPBAR & MOBILE DRAWER NAVIGATION (Dengan Indikator WA Status)
     const topbarHTML = `
       <header class="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center sticky top-0 z-40">
         <!-- Brand Logo di HP & Button Hamburger -->
@@ -118,8 +121,15 @@
           <span class="text-xs font-semibold text-slate-400 hidden md:inline">WA AutoBot AI SaaS Management</span>
         </div>
 
-        <!-- Tombol Aksi Cepat / Report Modal -->
-        <div class="flex items-center gap-2">
+        <!-- Right Side: Indikator WA Connected & Report Button -->
+        <div class="flex items-center gap-2.5">
+          <!-- Indikator Status WA Connected -->
+          <div id="globalWaStatusBadge" class="flex items-center">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-400 text-[11px] font-semibold">
+              <span class="w-2 h-2 rounded-full bg-slate-500"></span> Memeriksa WA...
+            </span>
+          </div>
+
           <button onclick="openReportModal()" class="bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
             <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
             <span class="hidden sm:inline">Report Cepat</span>
@@ -236,6 +246,48 @@
     // Sisipkan Modal jika belum ada
     if (!document.getElementById("reportModal")) {
       document.body.insertAdjacentHTML("beforeend", modalHTML);
+    }
+  }
+
+  // --- REALTIME SOCKET WA STATUS INDICATOR ENGINE ---
+  function initGlobalWaSocket(token) {
+    if (typeof io === "undefined") return;
+
+    if (!socketInstance) {
+      socketInstance = io();
+      socketInstance.emit("start-bot", token);
+    }
+
+    socketInstance.on("status", (status) => {
+      updateWaStatusBadge(status);
+    });
+  }
+
+  function updateWaStatusBadge(status) {
+    const badgeContainer = document.getElementById("globalWaStatusBadge");
+    if (!badgeContainer) return;
+
+    if (status === "Connected") {
+      badgeContainer.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>WA Connected</span>
+        </span>
+      `;
+    } else if (status === "Scan QR Code") {
+      badgeContainer.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-bold shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span>Scan QR Code</span>
+        </span>
+      `;
+    } else {
+      badgeContainer.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] font-bold shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+          <span>WA Disconnected</span>
+        </span>
+      `;
     }
   }
 
