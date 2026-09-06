@@ -73,7 +73,7 @@ const snap = new midtransClient.Snap({
 const userStores = new Map();
 const senderRateLimits = new Map();
 
-// --- CONFIG UPLOAD MEDIA PENJADWALAN ---
+// --- CONFIG UPLOAD MEDIA PENJADWALAN & BUKTI BAYAR ---
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
@@ -89,6 +89,19 @@ const scheduleStorage = multer.diskStorage({
 const uploadScheduleMedia = multer({
   storage: scheduleStorage,
   limits: { fileSize: 15 * 1024 * 1024 },
+});
+
+const proofStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `proof_${req.user.userId}_${Date.now()}${ext}`);
+  }
+});
+
+const uploadPaymentProof = multer({
+  storage: proofStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 // --- HELPER NORMALISASI JID ---
@@ -426,7 +439,6 @@ app.get("/api/verify-email", async (req, res) => {
     user.verificationToken = null;
     await user.save();
 
-    // JWT Expire dalam 1 Jam
     const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.send(`
       <script>
@@ -452,7 +464,6 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ success: false, message: "Akun belum diverifikasi!" });
     }
 
-    // JWT Expire dalam 1 Jam (Save Login 1 Jam)
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.json({ success: true, token, user });
   } catch (e) {
@@ -549,113 +560,71 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
-// --- API PEMBAYARAN MIDTRANS ---
-app.post("/api/payment/create", verifyToken, async (req, res) => {
+// --- API PEMBAYARAN MANUAL TRANSFER VIA WHATSAPP AUTOMATIC ---
+app.post("/api/payment/manual-submit", verifyToken, uploadPaymentProof.single("proofFile"), async (req, res) => {
   try {
-    const { planType } = req.body;
+    const strUserId = String(req.user.userId);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan!" });
 
-    let amount = 0;
-    if (planType === "1_month") amount = 29000;
-    else if (planType === "6_month") amount = 149000;
-    else if (planType === "1_year") amount = 259000;
-    else return res.status(400).json({ success: false, message: "Paket tidak valid!" });
+    const { planType, paymentMethod, amount } = req.body;
 
-    const orderId = `SUBS-${user._id.toString().slice(-5)}-${Date.now()}`;
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Bukti pembayaran wajib diunggah!" });
+    }
 
-    const parameter = {
-      transaction_details: {
-        order_id: orderId,
-        gross_amount: amount
-      },
-      customer_details: {
-        first_name: user.nickname || user.username,
-        email: user.email
-      },
-      enabled_payments: ["qris", "gopay", "shopeepay"],
-      qris: {
-        acquirer: "gopay"
-      },
-      item_details: [{
-        id: planType,
-        price: amount,
-        quantity: 1,
-        name: `Sewa WA AutoBot Premium - ${planType.replace('_', ' ').toUpperCase()}`
-      }]
-    };
+    const sock = activeSessions.get(strUserId);
 
-    console.log(`💳 [MIDTRANS SNAP] Creating transaction: ${orderId} | Mode: ${isMidtransProd ? "PRODUCTION" : "SANDBOX"}`);
+    if (!sock || !sock.user) {
+      return res.status(400).json({
+        success: false,
+        waConnected: false,
+        message: "WhatsApp belum terhubung! Silakan scan QR Code yang muncul di pop-up."
+      });
+    }
 
-    const transaction = await snap.createTransaction(parameter);
+    const adminJid = "6285183099618@s.whatsapp.net";
+    const fullProofPath = path.join(__dirname, req.file.path);
 
+    const captionMessage = 
+`📌 *KONFIRMASI PEMBAYARAN MANUAL*
+
+👤 *Nama*: ${user.nickname || user.username}
+✉️ *Email*: ${user.email}
+📦 *Paket*: ${planType.replace('_', ' ').toUpperCase()}
+💰 *Total Tagihan*: Rp ${Number(amount).toLocaleString('id-ID')}
+💳 *Metode Pembayaran*: ${paymentMethod}
+📅 *Waktu Kirim*: ${new Date().toLocaleString('id-ID')}
+
+Mohon verifikasi bukti pembayaran terlampir. Terima kasih!`;
+
+    console.log(`📤 [MANUAL PAYMENT] Mengirim bukti bayar dari ${user.email} ke admin (+6285183099618)...`);
+
+    await sock.sendMessage(adminJid, {
+      image: { url: fullProofPath },
+      caption: captionMessage
+    });
+
+    const orderId = `MANUAL-${user._id.toString().slice(-5)}-${Date.now()}`;
     await Transaction.create({
       userId: user._id,
       orderId,
       planType,
-      amount,
-      snapToken: transaction.token,
-      status: "pending"
+      amount: Number(amount),
+      status: "pending_manual"
     });
+
+    console.log(`✅ [MANUAL PAYMENT SUCCESS] Bukti bayar ${orderId} terkirim via WA.`);
 
     res.json({
       success: true,
-      token: transaction.token,
-      redirectUrl: transaction.redirect_url
+      waConnected: true,
+      message: "Bukti pembayaran berhasil dikirimkan ke Admin via WhatsApp!"
     });
+
   } catch (err) {
-    console.error("❌ Payment Create Error:", err.message);
+    console.error("❌ Manual Payment Error:", err.message);
     res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// --- WEBHOOK NOTIFIKASI MIDTRANS (OTOMATIS) ---
-app.post("/api/payment/webhook", async (req, res) => {
-  try {
-    const statusResponse = await snap.transaction.notification(req.body);
-    const orderId = statusResponse.order_id;
-    const transactionStatus = statusResponse.transaction_status;
-    const fraudStatus = statusResponse.fraud_status;
-
-    console.log(`🔔 [MIDTRANS NOTIFICATION] Order ID: ${orderId} | Status: ${transactionStatus}`);
-
-    const trx = await Transaction.findOne({ orderId });
-    if (!trx) return res.status(404).json({ message: "Transaction not found" });
-
-    let isSuccess = false;
-
-    if (transactionStatus === "capture") {
-      if (fraudStatus === "accept") isSuccess = true;
-    } else if (transactionStatus === "settlement") {
-      isSuccess = true;
-    } else if (["cancel", "deny", "expire"].includes(transactionStatus)) {
-      trx.status = transactionStatus;
-      await trx.save();
-    }
-
-    if (isSuccess) {
-      trx.status = "settlement";
-      await trx.save();
-
-      let daysToAdd = 30;
-      if (trx.planType === "6_month") daysToAdd = 180;
-      if (trx.planType === "1_year") daysToAdd = 365;
-
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + daysToAdd);
-
-      await User.findByIdAndUpdate(trx.userId, {
-        plan: "premium",
-        planExpiredAt: expiryDate
-      });
-
-      console.log(`🎉 [SUCCESS PREMIUM] User ${trx.userId} diupgrade ke Premium hingga ${expiryDate.toLocaleDateString()}`);
-    }
-
-    res.status(200).json({ status: "OK" });
-  } catch (err) {
-    console.error("Webhook Error:", err.message);
-    res.status(500).json({ message: err.message });
   }
 });
 
