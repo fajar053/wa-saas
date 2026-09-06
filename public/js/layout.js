@@ -68,9 +68,9 @@
 
             <!-- Dropdown Menu Desktop -->
             <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
-              <button onclick="openReportModal()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-400 hover:bg-slate-800 transition">
-                <i data-lucide="alert-circle" class="w-4 h-4"></i> Report Cepat
-              </button>
+              <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
+                <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
+              </a>
               <button onclick="logout()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition">
                 <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
               </button>
