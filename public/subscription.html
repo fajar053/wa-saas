@@ -2,14 +2,14 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Upgrade Premium - WhatsApp AutoBot AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Upgrade Premium - WA AutoBot AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/layout.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row overflow-x-hidden">
 
   <!-- Sidebar Container -->
   <div id="app-sidebar"></div>
@@ -19,16 +19,20 @@
     <!-- Topbar Panel Container -->
     <div id="app-topbar"></div>
 
-    <main class="flex-1 p-6 md:p-10 space-y-8 overflow-y-auto">
+    <main class="flex-1 p-4 md:p-10 space-y-6 md:space-y-8 overflow-y-auto">
       <div class="text-center space-y-2 max-w-xl mx-auto">
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-100">Pilih Paket Langganan Kamu</h2>
         <p class="text-xs text-slate-400">Tingkatkan performa bisnis dan kurangi beban operasional dengan respon AI tanpa batas</p>
       </div>
 
-      <!-- Banner Info Transfer Manual -->
-      <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-center max-w-xl mx-auto flex items-center justify-center gap-2 text-indigo-400 text-xs font-semibold shadow-lg">
-        <i data-lucide="credit-card" class="w-4 h-4 flex-shrink-0"></i>
-        <span>Pembayaran Manual Transfer (BNI, GoPay, ShopeePay, DANA, OVO). Kirim bukti bayar via WhatsApp otomatis!</span>
+      <!-- Banner Info Promo Coret & Batas Waktu -->
+      <div class="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 border border-amber-500/30 rounded-2xl p-4 text-center max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 text-amber-300 text-xs font-semibold shadow-lg">
+        <div class="flex items-center gap-2">
+          <i data-lucide="flame" class="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce"></i>
+          <span>🔥 PROMO DISKON SPESIAL: Hemat Hingga 48%!</span>
+        </div>
+        <span class="hidden sm:inline text-slate-500">•</span>
+        <span class="text-slate-300">Berlaku hingga <strong class="text-amber-400">20 September 2026</strong></span>
       </div>
 
       <!-- Grid 4 Kartu Plan (Free + Premium Options) -->
@@ -42,7 +46,7 @@
                 <i data-lucide="user" class="w-4 h-4 text-slate-400"></i> Free Plan
               </div>
               <p class="text-slate-500 text-[11px] mt-1">Paket Standar Gratis</p>
-              <div class="flex items-baseline gap-1 mt-3">
+              <div class="flex items-baseline gap-1 mt-4">
                 <span class="text-2xl font-black text-slate-100">Rp 0</span>
                 <span class="text-xs text-slate-500">/ selamanya</span>
               </div>
@@ -63,7 +67,7 @@
                 <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
                 <ul class="space-y-1.5 text-slate-300">
                   <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Maksimal 2 Antrian Schedule</li>
-                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Penjadwalan Hingga 7 Hari ke depan</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Penjadwalan Hingga 7 Hari</li>
                   <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Hanya Schedule Chat Teks</li>
                 </ul>
               </div>
@@ -79,13 +83,21 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl">
           <div class="space-y-5">
             <div>
-              <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-                <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                  <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
+                </div>
+                <span class="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">Diskon 40%</span>
               </div>
               <p class="text-slate-400 text-[11px] mt-1">Masa aktif 30 Hari</p>
-              <div class="flex items-baseline gap-1 mt-3">
-                <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
-                <span class="text-xs text-slate-500">/ 30 hari</span>
+              
+              <!-- Harga Coret & Harga Diskon -->
+              <div class="mt-3 space-y-0.5">
+                <div class="text-xs text-slate-500 line-through font-semibold">Rp 48.000</div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
+                  <span class="text-xs text-slate-500">/ 30 hari</span>
+                </div>
               </div>
             </div>
 
@@ -123,13 +135,21 @@
 
           <div class="space-y-5">
             <div>
-              <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-                <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
+                </div>
+                <span class="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">Diskon 38%</span>
               </div>
               <p class="text-slate-400 text-[11px] mt-1">Masa aktif 180 Hari</p>
-              <div class="flex items-baseline gap-1 mt-3">
-                <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
-                <span class="text-xs text-slate-500">/ 6 bulan</span>
+              
+              <!-- Harga Coret & Harga Diskon -->
+              <div class="mt-3 space-y-0.5">
+                <div class="text-xs text-slate-500 line-through font-semibold">Rp 243.000</div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
+                  <span class="text-xs text-slate-500">/ 6 bulan</span>
+                </div>
               </div>
             </div>
 
@@ -167,13 +187,21 @@
 
           <div class="space-y-5">
             <div>
-              <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                  <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
+                </div>
+                <span class="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">Diskon 48%</span>
               </div>
               <p class="text-slate-400 text-[11px] mt-1">Masa aktif 365 Hari</p>
-              <div class="flex items-baseline gap-1 mt-3">
-                <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
-                <span class="text-xs text-slate-500">/ 1 tahun</span>
+              
+              <!-- Harga Coret & Harga Diskon -->
+              <div class="mt-3 space-y-0.5">
+                <div class="text-xs text-slate-500 line-through font-semibold">Rp 499.000</div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
+                  <span class="text-xs text-slate-500">/ 1 tahun</span>
+                </div>
               </div>
             </div>
 
@@ -424,8 +452,6 @@
         } else if (data.waConnected === false) {
           alert("⚠️ WhatsApp Anda belum terhubung! Silakan scan QR Code yang muncul di pop-up.");
           document.getElementById('waNotConnectedSection').classList.remove('hidden');
-          
-          // Minta server generate QR Code
           socket.emit('start-bot', token);
         } else {
           alert("Gagal: " + (data.message || "Terjadi kesalahan."));
@@ -439,7 +465,6 @@
       }
     }
 
-    // Socket listeners untuk QR Code jika WA belum terhubung
     socket.on('qr', (qrUrl) => {
       const qrImg = document.getElementById('modalQrImg');
       const qrLoading = document.getElementById('modalQrLoading');
