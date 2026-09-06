@@ -19,10 +19,10 @@
     <!-- Topbar Panel Container -->
     <div id="app-topbar"></div>
 
-    <main class="flex-1 p-6 md:p-12 space-y-8 overflow-y-auto">
+    <main class="flex-1 p-6 md:p-10 space-y-8 overflow-y-auto">
       <div class="text-center space-y-2 max-w-xl mx-auto">
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-100">Pilih Paket Langganan Kamu</h2>
-        <p class="text-xs text-slate-400">Tingkatkan performa bisnis kamu dengan respon AI tanpa batas balasan</p>
+        <p class="text-xs text-slate-400">Tingkatkan performa bisnis dan kurangi beban operasional dengan respon AI tanpa batas</p>
       </div>
 
       <!-- Banner Maintenance -->
@@ -31,80 +31,176 @@
         <span>Sistem pembayaran otomatis sedang dalam pemeliharaan (maintenance). Pembelian paket sementara waktu nonaktif.</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch">
+      <!-- Grid 4 Kartu Plan (Free + Premium Options) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto items-stretch">
         
-        <!-- Paket 1 -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl opacity-80">
-          <div class="space-y-4">
-            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-              <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
-            </div>
-            <p class="text-slate-400 text-xs">Masa aktif 30 Hari</p>
-            <div class="flex items-baseline gap-1">
-              <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
-              <span class="text-xs text-slate-500">/ 30 hari</span>
+        <!-- Kartu 0: Plan Free -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
+          <div class="space-y-5">
+            <div>
+              <div class="flex items-center gap-2 text-slate-300 font-bold text-sm">
+                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i> Free Plan
+              </div>
+              <p class="text-slate-500 text-[11px] mt-1">Paket Standar Gratis</p>
+              <div class="flex items-baseline gap-1 mt-3">
+                <span class="text-2xl font-black text-slate-100">Rp 0</span>
+                <span class="text-xs text-slate-500">/ selamanya</span>
+              </div>
             </div>
 
-            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat AI</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Auto-Prompt <strong>Hingga 500 Kata</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Prioritas Eksekusi Cepat</li>
-            </ul>
+            <!-- Benefit List Free -->
+            <div class="space-y-4 pt-4 border-t border-slate-800 text-[11px]">
+              <div class="space-y-2">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA BOT AI</span>
+                <ul class="space-y-1.5 text-slate-300">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Respon AI Kecepatan Standar</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Kuota 200 Chat / bulan</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Auto-Generate Maks. 50 kata</li>
+                </ul>
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
+                <ul class="space-y-1.5 text-slate-300">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Maksimal 1 Antrian Schedule</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Penjadwalan Hingga 3 Hari ke depan</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Hanya Schedule Chat Teks</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-3 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
+          <button disabled class="w-full bg-slate-800 text-slate-400 font-bold text-xs py-2.5 rounded-xl border border-slate-700/60 cursor-default text-center">
+            Paket Saat Ini
+          </button>
+        </div>
+
+        <!-- Kartu 1: Premium 1 Bulan -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl opacity-80">
+          <div class="space-y-5">
+            <div>
+              <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                <i data-lucide="zap" class="w-4 h-4"></i> Premium 1 Bulan
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Masa aktif 30 Hari</p>
+              <div class="flex items-baseline gap-1 mt-3">
+                <span class="text-2xl font-black text-slate-100">Rp 29.000</span>
+                <span class="text-xs text-slate-500">/ 30 hari</span>
+              </div>
+            </div>
+
+            <!-- Benefit List Premium -->
+            <div class="space-y-4 pt-4 border-t border-slate-800 text-[11px]">
+              <div class="space-y-2">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA BOT AI</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Respon AI Prioritas (Lebih Cepat)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> <strong>Unlimited Kuota Chat</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Auto-Generate <strong>Hingga 500 kata</strong></li>
+                </ul>
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Maksimal <strong>10 Antrian Schedule</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Penjadwalan <strong>Hingga 30 Hari</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Support Media (Gambar/File)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Support Pesan Sekali Lihat</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
             Pembayaran Nonaktif
           </button>
         </div>
 
-        <!-- Paket 2 -->
+        <!-- Kartu 2: Premium 6 Bulan -->
         <div class="bg-slate-900 border-2 border-indigo-500/80 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative opacity-80">
           <div class="absolute -top-3.5 right-6 bg-indigo-500 text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">Populer</div>
 
-          <div class="space-y-4">
-            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-              <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
-            </div>
-            <p class="text-slate-400 text-xs">Masa aktif 180 Hari</p>
-            <div class="flex items-baseline gap-1">
-              <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
-              <span class="text-xs text-slate-500">/ 6 bulan</span>
+          <div class="space-y-5">
+            <div>
+              <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Premium 6 Bulan
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Masa aktif 180 Hari</p>
+              <div class="flex items-baseline gap-1 mt-3">
+                <span class="text-2xl font-black text-slate-100">Rp 149.000</span>
+                <span class="text-xs text-slate-500">/ 6 bulan</span>
+              </div>
             </div>
 
-            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> <strong>Unlimited Chat 6 Bulan</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Auto-Prompt <strong>Hingga 500 Kata</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-400"></i> Hemat Rp 25.000</li>
-            </ul>
+            <!-- Benefit List Premium -->
+            <div class="space-y-4 pt-4 border-t border-slate-800 text-[11px]">
+              <div class="space-y-2">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA BOT AI</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Respon AI Prioritas (Lebih Cepat)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> <strong>Unlimited Kuota Chat</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Auto-Generate <strong>Hingga 500 kata</strong></li>
+                </ul>
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Maksimal <strong>10 Antrian Schedule</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Penjadwalan <strong>Hingga 30 Hari</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Support Media (Gambar/File)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i> Support Pesan Sekali Lihat</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-3 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
+          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
             Pembayaran Nonaktif
           </button>
         </div>
 
-        <!-- Paket 3 -->
+        <!-- Kartu 3: Premium 1 Tahun -->
         <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative opacity-80">
           <div class="absolute -top-3.5 right-6 bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">Hemat Maksimal</div>
 
-          <div class="space-y-4">
-            <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
-              <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
-            </div>
-            <p class="text-slate-400 text-xs">Masa aktif 365 Hari</p>
-            <div class="flex items-baseline gap-1">
-              <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
-              <span class="text-xs text-slate-500">/ 1 tahun</span>
+          <div class="space-y-5">
+            <div>
+              <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Premium 1 Tahun
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Masa aktif 365 Hari</p>
+              <div class="flex items-baseline gap-1 mt-3">
+                <span class="text-2xl font-black text-slate-100">Rp 259.000</span>
+                <span class="text-xs text-slate-500">/ 1 tahun</span>
+              </div>
             </div>
 
-            <ul class="space-y-3 pt-4 text-xs text-slate-300 border-t border-slate-800">
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> <strong>Unlimited Chat 1 Tahun Full</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Auto-Prompt <strong>Hingga 500 Kata</strong></li>
-              <li class="flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-amber-400"></i> Hemat Hingga Rp 89.000!</li>
-            </ul>
+            <!-- Benefit List Premium -->
+            <div class="space-y-4 pt-4 border-t border-slate-800 text-[11px]">
+              <div class="space-y-2">
+                <span class="block font-bold text-amber-400 text-[11px] uppercase tracking-wider">WA BOT AI</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Respon AI Prioritas (Lebih Cepat)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> <strong>Unlimited Kuota Chat</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Auto-Generate <strong>Hingga 500 kata</strong></li>
+                </ul>
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <span class="block font-bold text-amber-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
+                <ul class="space-y-1.5 text-slate-200">
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Maksimal <strong>10 Antrian Schedule</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Penjadwalan <strong>Hingga 30 Hari</strong></li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Support Media (Gambar/File)</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0"></i> Support Pesan Sekali Lihat</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-3 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
+          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
             Pembayaran Nonaktif
           </button>
         </div>
@@ -112,5 +208,11 @@
       </div>
     </main>
   </div>
+
+  <script>
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  </script>
 </body>
 </html>
