@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Ganti SB-Mid-client-xxxxxxxxxxxx dengan Client Key Midtrans Sandbox Anda -->
+  <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="SB-Mid-client-xxxxxxxxxxxx"></script>
   <script src="/js/layout.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
@@ -25,10 +27,10 @@
         <p class="text-xs text-slate-400">Tingkatkan performa bisnis dan kurangi beban operasional dengan respon AI tanpa batas</p>
       </div>
 
-      <!-- Banner Maintenance -->
-      <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-center max-w-xl mx-auto flex items-center justify-center gap-2 text-amber-400 text-xs font-semibold shadow-lg">
-        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i>
-        <span>Sistem pembayaran otomatis sedang dalam pemeliharaan (maintenance). Pembelian paket sementara waktu nonaktif.</span>
+      <!-- Banner Info QRIS -->
+      <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-center max-w-xl mx-auto flex items-center justify-center gap-2 text-indigo-400 text-xs font-semibold shadow-lg">
+        <i data-lucide="qr-code" class="w-4 h-4 flex-shrink-0"></i>
+        <span>Pembayaran Otomatis QRIS, GoPay, OVO, ShopeePay, & Dana Aktif 24/7. Akun langsung diupgrade seketika!</span>
       </div>
 
       <!-- Grid 4 Kartu Plan (Free + Premium Options) -->
@@ -62,8 +64,8 @@
               <div class="space-y-2 pt-2 border-t border-slate-800/60">
                 <span class="block font-bold text-indigo-400 text-[11px] uppercase tracking-wider">WA Chat Schedule</span>
                 <ul class="space-y-1.5 text-slate-300">
-                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Maksimal 1 Antrian Schedule</li>
-                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Penjadwalan Hingga 3 Hari ke depan</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Maksimal 2 Antrian Schedule</li>
+                  <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Penjadwalan Hingga 7 Hari ke depan</li>
                   <li class="flex items-start gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0"></i> Hanya Schedule Chat Teks</li>
                 </ul>
               </div>
@@ -76,7 +78,7 @@
         </div>
 
         <!-- Kartu 1: Premium 1 Bulan -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl opacity-80">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl">
           <div class="space-y-5">
             <div>
               <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
@@ -112,13 +114,13 @@
             </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
-            Pembayaran Nonaktif
+          <button onclick="buyPlan('1_month')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-1.5">
+            <i data-lucide="qr-code" class="w-4 h-4"></i> Bayar QRIS (Rp 29.000)
           </button>
         </div>
 
         <!-- Kartu 2: Premium 6 Bulan -->
-        <div class="bg-slate-900 border-2 border-indigo-500/80 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative opacity-80">
+        <div class="bg-slate-900 border-2 border-indigo-500/80 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative">
           <div class="absolute -top-3.5 right-6 bg-indigo-500 text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">Populer</div>
 
           <div class="space-y-5">
@@ -156,13 +158,13 @@
             </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
-            Pembayaran Nonaktif
+          <button onclick="buyPlan('6_month')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-1.5">
+            <i data-lucide="qr-code" class="w-4 h-4"></i> Bayar QRIS (Rp 149.000)
           </button>
         </div>
 
         <!-- Kartu 3: Premium 1 Tahun -->
-        <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative opacity-80">
+        <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative">
           <div class="absolute -top-3.5 right-6 bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-md">Hemat Maksimal</div>
 
           <div class="space-y-5">
@@ -200,8 +202,8 @@
             </div>
           </div>
 
-          <button disabled class="w-full bg-slate-800 text-slate-500 font-bold text-xs py-2.5 rounded-xl opacity-60 cursor-not-allowed border border-slate-700">
-            Pembayaran Nonaktif
+          <button onclick="buyPlan('1_year')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2.5 rounded-xl transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5">
+            <i data-lucide="qr-code" class="w-4 h-4"></i> Bayar QRIS (Rp 259.000)
           </button>
         </div>
 
@@ -212,6 +214,49 @@
   <script>
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
+    }
+
+    async function buyPlan(planType) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert("Silakan login terlebih dahulu!");
+        return window.location.href = '/login.html';
+      }
+
+      try {
+        const res = await fetch('/api/payment/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ planType })
+        });
+
+        const data = await res.json();
+        if (!data.success) {
+          return alert(data.message || "Gagal membuat transaksi!");
+        }
+
+        window.snap.pay(data.token, {
+          onSuccess: function (result) {
+            alert("🎉 Pembayaran Berhasil! Akun Anda telah diupgrade ke Premium.");
+            window.location.href = '/dashboard.html';
+          },
+          onPending: function (result) {
+            alert("Selesaikan pembayaran QRIS Anda sebelum masa berlaku token berakhir.");
+          },
+          onError: function (result) {
+            alert("Pembayaran gagal atau dibatalkan! Silakan coba lagi.");
+          },
+          onClose: function () {
+            console.log("Popup pembayaran ditutup oleh pengguna.");
+          }
+        });
+
+      } catch (err) {
+        alert("Terjadi kesalahan koneksi sistem pembayaran.");
+      }
     }
   </script>
 </body>

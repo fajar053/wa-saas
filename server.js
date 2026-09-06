@@ -12,6 +12,7 @@ import crypto from "crypto";
 import { Resend } from "resend";
 import multer from "multer";
 import QRCode from "qrcode";
+import midtransClient from "midtrans-client";
 import makeWASocket, { 
   DisconnectReason, 
   fetchLatestBaileysVersion, 
@@ -37,6 +38,7 @@ import User from "./models/User.js";
 import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Schedule from "./models/Schedule.js";
+import Transaction from "./models/Transaction.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -57,9 +59,14 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-const userStores = new Map();
+// --- KONFIGURASI MIDTRANS SNAP ---
+const snap = new midtransClient.Snap({
+  isProduction: false, // Ubah ke 'true' jika sudah di lingkungan Production
+  serverKey: process.env.MIDTRANS_SERVER_KEY || "",
+  clientKey: process.env.MIDTRANS_CLIENT_KEY || ""
+});
 
-// --- MAP UNTUK ANTI-SPAM RATE LIMITING PENGIRIM ---
+const userStores = new Map();
 const senderRateLimits = new Map();
 
 // --- CONFIG UPLOAD MEDIA PENJADWALAN ---
@@ -142,10 +149,8 @@ function resolveTargetJids(msg) {
   return jids;
 }
 
-// --- HELPER SLEEP / DELAY ---
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- HELPER ANTI-SPAM PROTECTION ---
 function isSenderRateLimited(senderNumber) {
   const now = Date.now();
   const windowMs = 60 * 1000;
@@ -536,6 +541,111 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
+// --- API PEMBAYARAN MIDTRANS ---
+app.post("/api/payment/create", verifyToken, async (req, res) => {
+  try {
+    const { planType } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan!" });
+
+    let amount = 0;
+    if (planType === "1_month") amount = 29000;
+    else if (planType === "6_month") amount = 149000;
+    else if (planType === "1_year") amount = 259000;
+    else return res.status(400).json({ success: false, message: "Paket tidak valid!" });
+
+    const orderId = `SUBS-${user._id.toString().slice(-5)}-${Date.now()}`;
+
+    const parameter = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: amount
+      },
+      customer_details: {
+        first_name: user.nickname || user.username,
+        email: user.email
+      },
+      enabled_payments: ["gopay", "qris", "shopeepay"],
+      item_details: [{
+        id: planType,
+        price: amount,
+        quantity: 1,
+        name: `Sewa WA AutoBot Premium - ${planType.replace('_', ' ').toUpperCase()}`
+      }]
+    };
+
+    const transaction = await snap.createTransaction(parameter);
+
+    await Transaction.create({
+      userId: user._id,
+      orderId,
+      planType,
+      amount,
+      snapToken: transaction.token,
+      status: "pending"
+    });
+
+    res.json({
+      success: true,
+      token: transaction.token,
+      redirectUrl: transaction.redirect_url
+    });
+  } catch (err) {
+    console.error("Payment Create Error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- WEBHOOK NOTIFIKASI MIDTRANS (OTOMATIS) ---
+app.post("/api/payment/webhook", async (req, res) => {
+  try {
+    const statusResponse = await snap.transaction.notification(req.body);
+    const orderId = statusResponse.order_id;
+    const transactionStatus = statusResponse.transaction_status;
+    const fraudStatus = statusResponse.fraud_status;
+
+    console.log(`🔔 [MIDTRANS NOTIFICATION] Order ID: ${orderId} | Status: ${transactionStatus}`);
+
+    const trx = await Transaction.findOne({ orderId });
+    if (!trx) return res.status(404).json({ message: "Transaction not found" });
+
+    let isSuccess = false;
+
+    if (transactionStatus === "capture") {
+      if (fraudStatus === "accept") isSuccess = true;
+    } else if (transactionStatus === "settlement") {
+      isSuccess = true;
+    } else if (["cancel", "deny", "expire"].includes(transactionStatus)) {
+      trx.status = transactionStatus;
+      await trx.save();
+    }
+
+    if (isSuccess) {
+      trx.status = "settlement";
+      await trx.save();
+
+      let daysToAdd = 30;
+      if (trx.planType === "6_month") daysToAdd = 180;
+      if (trx.planType === "1_year") daysToAdd = 365;
+
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + daysToAdd);
+
+      await User.findByIdAndUpdate(trx.userId, {
+        plan: "premium",
+        planExpiredAt: expiryDate
+      });
+
+      console.log(`🎉 [SUCCESS PREMIUM] User ${trx.userId} diupgrade ke Premium hingga ${expiryDate.toLocaleDateString()}`);
+    }
+
+    res.status(200).json({ status: "OK" });
+  } catch (err) {
+    console.error("Webhook Error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // --- API WA SCHEDULE ---
 app.get("/api/schedule/targets", verifyToken, async (req, res) => {
   try {
@@ -621,12 +731,10 @@ app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaF
     const now = new Date();
     const schedDate = new Date(scheduledTime);
 
-    // 1. Validasi Waktu Kirim Harus Lebih Besar Dari Waktu Sekarang
     if (schedDate <= now) {
       return res.status(400).json({ success: false, message: "Waktu kirim harus di masa mendatang!" });
     }
 
-    // 2. Validasi Batas Maksimal Antrian Pending (Free: 2, Premium: 10)
     const pendingCount = await Schedule.countDocuments({ userId: user._id, status: "pending" });
     const maxPending = isPremium ? 10 : 2;
 
@@ -639,7 +747,6 @@ app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaF
       });
     }
 
-    // 3. Validasi Batas Maksimal Hari ke Depan (Free: 7 Hari, Premium: 30 Hari)
     const maxDays = isPremium ? 30 : 7;
     const maxAllowedDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
@@ -652,7 +759,6 @@ app.post("/api/schedule/create", verifyToken, uploadScheduleMedia.single("mediaF
       });
     }
 
-    // 4. Validasi Media & View Once Khusus Premium
     if (req.file && !isPremium) {
       return res.status(403).json({
         success: false,
@@ -751,7 +857,6 @@ setInterval(async () => {
 
         console.log(`🚀 [SCHEDULE SENDING] Mengirim ke ${item.targetName} (${targetJid})...`);
 
-        // Simulasi Mengetik Singkat
         await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
         await sleep(1500);
         await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
