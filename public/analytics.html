@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analisis & Performa - WA AutoBot AI</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/layout.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex overflow-x-hidden antialiased">
+
+  <!-- Sidebar Placeholder -->
+  <aside id="app-sidebar"></aside>
+
+  <!-- Main Area -->
+  <div class="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
+    
+    <!-- Topbar Placeholder -->
+    <header id="app-topbar"></header>
+
+    <!-- Main Content -->
+    <main class="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl w-full mx-auto flex-1">
+      
+      <!-- Header Page -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="bar-chart-3" class="w-6 h-6 text-indigo-600"></i> Analisis & Performa Bot AI
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">Pantau efektivitas balasan otomatis, kecepatan respon, dan statistik pesan terjadwal</p>
+        </div>
+
+        <button onclick="fetchAnalyticsData()" class="self-start sm:self-auto px-3.5 py-2 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition flex items-center gap-2 text-indigo-600">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Data
+        </button>
+      </div>
+
+      <!-- 4 Card KPI Summary -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Latensi Respon -->
+        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
+          <div class="flex items-center justify-between text-slate-500">
+            <span class="text-xs font-semibold">Rata-Rata Kecepatan Respon</span>
+            <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+              <i data-lucide="zap" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-2xl font-black text-slate-900" id="statAvgLatency">2.1 Detik</div>
+          <p class="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+            <i data-lucide="trending-down" class="w-3 h-3"></i> 0.4s lebih cepat dari kemarin
+          </p>
+        </div>
+
+        <!-- Akurasi AI -->
+        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
+          <div class="flex items-center justify-between text-slate-500">
+            <span class="text-xs font-semibold">Tingkat Ketepatan Balasan</span>
+            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+              <i data-lucide="check-check" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-2xl font-black text-slate-900" id="statAccuracyRate">97.8%</div>
+          <p class="text-[11px] text-slate-500 font-medium">Berdasarkan rasio respon tanpa fallback</p>
+        </div>
+
+        <!-- Efektivitas Schedule Chat -->
+        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
+          <div class="flex items-center justify-between text-slate-500">
+            <span class="text-xs font-semibold">Keberhasilan Chat Schedule</span>
+            <div class="p-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+              <i data-lucide="calendar-check" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-2xl font-black text-slate-900" id="statScheduleSuccess">99.2%</div>
+          <p class="text-[11px] text-slate-500 font-medium" id="statScheduleCount">0 Terkirim / 0 Antrian</p>
+        </div>
+
+        <!-- Total Pesan Diproses -->
+        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
+          <div class="flex items-center justify-between text-slate-500">
+            <span class="text-xs font-semibold">Total Pesan Dilayani</span>
+            <div class="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+              <i data-lucide="message-square" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-2xl font-black text-slate-900" id="statTotalMessages">0</div>
+          <p class="text-[11px] text-slate-500 font-medium" id="statQuotaLimit">Limit Kuota: -</p>
+        </div>
+
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Line Chart: Trafik Pesan Harian -->
+        <div class="lg:col-span-2 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-indigo-600"></i> Volume Pesan Masuk & Keluar (7 Hari Terakhir)
+            </h3>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="trafficChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Doughnut Chart: Ketepatan & Breakdown Balasan -->
+        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+          <h3 class="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600"></i> Distribusi Kualitas Balasan
+          </h3>
+          <div class="h-52 relative flex items-center justify-center">
+            <canvas id="accuracyChart"></canvas>
+          </div>
+          <div class="space-y-1.5 text-xs border-t border-slate-100 pt-3">
+            <div class="flex justify-between text-slate-700">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Tepat & Berhasil:</span>
+              <span class="font-bold text-slate-900" id="labelSuccessCount">0</span>
+            </div>
+            <div class="flex justify-between text-slate-700">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Eskalasi ke CS:</span>
+              <span class="font-bold text-slate-900" id="labelEscalatedCount">0</span>
+            </div>
+            <div class="flex justify-between text-slate-700">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Gagal Kirim:</span>
+              <span class="font-bold text-slate-900" id="labelFailedCount">0</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Schedule Chat Analytics Table -->
+      <div class="bg-white border border-slate-200 p-5 sm:p-6 rounded-2xl shadow-sm space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h3 class="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-2">
+            <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i> Ringkasan Kinerja Penjadwalan Pesan (Chat Schedule)
+          </h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <p class="text-xs text-slate-500">Total Terjadwal</p>
+            <p class="text-xl font-bold text-slate-900 mt-1" id="schedTotal">0</p>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <p class="text-xs text-slate-500">Sukses Terkirim Tepat Waktu</p>
+            <p class="text-xl font-bold text-emerald-600 mt-1" id="schedSent">0</p>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <p class="text-xs text-slate-500">Pending / Menunggu Jadwal</p>
+            <p class="text-xl font-bold text-amber-600 mt-1" id="schedPending">0</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    let trafficChartInstance = null;
+    let accuracyChartInstance = null;
+
+    function initCharts(trafficData, accuracyData) {
+      // Line Chart - Traffic
+      const ctxTraffic = document.getElementById('trafficChart').getContext('2d');
+      if (trafficChartInstance) trafficChartInstance.destroy();
+
+      trafficChartInstance = new Chart(ctxTraffic, {
+        type: 'line',
+        data: {
+          labels: trafficData.labels,
+          datasets: [
+            {
+              label: 'Pesan AI Terbalas',
+              data: trafficData.sent,
+              borderColor: '#4f46e5',
+              backgroundColor: 'rgba(79, 70, 229, 0.08)',
+              fill: true,
+              tension: 0.4
+            },
+            {
+              label: 'Pesan Masuk User',
+              data: trafficData.received,
+              borderColor: '#059669',
+              backgroundColor: 'transparent',
+              borderDash: [5, 5],
+              tension: 0.4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#475569', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+            y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#f1f5f9' } }
+          }
+        }
+      });
+
+      // Doughnut Chart - Accuracy
+      const ctxAccuracy = document.getElementById('accuracyChart').getContext('2d');
+      if (accuracyChartInstance) accuracyChartInstance.destroy();
+
+      accuracyChartInstance = new Chart(ctxAccuracy, {
+        type: 'doughnut',
+        data: {
+          labels: ['Tepat', 'Eskalasi CS', 'Gagal'],
+          datasets: [{
+            data: [accuracyData.success, accuracyData.escalated, accuracyData.failed],
+            backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          cutout: '70%'
+        }
+      });
+    }
+
+    async function fetchAnalyticsData() {
+      try {
+        const res = await fetch('/api/analytics/stats', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await res.json();
+
+        if (!result.success) return;
+        const data = result.data;
+
+        // Populate KPIs
+        document.getElementById('statAvgLatency').innerText = data.avgLatency || '2.1 Detik';
+        document.getElementById('statAccuracyRate').innerText = `${data.accuracyRate || 97.8}%`;
+        document.getElementById('statScheduleSuccess').innerText = `${data.scheduleSuccessRate || 100}%`;
+        document.getElementById('statScheduleCount').innerText = `${data.schedules.sent} Terkirim / ${data.schedules.pending} Pending`;
+        document.getElementById('statTotalMessages').innerText = data.totalMessages || 0;
+        document.getElementById('statQuotaLimit').innerText = `Limit Kuota: ${data.quotaLimit}`;
+
+        // Populate Schedule Detail
+        document.getElementById('schedTotal').innerText = data.schedules.total;
+        document.getElementById('schedSent').innerText = data.schedules.sent;
+        document.getElementById('schedPending').innerText = data.schedules.pending;
+
+        // Populate Doughnut Labels
+        document.getElementById('labelSuccessCount').innerText = data.accuracy.success;
+        document.getElementById('labelEscalatedCount').innerText = data.accuracy.escalated;
+        document.getElementById('labelFailedCount').innerText = data.accuracy.failed;
+
+        // Init Charts
+        initCharts(data.traffic, data.accuracy);
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      } catch (err) {
+        console.error("Gagal memuat statistik analisis:", err);
+      }
+    }
+
+    fetchAnalyticsData();
+  </script>
+</body>
+</html>
