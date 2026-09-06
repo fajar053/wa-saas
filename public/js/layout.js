@@ -68,7 +68,7 @@
 
             <!-- Dropdown Menu Desktop -->
             <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
-              <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
+              <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition ${isActivePath('/profile.html', currentPath)}">
                 <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
               </a>
               <button onclick="logout()" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition">
@@ -79,9 +79,6 @@
 
           <!-- Tab Navigasi Desktop -->
           <nav class="space-y-1">
-            <a href="/profile.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/profile.html', currentPath)}">
-              <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
-            </a>
             <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/dashboard.html', currentPath)}">
               <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
             </a>
