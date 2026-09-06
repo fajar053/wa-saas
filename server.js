@@ -372,7 +372,7 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- MIDDLEWARE & AUTH ROUTES ---
+// --- MIDDLEWARE AUTHENTICATION & ROLE CHECK ---
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Unauthorized" });
@@ -384,6 +384,19 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Akses Ditolak! Hanya untuk Administrator." });
+    }
+    next();
+  } catch {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan autentikasi admin." });
+  }
+};
+
+// --- AUTH ROUTES ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -629,7 +642,7 @@ Mohon verifikasi bukti pembayaran terlampir. Terima kasih!`;
   }
 });
 
-// --- API TIKET LAPORAN KENDALA ---
+// --- API TIKET LAPORAN KENDALA (USER) ---
 app.post("/api/reports", verifyToken, async (req, res) => {
   try {
     const { category, subject, message } = req.body;
@@ -662,6 +675,89 @@ app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
   try {
     const reports = await Report.find({ userId: req.user.userId }).sort({ createdAt: -1 });
     res.json({ success: true, data: reports });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- API ADMIN: KELOLA LAPORAN USER ---
+app.get("/api/admin/all-reports", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const reports = await Report.find().sort({ createdAt: -1 }).populate("userId", "nickname username email");
+    
+    const formattedReports = reports.map(rpt => {
+      const u = rpt.userId || {};
+      return {
+        _id: rpt._id,
+        reportId: rpt.reportId,
+        userNickname: u.nickname || u.username || "User",
+        userEmail: u.email || "-",
+        category: rpt.category,
+        subject: rpt.subject,
+        message: rpt.message,
+        status: rpt.status,
+        adminReply: rpt.adminReply,
+        createdAt: rpt.createdAt
+      };
+    });
+
+    res.json({ success: true, data: formattedReports });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/admin/reply-report", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { reportId, adminReply, status } = req.body;
+    if (!reportId || !adminReply) {
+      return res.status(400).json({ success: false, message: "ID Laporan dan pesan balasan wajib diisi!" });
+    }
+
+    const report = await Report.findOne({ reportId });
+    if (!report) {
+      return res.status(404).json({ success: false, message: "Laporan tidak ditemukan!" });
+    }
+
+    report.adminReply = adminReply;
+    report.status = status || "Resolved";
+    report.repliedAt = new Date();
+    await report.save();
+
+    res.json({ success: true, message: "Balasan laporan berhasil dikirim ke user!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- API ADMIN: KELOLA TRANSAKSI PEMBAYARAN MANUAL ---
+app.get("/api/admin/pending-payments", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const pendingTxs = await Transaction.find({ status: { $in: ["pending", "pending_manual"] } })
+      .sort({ createdAt: -1 })
+      .populate("userId", "nickname username email");
+
+    res.json({ success: true, data: pendingTxs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/admin/approve-payment", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+    const tx = await Transaction.findById(transactionId);
+
+    if (!tx) {
+      return res.status(404).json({ success: false, message: "Transaksi tidak ditemukan!" });
+    }
+
+    tx.status = "success";
+    await tx.save();
+
+    await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
+
+    res.json({ success: true, message: "Pembayaran disetujui! Status akun user kini telah di-upgrade ke Premium." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
