@@ -39,6 +39,7 @@ import Session from "./models/Session.js";
 import Conversation from "./models/Conversation.js";
 import Schedule from "./models/Schedule.js";
 import Transaction from "./models/Transaction.js";
+import Report from "./models/Report.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -624,6 +625,44 @@ Mohon verifikasi bukti pembayaran terlampir. Terima kasih!`;
 
   } catch (err) {
     console.error("❌ Manual Payment Error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- API TIKET LAPORAN KENDALA ---
+app.post("/api/reports", verifyToken, async (req, res) => {
+  try {
+    const { category, subject, message } = req.body;
+    if (!category || !subject || !message) {
+      return res.status(400).json({ success: false, message: "Semua field laporan wajib diisi!" });
+    }
+
+    const reportId = `RPT-${req.user.userId.toString().slice(-4)}-${Date.now().toString().slice(-5)}`;
+
+    const newReport = await Report.create({
+      userId: req.user.userId,
+      reportId,
+      category,
+      subject,
+      message
+    });
+
+    res.json({
+      success: true,
+      message: "Laporan kendala berhasil dikirimkan ke Tim Support!",
+      data: newReport
+    });
+  } catch (err) {
+    console.error("❌ Create Report Error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
+  try {
+    const reports = await Report.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    res.json({ success: true, data: reports });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });

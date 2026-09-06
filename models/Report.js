@@ -1,58 +1,41 @@
 import mongoose from "mongoose";
 
 const reportSchema = new mongoose.Schema({
-  reportId: { 
-    type: String, 
-    required: true, 
-    unique: true 
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
   },
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User", 
-    required: true 
-  },
-  userEmail: { 
-    type: String, 
-    required: true 
-  },
-  userNickname: { 
-    type: String 
+  reportId: {
+    type: String,
+    required: true,
+    unique: true
   },
   category: {
     type: String,
-    enum: [
-      "Kendala BOT WA Tidak berjalan",
-      "Tidak terkoneksi ke WA",
-      "Pembayaran Langganan",
-      "Auto-Generate Prompt Error",
-      "Kuota Bulanan Bermasalah",
-      "Respon AI Lambat",
-      "Spam Balasan / Duplicate Chat",
-      "Masalah Akun & Akses Login",
-      "Lainnya"
-    ],
     required: true
   },
-  subject: { 
-    type: String, 
-    required: true 
+  subject: {
+    type: String,
+    required: true
   },
-  message: { 
-    type: String, 
-    required: true 
+  message: {
+    type: String,
+    required: true
   },
-  status: { 
-    type: String, 
-    enum: ["Open", "In Progress", "Resolved", "Closed"], 
-    default: "Open" 
+  status: {
+    type: String,
+    enum: ["Pending", "In Progress", "Resolved"],
+    default: "Pending"
   },
-  adminReply: { 
-    type: String, 
-    default: "" 
+  adminReply: {
+    type: String,
+    default: ""
   },
-  repliedAt: { 
-    type: Date 
+  repliedAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 
-export default mongoose.model("Report", reportSchema);
+export default mongoose.models.Report || mongoose.model("Report", reportSchema);
