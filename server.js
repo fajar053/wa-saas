@@ -680,7 +680,7 @@ app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
   }
 });
 
-// --- API ADMIN: KELOLA LAPORAN USER ---
+// --- API ADMIN: KELOLA & HAPUS LAPORAN USER ---
 app.get("/api/admin/all-reports", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const reports = await Report.find().sort({ createdAt: -1 }).populate("userId", "nickname username email");
@@ -730,7 +730,16 @@ app.post("/api/admin/reply-report", verifyToken, verifyAdmin, async (req, res) =
   }
 });
 
-// --- API ADMIN: KELOLA TRANSAKSI PEMBAYARAN MANUAL ---
+app.delete("/api/admin/report/:id", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    await Report.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: "Laporan berhasil dihapus secara permanen!" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- API ADMIN: KELOLA & HAPUS TRANSAKSI PEMBAYARAN MANUAL ---
 app.get("/api/admin/pending-payments", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const pendingTxs = await Transaction.find({ status: { $in: ["pending", "pending_manual"] } })
@@ -758,6 +767,15 @@ app.post("/api/admin/approve-payment", verifyToken, verifyAdmin, async (req, res
     await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
 
     res.json({ success: true, message: "Pembayaran disetujui! Status akun user kini telah di-upgrade ke Premium." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete("/api/admin/transaction/:id", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    await Transaction.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: "Data transaksi berhasil dihapus secara permanen!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
