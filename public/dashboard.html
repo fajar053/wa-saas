@@ -176,6 +176,22 @@
         </div>
       </div>
 
+      <!-- WIDGET PREVIEW KATALOG PRODUK -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i data-lucide="package" class="w-4 h-4 text-indigo-400"></i> Katalog Produk Terintegrasi Bot AI
+          </h3>
+          <a href="/products.html" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition">
+            Kelola Produk <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </a>
+        </div>
+
+        <div id="dashboardProductPreview" class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <p class="text-slate-500 italic col-span-3">Memuat produk...</p>
+        </div>
+      </div>
+
       <!-- Live Chat Logs -->
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
         <div class="flex justify-between items-center">
@@ -260,6 +276,35 @@
 
       } catch (err) {
         console.error("Load Config Error:", err);
+      }
+    }
+
+    async function loadDashboardProducts() {
+      try {
+        const res = await fetch('/api/products', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await res.json();
+        const container = document.getElementById('dashboardProductPreview');
+
+        if (!result.success || !result.data || result.data.length === 0) {
+          container.innerHTML = '<p class="text-slate-500 italic col-span-3">Belum ada produk tersimpan. <a href="/products.html" class="text-indigo-400 underline font-medium">Tambah Produk Pertama</a></p>';
+          return;
+        }
+
+        container.innerHTML = result.data.slice(0, 3).map(p => `
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            ${p.imageUrl ? `<img src="${p.imageUrl}" class="w-12 h-12 rounded-lg object-cover border border-slate-800">` : '<div class="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-slate-500"><i data-lucide="package" class="w-5 h-5"></i></div>'}
+            <div class="min-w-0 flex-1">
+              <p class="font-bold text-slate-200 truncate">${p.name}</p>
+              <p class="text-indigo-400 font-bold">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+        `).join('');
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      } catch (err) {
+        console.error("Load Dashboard Products Error:", err);
       }
     }
 
@@ -349,7 +394,7 @@
       }
 
       const originalText = promptInput.value;
-      promptInput.value = `🤖 Mengisi & mengembangkan System Prompt (~${targetWords} kata)...`;
+      promptInput.value = `🪄 Mengisi & mengembangkan System Prompt (~${targetWords} kata)...`;
 
       try {
         const res = await fetch('/api/generate-prompt', {
@@ -431,6 +476,7 @@
     });
 
     loadConfig();
+    loadDashboardProducts();
   </script>
 </body>
 </html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Katalog Produk - WA AutoBot AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/layout.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row">
+
+  <!-- Sidebar Placeholder -->
+  <div id="app-sidebar"></div>
+
+  <!-- Main Content Wrapper -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div id="app-topbar"></div>
+
+    <main class="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <i data-lucide="package" class="w-6 h-6 text-indigo-400"></i> Kelola Katalog Produk
+          </h2>
+          <p class="text-xs text-slate-400">Tambah data produk yang akan dibaca otomatis oleh Bot AI saat merespon pelanggan</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Form Tambah Produk -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+            <i data-lucide="plus-circle" class="w-4 h-4 text-indigo-400"></i> Tambah Produk Baru
+          </h3>
+
+          <form id="productForm" onsubmit="handleSaveProduct(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Nama Produk *</label>
+              <input type="text" id="prodName" required placeholder="Contoh: Sepatu Sneakers Alpha" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Harga (Rp) *</label>
+              <input type="number" id="prodPrice" required placeholder="150000" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Deskripsi Produk</label>
+              <textarea id="prodDesc" rows="3" placeholder="Deskripsi ukuran, bahan, garansi..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Gambar Produk (Opsional)</label>
+              <input type="file" id="prodImage" accept="image/*" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
+            </div>
+
+            <button type="submit" id="btnSubmitProd" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+              <i data-lucide="save" class="w-4 h-4"></i> Simpan ke Katalog & Google Sheet
+            </button>
+          </form>
+        </div>
+
+        <!-- Daftar Produk -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+          <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+            <i data-lucide="list" class="w-4 h-4 text-emerald-400"></i> Daftar Produk Terintegrasi Bot AI
+          </h3>
+
+          <div id="productList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p class="text-xs text-slate-500 italic col-span-2">Memuat daftar produk...</p>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await res.json();
+        const container = document.getElementById('productList');
+
+        if (!result.success || result.data.length === 0) {
+          container.innerHTML = '<p class="text-xs text-slate-500 italic col-span-2">Belum ada produk tersimpan. Silakan tambah produk di sebelah kiri.</p>';
+          return;
+        }
+
+        container.innerHTML = result.data.map(p => `
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-3">
+            <div class="space-y-2">
+              ${p.imageUrl ? `<img src="${p.imageUrl}" class="w-full h-32 object-cover rounded-lg border border-slate-800">` : ''}
+              <h4 class="font-bold text-sm text-slate-100">${p.name}</h4>
+              <p class="text-xs font-bold text-indigo-400">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
+              <p class="text-xs text-slate-400 line-clamp-2">${p.description || 'Tidak ada deskripsi.'}</p>
+            </div>
+            <button onclick="deleteProduct('${p._id}')" class="text-xs text-rose-400 hover:text-rose-300 font-medium flex items-center gap-1 self-end pt-2">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus
+            </button>
+          </div>
+        `).join('');
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      } catch (err) {
+        console.error("Load products error:", err);
+      }
+    }
+
+    async function handleSaveProduct(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmitProd');
+      btn.disabled = true;
+      btn.innerText = "Menyimpan...";
+
+      const formData = new FormData();
+      formData.append('name', document.getElementById('prodName').value);
+      formData.append('price', document.getElementById('prodPrice').value);
+      formData.append('description', document.getElementById('prodDesc').value);
+
+      const imgFile = document.getElementById('prodImage').files[0];
+      if (imgFile) formData.append('imageFile', imgFile);
+
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          alert("Produk berhasil disimpan!");
+          document.getElementById('productForm').reset();
+          loadProducts();
+        } else {
+          alert(data.message || "Gagal menyimpan produk.");
+        }
+      } catch (err) {
+        alert("Terjadi kesalahan sistem.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Simpan ke Katalog & Google Sheet';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      }
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm("Hapus produk ini dari katalog?")) return;
+      try {
+        const res = await fetch(`/api/products/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadProducts();
+      } catch (err) {
+        alert("Gagal menghapus produk.");
+      }
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>
