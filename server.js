@@ -40,6 +40,7 @@ import Conversation from "./models/Conversation.js";
 import Schedule from "./models/Schedule.js";
 import Transaction from "./models/Transaction.js";
 import Report from "./models/Report.js";
+import { appendChatToSheet } from "./services/googleSheetService.js";
 
 // --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
@@ -1227,6 +1228,16 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
         text: reply,
         type: "out"
       });
+
+      // --- ARSIP CHAT KE GOOGLE SHEETS USER ---
+      if (user.googleRefreshToken && user.googleSpreadsheetId) {
+        appendChatToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
+          timestamp: new Date().toLocaleString("id-ID"),
+          sender: senderNumber,
+          message: combinedText,
+          reply: reply
+        }).catch(err => console.error("❌ [SHEET APPEND ERR]:", err.message));
+      }
 
       console.log(`✅ [SUCCESS] Pesan balasan sukses terkirim ke WhatsApp ${senderNumber}`);
     } else {
