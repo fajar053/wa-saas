@@ -701,28 +701,62 @@ app.post("/api/payment/mayar-create", verifyToken, async (req, res) => {
   }
 });
 
-// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID ---
+// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID (FIXED) ---
 app.post("/api/mayar/webhook", async (req, res) => {
   try {
     const { event, data } = req.body;
+    console.log(`🔔 [MAYAR WEBHOOK INCOMING] Event: ${event}, Data Status: ${data?.status}`);
 
-    if (event === "payment.received" || data?.status === "PAID") {
-      const customerEmail = data?.customer?.email || data?.email;
-      const paymentId = data?.id;
+    const isSuccess = 
+      event === "payment.received" || 
+      data?.status === "SUCCESS" || 
+      data?.status === "PAID";
 
-      console.log(`🔔 [MAYAR WEBHOOK] Pembayaran Diterima untuk Email: ${customerEmail}`);
+    if (isSuccess) {
+      // Ekstraksi email secara presisi dari payload Mayar.id
+      const customerEmail = (
+        data?.customerEmail || 
+        data?.customer?.email || 
+        data?.email || 
+        ""
+      ).trim();
 
-      const tx = await Transaction.findOne({ orderId: paymentId });
-      if (tx) {
-        tx.status = "success";
-        await tx.save();
-        await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
-      } else if (customerEmail) {
-        const user = await User.findOne({ email: customerEmail });
+      const paymentId = data?.id || data?.transactionId;
+
+      console.log(`🔍 [MAYAR WEBHOOK] Processing Email: '${customerEmail}', Payment ID: '${paymentId}'`);
+
+      let isUpgraded = false;
+
+      // 1. Cari berdasarkan Order ID Transaksi
+      if (paymentId) {
+        const tx = await Transaction.findOne({ orderId: paymentId });
+        if (tx) {
+          tx.status = "success";
+          await tx.save();
+          await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
+          console.log(`✅ [MAYAR WEBHOOK SUCCESS] User ID ${tx.userId} berhasil di-upgrade ke PREMIUM via Order ID!`);
+          isUpgraded = true;
+        }
+      }
+
+      // 2. Fallback: Cari User berdasarkan Email
+      if (!isUpgraded && customerEmail) {
+        const user = await User.findOne({ 
+          email: { $regex: new RegExp(`^${customerEmail}$`, "i") } 
+        });
+
         if (user) {
           user.plan = "premium";
           await user.save();
+          console.log(`✅ [MAYAR WEBHOOK SUCCESS] User ${user.email} (${user._id}) berhasil di-upgrade ke PREMIUM via Match Email!`);
+          isUpgraded = true;
+        } else {
+          console.warn(`⚠️ [MAYAR WEBHOOK WARN] User dengan email '${customerEmail}' tidak ditemukan di database.`);
         }
+      }
+
+      if (!isUpgraded) {
+        console.warn(`⚠️ [MAYAR WEBHOOK WARN] Gagal mencocokkan transaksi dengan Order ID maupun Email.`);
       }
     }
 
