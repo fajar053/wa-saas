@@ -1697,5 +1697,63 @@ io.on("connection", (socket) => {
   });
 });
 
+import { uploadImageToDrive, appendProductToSheet } from "./services/googleService.js";
+
+app.post("/api/products", verifyToken, uploadProductMedia.single("imageFile"), async (req, res) => {
+  try {
+    const { name, price, description } = req.body;
+    if (!name || !price) {
+      return res.status(400).json({ success: false, message: "Nama dan Harga produk wajib diisi!" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    let imageUrl = "";
+    let googleDriveUrl = "";
+
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+
+      // Unggah gambar ke Google Drive jika token terhubung
+      if (user.googleRefreshToken) {
+        const fullPath = path.join(__dirname, req.file.path);
+        googleDriveUrl = await uploadImageToDrive(
+          user.googleRefreshToken,
+          fullPath,
+          `PROD_${user._id}_${Date.now()}_${req.file.originalname}`,
+          req.file.mimetype
+        );
+      }
+    }
+
+    const finalImageLink = googleDriveUrl || (imageUrl ? `${process.env.APP_URL || 'https://wasaas.my.id'}${imageUrl}` : '');
+
+    const newProduct = await Product.create({
+      userId: req.user.userId,
+      name,
+      price: Number(price),
+      description: description || "",
+      imageUrl: imageUrl
+    });
+
+    // Sinkronisasi data ke Google Spreadsheet
+    if (user.googleRefreshToken && user.googleSpreadsheetId) {
+      appendProductToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
+        name,
+        price: Number(price),
+        description: description || "",
+        imageUrl: finalImageLink
+      }).catch(() => {});
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Produk berhasil disimpan dan tersinkronisasi ke Google Drive & Spreadsheet!", 
+      data: newProduct 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
