@@ -566,7 +566,6 @@ app.post("/api/products", verifyToken, uploadProductMedia.single("imageFile"), a
       imageUrl
     });
 
-    // Auto-sync ke Google Sheet user (jika terhubung)
     if (user.googleRefreshToken && user.googleSpreadsheetId) {
       appendProductToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
         name,
@@ -642,6 +641,94 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
     const generatedPrompt = await fetchAIResponse(messages, user.plan || "free");
     res.json({ success: true, generatedPrompt });
   } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- API PEMBAYARAN OTOMATIS MAYAR.ID ---
+app.post("/api/payment/mayar-create", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan!" });
+
+    const { planType, amount, planTitle } = req.body;
+
+    if (!process.env.MAYAR_API_KEY) {
+      return res.status(500).json({ success: false, message: "API Key Mayar belum diatur di server!" });
+    }
+
+    const response = await fetch("https://api.mayar.id/hl/v1/payment/create", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.MAYAR_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: user.nickname || user.username,
+        email: user.email,
+        amount: Number(amount),
+        description: `Upgrade Paket ${planTitle}`,
+        redirectUrl: `${process.env.APP_URL || 'https://wasaas.my.id'}/subscription.html?status=success`
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.data?.link) {
+      return res.status(400).json({ 
+        success: false, 
+        message: result.message || "Gagal membuat link pembayaran Mayar." 
+      });
+    }
+
+    const orderId = result.data.id || `MAYAR-${user._id.toString().slice(-5)}-${Date.now()}`;
+    await Transaction.create({
+      userId: user._id,
+      orderId,
+      planType,
+      amount: Number(amount),
+      status: "pending"
+    });
+
+    res.json({
+      success: true,
+      paymentUrl: result.data.link
+    });
+
+  } catch (err) {
+    console.error("❌ Mayar Payment Create Error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID ---
+app.post("/api/mayar/webhook", async (req, res) => {
+  try {
+    const { event, data } = req.body;
+
+    if (event === "payment.received" || data?.status === "PAID") {
+      const customerEmail = data?.customer?.email || data?.email;
+      const paymentId = data?.id;
+
+      console.log(`🔔 [MAYAR WEBHOOK] Pembayaran Diterima untuk Email: ${customerEmail}`);
+
+      const tx = await Transaction.findOne({ orderId: paymentId });
+      if (tx) {
+        tx.status = "success";
+        await tx.save();
+        await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
+      } else if (customerEmail) {
+        const user = await User.findOne({ email: customerEmail });
+        if (user) {
+          user.plan = "premium";
+          await user.save();
+        }
+      }
+    }
+
+    res.status(200).json({ success: true, message: "Webhook berhasil diproses" });
+  } catch (err) {
+    console.error("❌ Mayar Webhook Error:", err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -1268,7 +1355,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
 
     conv.messages.push({ role: "user", content: combinedText });
 
-    // Ambisi katalog produk pengguna untuk diikutsertakan ke dalam Prompt AI
     const products = await Product.find({ userId: strUserId });
     let productPromptContext = "";
 
@@ -1306,7 +1392,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
     if (isDelivered) {
       await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
 
-      // Deteksi apakah pelanggan menanyakan produk tertentu yang memiliki gambar
       const primaryJid = rawMsg?.key?.remoteJid;
       if (primaryJid) {
         for (const prod of products) {
@@ -1331,7 +1416,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
         type: "out"
       });
 
-      // Arsip chat ke Google Sheets user
       if (user.googleRefreshToken && user.googleSpreadsheetId) {
         appendChatToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
           timestamp: new Date().toLocaleString("id-ID"),
