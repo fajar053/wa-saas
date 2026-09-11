@@ -1,92 +1,125 @@
-// services/googleSheetService.js
-import { google } from 'googleapis';
+import { google } from "googleapis";
+import fs from "fs";
 
-/**
- * Menambahkan baris riwayat chat ke Google Sheets
- */
-export async function appendChatToSheet(refreshToken, spreadsheetId, chatData) {
-  try {
-    if (!refreshToken || !spreadsheetId) return;
+export function getOAuth2Client(refreshToken) {
+  const oAuth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.APP_URL || 'https://wasaas.my.id'}/api/auth/google/callback`
+  );
+  if (refreshToken) {
+    oAuth2Client.setCredentials({ refresh_token: refreshToken });
+  }
+  return oAuth2Client;
+}
 
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
+export async function ensureProductSpreadsheet(refreshToken) {
+  const auth = getOAuth2Client(refreshToken);
+  const sheets = google.sheets({ version: "v4", auth });
+  const drive = google.drive({ version: "v3", auth });
 
-    auth.setCredentials({ refresh_token: refreshToken });
-    const sheets = google.sheets({ version: 'v4', auth });
+  // Cari file spreadsheet bernama "Katalog Produk WA AutoBot"
+  const searchRes = await drive.files.list({
+    q: "name = 'Katalog Produk WA AutoBot' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+    fields: "files(id, name)"
+  });
 
-    const values = [
-      [
-        chatData.timestamp || new Date().toLocaleString('id-ID'),
-        chatData.sender,
-        chatData.message,
-        chatData.reply
+  if (searchRes.data.files.length > 0) {
+    return searchRes.data.files[0].id;
+  }
+
+  // Buat spreadsheet baru jika belum tersedia
+  const createRes = await sheets.spreadsheets.create({
+    requestBody: {
+      properties: { title: "Katalog Produk WA AutoBot" },
+      sheets: [
+        {
+          properties: { title: "Katalog" },
+          data: [
+            {
+              startRow: 0,
+              startColumn: 0,
+              rowData: [
+                {
+                  values: [
+                    { userEnteredValue: { stringValue: "Waktu Tambah" } },
+                    { userEnteredValue: { stringValue: "Nama Produk" } },
+                    { userEnteredValue: { stringValue: "Harga (Rp)" } },
+                    { userEnteredValue: { stringValue: "Deskripsi" } },
+                    { userEnteredValue: { stringValue: "Link Gambar Google Drive" } }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       ]
-    ];
+    }
+  });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: spreadsheetId,
-      range: 'Sheet1!A:D',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values },
+  return createRes.data.spreadsheetId;
+}
+
+export async function uploadImageToDriveAndCleanup(refreshToken, filePath, fileName, mimeType) {
+  try {
+    const auth = getOAuth2Client(refreshToken);
+    const drive = google.drive({ version: "v3", auth });
+
+    const file = await drive.files.create({
+      requestBody: {
+        name: fileName
+      },
+      media: {
+        mimeType: mimeType,
+        body: fs.createReadStream(filePath)
+      },
+      fields: "id"
     });
-  } catch (error) {
-    console.error('❌ [GOOGLE SHEETS CHAT ERR]:', error.message);
+
+    const fileId = file.data.id;
+
+    await drive.permissions.create({
+      fileId: fileId,
+      requestBody: { role: "reader", type: "anyone" }
+    });
+
+    // Hapus file dari penyimpanan lokal server agar server tidak bengkak
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    return `https://drive.google.com/uc?id=${fileId}`;
+  } catch (err) {
+    console.error("❌ [GOOGLE DRIVE UPLOAD ERROR]:", err.message);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return null;
   }
 }
 
-/**
- * Menambahkan data produk baru ke Google Sheets pada tab 'Produk'
- */
 export async function appendProductToSheet(refreshToken, spreadsheetId, productData) {
   try {
-    if (!refreshToken || !spreadsheetId) return;
-
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    auth.setCredentials({ refresh_token: refreshToken });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const values = [
-      [
-        new Date().toLocaleString('id-ID'),
-        productData.name,
-        productData.price,
-        productData.description,
-        productData.imageUrl || '-'
-      ]
-    ];
+    const auth = getOAuth2Client(refreshToken);
+    const sheets = google.sheets({ version: "v4", auth });
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: spreadsheetId,
-      range: 'Produk!A:E',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values },
-    }).catch(async (err) => {
-      // Jika tab 'Produk' belum ada, buatkan otomatis
-      if (err.message.includes('Unable to parse range')) {
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          requestBody: {
-            requests: [{ addSheet: { properties: { title: 'Produk' } } }]
-          }
-        });
-        // Ulangi append setelah sheet dibuat
-        await sheets.spreadsheets.values.append({
-          spreadsheetId: spreadsheetId,
-          range: 'Produk!A:E',
-          valueInputOption: 'USER_ENTERED',
-          requestBody: { values },
-        });
+      range: "Katalog!A:E",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [
+            new Date().toLocaleString("id-ID"),
+            productData.name,
+            productData.price,
+            productData.description || "-",
+            productData.imageUrl || "-"
+          ]
+        ]
       }
     });
-
-    console.log(`✅ [GOOGLE SHEETS] Produk "${productData.name}" berhasil ditambahkan ke Sheet.`);
-  } catch (error) {
-    console.error('❌ [GOOGLE SHEETS PRODUCT ERR]:', error.message);
+  } catch (err) {
+    console.error("❌ [GOOGLE SHEET APPEND ERROR]:", err.message);
   }
 }
