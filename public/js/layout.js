@@ -42,22 +42,34 @@
           </div>
 
           <div class="relative">
-            <button onclick="toggleUserDropdown()" class="w-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between text-left transition">
-              <div class="flex items-center gap-3 overflow-hidden">
-                <div class="relative flex-shrink-0">
-                  <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 object-cover transition-all duration-300">
-                  <div id="premiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
-                    <i data-lucide="crown" class="w-3 h-3 fill-slate-950"></i>
+            <div class="w-full bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl transition">
+              <button onclick="toggleUserDropdown()" class="w-full flex items-center justify-between text-left focus:outline-none">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="relative flex-shrink-0">
+                    <img id="userAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-10 h-10 rounded-full bg-slate-700 object-cover transition-all duration-300">
+                    <div id="premiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
+                      <i data-lucide="crown" class="w-3 h-3 fill-slate-950"></i>
+                    </div>
+                  </div>
+                  <div class="overflow-hidden">
+                    <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
+                    <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
+                    <p id="userPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
                   </div>
                 </div>
-                <div class="overflow-hidden">
-                  <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
-                  <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
-                  <p id="userPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
+              </button>
+
+              <div id="premiumBarContainer" class="mt-2.5 pt-2 border-t border-slate-700/50 hidden">
+                <div class="flex justify-between items-center text-[10px] text-slate-300 mb-1 font-semibold">
+                  <span id="premiumBarText">Sisa: 0 Hari 0 Jam</span>
+                  <span id="premiumBarPercent" class="text-amber-400 font-extrabold">0%</span>
+                </div>
+                <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0.5">
+                  <div id="premiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
               </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
-            </button>
+            </div>
 
             <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
               <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
@@ -128,23 +140,35 @@
       </header>
 
       <div id="mobileDrawer" class="hidden md:hidden bg-slate-900 border-b border-slate-800 px-4 py-4 space-y-4 sticky top-[53px] z-30 shadow-2xl">
-        <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="relative flex-shrink-0">
-              <img id="mobileUserAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-9 h-9 rounded-full bg-slate-700 object-cover">
-              <div id="mobilePremiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
-                <i data-lucide="crown" class="w-2.5 h-2.5 fill-slate-950"></i>
+        <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="relative flex-shrink-0">
+                <img id="mobileUserAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" class="w-9 h-9 rounded-full bg-slate-700 object-cover">
+                <div id="mobilePremiumCrownBadge" class="hidden absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-0.5 rounded-full shadow-md">
+                  <i data-lucide="crown" class="w-2.5 h-2.5 fill-slate-950"></i>
+                </div>
+              </div>
+              <div class="overflow-hidden">
+                <p id="mobileUserNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
+                <p id="mobileUserPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
+                <p id="mobileUserPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
               </div>
             </div>
-            <div class="overflow-hidden">
-              <p id="mobileUserNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
-              <p id="mobileUserPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
-              <p id="mobileUserPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
+            <button onclick="logout()" class="text-rose-400 hover:bg-rose-500/10 p-2 rounded-xl text-xs font-semibold transition" title="Keluar">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div id="mobilePremiumBarContainer" class="pt-2 border-t border-slate-700/50 hidden">
+            <div class="flex justify-between items-center text-[10px] text-slate-300 mb-1 font-semibold">
+              <span id="mobilePremiumBarText">Sisa: 0 Hari 0 Jam</span>
+              <span id="mobilePremiumBarPercent" class="text-amber-400 font-extrabold">0%</span>
+            </div>
+            <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0.5">
+              <div id="mobilePremiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
           </div>
-          <button onclick="logout()" class="text-rose-400 hover:bg-rose-500/10 p-2 rounded-xl text-xs font-semibold transition" title="Keluar">
-            <i data-lucide="log-out" class="w-4 h-4"></i>
-          </button>
         </div>
 
         <nav class="grid grid-cols-2 gap-2 text-xs">
@@ -388,35 +412,62 @@
         const diffMs = expiryDate - now;
 
         if (diffMs > 0) {
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            
-            const formattedDate = expiryDate.toLocaleDateString("id-ID", {
+          const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+          const days = Math.floor(totalHours / 24);
+          const hours = totalHours % 24;
+
+          let totalPlanDays = 30;
+          if (days > 180) totalPlanDays = 365;
+          else if (days > 30) totalPlanDays = 180;
+
+          const percent = Math.min(100, Math.max(0, Math.round((diffMs / (totalPlanDays * 24 * 60 * 60 * 1000)) * 100)));
+
+          const formattedDate = expiryDate.toLocaleDateString("id-ID", {
             day: "numeric",
-            month: "short",
-            year: "numeric"
-            });
+            month: "short"
+          });
 
-            const formattedTime = expiryDate.toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit"
-            });
-
-            const expiryText = `s/d ${formattedDate} (${formattedTime} WIB) • ${diffDays} Hari ${diffHours} Jam Lagi`;
-
-            expiryEls.forEach(el => {
+          expiryEls.forEach(el => {
             if (el) {
-                el.innerText = expiryText;
-                el.classList.remove("hidden");
+              el.innerText = `s/d ${formattedDate}`;
+              el.classList.remove("hidden");
             }
-            });
-        } else {
-            expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });
+          });
+
+          const barText = `Sisa: ${days} Hari ${hours} Jam`;
+
+          const barContainer = document.getElementById("premiumBarContainer");
+          const barTextEl = document.getElementById("premiumBarText");
+          const barPercentEl = document.getElementById("premiumBarPercent");
+          const barFillEl = document.getElementById("premiumBarFill");
+
+          if (barContainer && barTextEl && barPercentEl && barFillEl) {
+            barContainer.classList.remove("hidden");
+            barTextEl.innerText = barText;
+            barPercentEl.innerText = `${percent}%`;
+            barFillEl.style.width = `${percent}%`;
+          }
+
+          const mobileBarContainer = document.getElementById("mobilePremiumBarContainer");
+          const mobileBarTextEl = document.getElementById("mobilePremiumBarText");
+          const mobileBarPercentEl = document.getElementById("mobilePremiumBarPercent");
+          const mobileBarFillEl = document.getElementById("mobilePremiumBarFill");
+
+          if (mobileBarContainer && mobileBarTextEl && mobileBarPercentEl && mobileBarFillEl) {
+            mobileBarContainer.classList.remove("hidden");
+            mobileBarTextEl.innerText = barText;
+            mobileBarPercentEl.innerText = `${percent}%`;
+            mobileBarFillEl.style.width = `${percent}%`;
+          }
         }
       } else {
         expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });
+        document.getElementById("premiumBarContainer")?.classList.add("hidden");
+        document.getElementById("mobilePremiumBarContainer")?.classList.add("hidden");
       }
 
-    } catch (err) {}
+    } catch (err) {
+      console.error("Load user profile error:", err);
+    }
   }
 })();
