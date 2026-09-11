@@ -1,5 +1,3 @@
-// public/js/layout.js - Master Layout Engine (Responsive Desktop & Mobile Engine dengan Indikator Kadaluarsa Plan Premium)
-
 (function() {
   let socketInstance = null;
 
@@ -10,13 +8,10 @@
       return;
     }
 
-    // 1. Inject Sidebar, Topbar & Mobile Drawer
     injectLayout();
 
-    // 2. Render Ikon Lucide
     if (typeof lucide !== "undefined") lucide.createIcons();
 
-    // 3. Muat Profil & Inisialisasi Socket Realtime Status WA
     if (token) {
       loadGlobalUserProfile(token);
       initGlobalWaSocket(token);
@@ -33,11 +28,9 @@
   function injectLayout() {
     const currentPath = window.location.pathname;
 
-    // A. KODE SIDEBAR DESKTOP
     const sidebarHTML = `
       <aside class="hidden md:flex w-64 bg-slate-900 border-r border-slate-800 p-6 flex-col justify-between space-y-6 flex-shrink-0 min-h-screen">
         <div class="space-y-6">
-          <!-- Logo & Judul Aplikasi -->
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 flex-shrink-0">
               <i data-lucide="bot"></i>
@@ -48,7 +41,6 @@
             </div>
           </div>
 
-          <!-- User Profile Badge & Expiry Indicator -->
           <div class="relative">
             <button onclick="toggleUserDropdown()" class="w-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between text-left transition">
               <div class="flex items-center gap-3 overflow-hidden">
@@ -67,7 +59,6 @@
               <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
             </button>
 
-            <!-- Dropdown Menu Desktop -->
             <div id="userDropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
               <a href="/profile.html" class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
                 <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
@@ -78,7 +69,6 @@
             </div>
           </div>
 
-          <!-- Tab Navigasi Desktop -->
           <nav class="space-y-1">
             <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/dashboard.html', currentPath)}">
               <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
@@ -106,10 +96,8 @@
       </aside>
     `;
 
-    // B. KODE TOPBAR & MOBILE DRAWER NAVIGATION
     const topbarHTML = `
       <header class="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center sticky top-0 z-40">
-        <!-- Brand Logo di HP & Button Hamburger -->
         <div class="flex items-center gap-3">
           <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800 border border-slate-700/60 focus:outline-none" aria-label="Toggle Menu">
             <i id="mobileMenuIcon" data-lucide="menu" class="w-5 h-5"></i>
@@ -125,7 +113,6 @@
           <span class="text-xs font-semibold text-slate-400 hidden md:inline">WA AutoBot AI SaaS Management</span>
         </div>
 
-        <!-- Right Side: Indikator WA Connected & Report Button -->
         <div class="flex items-center gap-2.5">
           <div id="globalWaStatusBadge" class="flex items-center">
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-400 text-[11px] font-semibold">
@@ -140,9 +127,7 @@
         </div>
       </header>
 
-      <!-- Mobile Drawer Dropdown Menu -->
       <div id="mobileDrawer" class="hidden md:hidden bg-slate-900 border-b border-slate-800 px-4 py-4 space-y-4 sticky top-[53px] z-30 shadow-2xl">
-        <!-- Ringkasan User di Mobile Drawer -->
         <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
           <div class="flex items-center gap-3 overflow-hidden">
             <div class="relative flex-shrink-0">
@@ -162,7 +147,6 @@
           </button>
         </div>
 
-        <!-- Navigasi Grid 2 Kolom untuk HP -->
         <nav class="grid grid-cols-2 gap-2 text-xs">
           <a href="/profile.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/profile.html', currentPath)}">
             <i data-lucide="user" class="w-4 h-4"></i> Profil Saya
@@ -192,7 +176,6 @@
       </div>
     `;
 
-    // C. POP-UP MODAL REPORT
     const modalHTML = `
       <div id="reportModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full space-y-4 shadow-2xl relative">
@@ -256,7 +239,6 @@
     }
   }
 
-  // --- REALTIME SOCKET WA STATUS INDICATOR ENGINE ---
   function initGlobalWaSocket(token) {
     if (typeof io === "undefined") return;
 
@@ -298,7 +280,6 @@
     }
   }
 
-  // --- HANDLER KONTROL USER & MOBILE DRAWER ---
   window.toggleMobileMenu = function() {
     const drawer = document.getElementById("mobileDrawer");
     if (drawer) {
@@ -401,38 +382,41 @@
         }
       });
 
-      // Tampilkan Tanggal, Jam, dan Sisa Hari Kadaluarsa Plan Premium
       if (isPremium && data.premiumExpiresAt) {
         const expiryDate = new Date(data.premiumExpiresAt);
         const now = new Date();
         const diffMs = expiryDate - now;
-        const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 
-        const formattedDate = expiryDate.toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
+        if (diffMs > 0) {
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            
+            const formattedDate = expiryDate.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+            });
 
-        const formattedTime = expiryDate.toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit"
-        });
+            const formattedTime = expiryDate.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit"
+            });
 
-        const expiryText = `s/d ${formattedDate} (${formattedTime} WIB) • ${diffDays} Hari Lagi`;
+            const expiryText = `s/d ${formattedDate} (${formattedTime} WIB) • ${diffDays} Hari ${diffHours} Jam Lagi`;
 
-        expiryEls.forEach(el => {
-          if (el) {
-            el.innerText = expiryText;
-            el.classList.remove("hidden");
-          }
-        });
+            expiryEls.forEach(el => {
+            if (el) {
+                el.innerText = expiryText;
+                el.classList.remove("hidden");
+            }
+            });
+        } else {
+            expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });
+        }
       } else {
         expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });
       }
 
-    } catch (err) {
-      console.error("Load user profile error:", err);
-    }
+    } catch (err) {}
   }
 })();

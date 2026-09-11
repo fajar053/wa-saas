@@ -43,7 +43,6 @@ import Report from "./models/Report.js";
 import Product from "./models/Product.js";
 import { appendChatToSheet, appendProductToSheet } from "./services/googleSheetService.js";
 
-// --- PREVENT PROCESS CRASH ---
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
 });
@@ -62,7 +61,6 @@ const io = new Server(server);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const globalLogger = pino({ level: "fatal" });
 
-// --- DETEKSI OTOMATIS MODE MIDTRANS (PRODUCTION / SANDBOX) ---
 const isMidtransProd = Boolean(
   process.env.MIDTRANS_SERVER_KEY && !process.env.MIDTRANS_SERVER_KEY.startsWith("SB-")
 );
@@ -76,7 +74,6 @@ const snap = new midtransClient.Snap({
 const userStores = new Map();
 const senderRateLimits = new Map();
 
-// --- HELPER MASA AKTIF PLAN PREMIUM ---
 function calculateExpiryDate(planType) {
   const now = new Date();
   let days = 30;
@@ -85,7 +82,6 @@ function calculateExpiryDate(planType) {
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-// --- CONFIG UPLOAD MEDIA PRODUK & PENJADWALAN ---
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
@@ -129,7 +125,6 @@ const uploadPaymentProof = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// --- HELPER NORMALISASI JID ---
 function normalizeJid(rawJid) {
   if (!rawJid) return "";
   let jid = String(rawJid).trim();
@@ -209,7 +204,6 @@ function isSenderRateLimited(senderNumber) {
   return timestamps.length > maxAllowed;
 }
 
-// --- KONFIGURASI MODEL AI OPENROUTER ---
 const OPENROUTER_CONFIG = {
   name: "OpenRouter",
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -396,7 +390,6 @@ const isStartingSession = new Set();
 const processedMsgIds = new Set();
 const messageBuffers = new Map();
 
-// --- MIDDLEWARE AUTHENTICATION & ROLE CHECK ---
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Unauthorized" });
@@ -420,7 +413,6 @@ const verifyAdmin = async (req, res, next) => {
   }
 };
 
-// --- AUTH ROUTES ---
 app.post("/api/register", async (req, res) => {
   try {
     const { nickname, username, email, password, confirmPassword } = req.body;
@@ -513,7 +505,6 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
-  // Auto Reset Status Premium jika Waktu Kadaluarsa Telah Lewat
   if (user.plan === "premium" && user.premiumExpiresAt && new Date() > new Date(user.premiumExpiresAt)) {
     user.plan = "free";
     user.premiumExpiresAt = null;
@@ -551,7 +542,6 @@ app.post("/api/config", verifyToken, async (req, res) => {
   }
 });
 
-// --- API KATALOG PRODUK (HYBRID MONGODB + GOOGLE SHEETS) ---
 app.get("/api/products", verifyToken, async (req, res) => {
   try {
     const products = await Product.find({ userId: req.user.userId }).sort({ createdAt: -1 });
@@ -632,7 +622,6 @@ app.post("/api/history/clear", verifyToken, async (req, res) => {
   }
 });
 
-// --- API AUTO GENERATE SYSTEM PROMPT ---
 app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   try {
     const { promptText, mode } = req.body;
@@ -662,7 +651,6 @@ app.post("/api/generate-prompt", verifyToken, async (req, res) => {
   }
 });
 
-// --- API PEMBAYARAN OTOMATIS MAYAR.ID ---
 app.post("/api/payment/mayar-create", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -718,7 +706,6 @@ app.post("/api/payment/mayar-create", verifyToken, async (req, res) => {
   }
 });
 
-// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID (FIXED EXPRIATION DATE) ---
 app.post("/api/mayar/webhook", async (req, res) => {
   try {
     const { event, data } = req.body;
@@ -743,7 +730,6 @@ app.post("/api/mayar/webhook", async (req, res) => {
 
       let isUpgraded = false;
 
-      // 1. Cari berdasarkan Order ID Transaksi
       if (paymentId) {
         const tx = await Transaction.findOne({ orderId: paymentId });
         if (tx) {
@@ -756,7 +742,6 @@ app.post("/api/mayar/webhook", async (req, res) => {
         }
       }
 
-      // 2. Fallback: Cari User berdasarkan Email
       if (!isUpgraded && customerEmail) {
         const user = await User.findOne({ 
           email: { $regex: new RegExp(`^${customerEmail}$`, "i") } 
@@ -786,7 +771,6 @@ app.post("/api/mayar/webhook", async (req, res) => {
   }
 });
 
-// --- API PEMBAYARAN MANUAL TRANSFER VIA WHATSAPP AUTOMATIC ---
 app.post("/api/payment/manual-submit", verifyToken, uploadPaymentProof.single("proofFile"), async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -854,7 +838,6 @@ Mohon verifikasi bukti pembayaran terlampir. Terima kasih!`;
   }
 });
 
-// --- API TIKET LAPORAN KENDALA (USER) ---
 app.post("/api/reports", verifyToken, async (req, res) => {
   try {
     const { category, subject, message } = req.body;
@@ -892,7 +875,6 @@ app.get("/api/reports/my-reports", verifyToken, async (req, res) => {
   }
 });
 
-// --- API ADMIN: KELOLA & HAPUS LAPORAN USER ---
 app.get("/api/admin/all-reports", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const reports = await Report.find().sort({ createdAt: -1 }).populate("userId", "nickname username email");
@@ -951,7 +933,6 @@ app.delete("/api/admin/report/:id", verifyToken, verifyAdmin, async (req, res) =
   }
 });
 
-// --- API ADMIN: KELOLA & HAPUS TRANSAKSI PEMBAYARAN MANUAL ---
 app.get("/api/admin/pending-payments", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const pendingTxs = await Transaction.find({ status: { $in: ["pending", "pending_manual"] } })
@@ -994,7 +975,6 @@ app.delete("/api/admin/transaction/:id", verifyToken, verifyAdmin, async (req, r
   }
 });
 
-// --- API ANALYTICS & STATISTIK BOT AI ---
 app.get("/api/analytics/stats", verifyToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -1056,7 +1036,6 @@ app.get("/api/analytics/stats", verifyToken, async (req, res) => {
   }
 });
 
-// --- API WA SCHEDULE ---
 app.get("/api/schedule/targets", verifyToken, async (req, res) => {
   try {
     const strUserId = String(req.user.userId);
@@ -1244,7 +1223,6 @@ app.post("/api/schedule/delete-batch", verifyToken, async (req, res) => {
   }
 });
 
-// --- WORKER PENJADWAL OTOMATIS (SCHEDULE ENGINE) ---
 setInterval(async () => {
   try {
     const now = new Date();
@@ -1318,7 +1296,6 @@ setInterval(async () => {
   }
 }, 5000);
 
-// --- HELPER HUMANIZED WHATSAPP REPLY ---
 async function sendHumanizedReply(sock, rawMsg, replyText) {
   try {
     const primaryJid = rawMsg?.key?.remoteJid;
@@ -1376,7 +1353,6 @@ async function sendHumanizedReply(sock, rawMsg, replyText) {
   }
 }
 
-// --- PEMROSESAN BALASAN AI AUTOMATIS & PRODUK KATALOG ---
 async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, rawMsg) {
   try {
     const user = await User.findById(strUserId);
@@ -1495,7 +1471,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
   }
 }
 
-// --- BAILEYS AUTHENTICATION STATE ---
 async function useMongoDBAuthState(userId) {
   let session = await Session.findOne({ userId: String(userId) });
   let creds;
