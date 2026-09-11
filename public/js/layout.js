@@ -1,4 +1,4 @@
-// public/js/layout.js - Master Layout Engine (Responsive Desktop & Mobile Engine with WA Connected Indicator)
+// public/js/layout.js - Master Layout Engine (Responsive Desktop & Mobile Engine dengan Indikator Kadaluarsa Plan Premium)
 
 (function() {
   let socketInstance = null;
@@ -33,7 +33,7 @@
   function injectLayout() {
     const currentPath = window.location.pathname;
 
-    // A. KODE SIDEBAR DESKTOP (Tampil di Layar md: Ke Atas)
+    // A. KODE SIDEBAR DESKTOP
     const sidebarHTML = `
       <aside class="hidden md:flex w-64 bg-slate-900 border-r border-slate-800 p-6 flex-col justify-between space-y-6 flex-shrink-0 min-h-screen">
         <div class="space-y-6">
@@ -48,7 +48,7 @@
             </div>
           </div>
 
-          <!-- User Profile Badge & Dropdown -->
+          <!-- User Profile Badge & Expiry Indicator -->
           <div class="relative">
             <button onclick="toggleUserDropdown()" class="w-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between text-left transition">
               <div class="flex items-center gap-3 overflow-hidden">
@@ -61,6 +61,7 @@
                 <div class="overflow-hidden">
                   <p id="userNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
                   <p id="userPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
+                  <p id="userPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
                 </div>
               </div>
               <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-1"></i>
@@ -82,6 +83,9 @@
             <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/dashboard.html', currentPath)}">
               <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
             </a>
+            <a href="/products.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/products.html', currentPath)}">
+              <i data-lucide="package" class="w-4 h-4"></i> Katalog Produk
+            </a>
             <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/schedule.html', currentPath)}">
               <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
             </a>
@@ -102,7 +106,7 @@
       </aside>
     `;
 
-    // B. KODE TOPBAR & MOBILE DRAWER NAVIGATION (Dengan Indikator WA Status)
+    // B. KODE TOPBAR & MOBILE DRAWER NAVIGATION
     const topbarHTML = `
       <header class="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center sticky top-0 z-40">
         <!-- Brand Logo di HP & Button Hamburger -->
@@ -123,7 +127,6 @@
 
         <!-- Right Side: Indikator WA Connected & Report Button -->
         <div class="flex items-center gap-2.5">
-          <!-- Indikator Status WA Connected -->
           <div id="globalWaStatusBadge" class="flex items-center">
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-400 text-[11px] font-semibold">
               <span class="w-2 h-2 rounded-full bg-slate-500"></span> Memeriksa WA...
@@ -151,6 +154,7 @@
             <div class="overflow-hidden">
               <p id="mobileUserNickname" class="font-semibold text-xs text-slate-200 truncate">Loading...</p>
               <p id="mobileUserPlan" class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Free Plan</p>
+              <p id="mobileUserPlanExpiry" class="text-[9px] text-amber-300/90 font-medium truncate mt-0.5 hidden"></p>
             </div>
           </div>
           <button onclick="logout()" class="text-rose-400 hover:bg-rose-500/10 p-2 rounded-xl text-xs font-semibold transition" title="Keluar">
@@ -165,6 +169,9 @@
           </a>
           <a href="/dashboard.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/dashboard.html', currentPath)}">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
+          </a>
+          <a href="/products.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/products.html', currentPath)}">
+            <i data-lucide="package" class="w-4 h-4"></i> Katalog Produk
           </a>
           <a href="/schedule.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/schedule.html', currentPath)}">
             <i data-lucide="calendar-clock" class="w-4 h-4"></i> Schedule
@@ -235,18 +242,15 @@
       </div>
     `;
 
-    // Sisipkan Sidebar
     const sidebarTarget = document.getElementById("app-sidebar") || document.querySelector("aside");
     if (sidebarTarget) sidebarTarget.outerHTML = sidebarHTML;
     else document.body.insertAdjacentHTML("afterbegin", sidebarHTML);
 
-    // Sisipkan Topbar Header
     const topbarTarget = document.getElementById("app-topbar") || document.querySelector("header");
     const mainArea = document.querySelector("main");
     if (topbarTarget) topbarTarget.outerHTML = topbarHTML;
     else if (mainArea) mainArea.insertAdjacentHTML("beforebegin", topbarHTML);
 
-    // Sisipkan Modal jika belum ada
     if (!document.getElementById("reportModal")) {
       document.body.insertAdjacentHTML("beforeend", modalHTML);
     }
@@ -375,6 +379,7 @@
       const planEls = [document.getElementById("userPlan"), document.getElementById("mobileUserPlan")];
       const avatarEls = [document.getElementById("userAvatar"), document.getElementById("mobileUserAvatar")];
       const crownBadges = [document.getElementById("premiumCrownBadge"), document.getElementById("mobilePremiumCrownBadge")];
+      const expiryEls = [document.getElementById("userPlanExpiry"), document.getElementById("mobileUserPlanExpiry")];
 
       nicknameEls.forEach(el => { if (el) el.innerText = data.nickname || "User"; });
       avatarEls.forEach(el => { if (el && data.profilePicture) el.src = data.profilePicture; });
@@ -395,6 +400,37 @@
           else badge.classList.add("hidden");
         }
       });
+
+      // Tampilkan Tanggal, Jam, dan Sisa Hari Kadaluarsa Plan Premium
+      if (isPremium && data.premiumExpiresAt) {
+        const expiryDate = new Date(data.premiumExpiresAt);
+        const now = new Date();
+        const diffMs = expiryDate - now;
+        const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+        const formattedDate = expiryDate.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+
+        const formattedTime = expiryDate.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+
+        const expiryText = `s/d ${formattedDate} (${formattedTime} WIB) • ${diffDays} Hari Lagi`;
+
+        expiryEls.forEach(el => {
+          if (el) {
+            el.innerText = expiryText;
+            el.classList.remove("hidden");
+          }
+        });
+      } else {
+        expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });
+      }
+
     } catch (err) {
       console.error("Load user profile error:", err);
     }

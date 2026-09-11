@@ -76,6 +76,15 @@ const snap = new midtransClient.Snap({
 const userStores = new Map();
 const senderRateLimits = new Map();
 
+// --- HELPER MASA AKTIF PLAN PREMIUM ---
+function calculateExpiryDate(planType) {
+  const now = new Date();
+  let days = 30;
+  if (planType === "6_month") days = 180;
+  if (planType === "1_year") days = 365;
+  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
 // --- CONFIG UPLOAD MEDIA PRODUK & PENJADWALAN ---
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
@@ -504,6 +513,13 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
+  // Auto Reset Status Premium jika Waktu Kadaluarsa Telah Lewat
+  if (user.plan === "premium" && user.premiumExpiresAt && new Date() > new Date(user.premiumExpiresAt)) {
+    user.plan = "free";
+    user.premiumExpiresAt = null;
+    await user.save();
+  }
+
   res.json({
     email: user.email,
     nickname: user.nickname,
@@ -513,6 +529,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
     systemPrompt: user.systemPrompt,
     isBotActive: user.isBotActive !== false,
     plan: user.plan || "free",
+    premiumExpiresAt: user.premiumExpiresAt || null,
     dailyUsage: user.dailyUsageCount || 0,
     dailyLimit: user.plan === "premium" ? "Unlimited" : 200,
     midtransClientKey: process.env.MIDTRANS_CLIENT_KEY || "",
@@ -701,7 +718,7 @@ app.post("/api/payment/mayar-create", verifyToken, async (req, res) => {
   }
 });
 
-// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID (FIXED) ---
+// --- WEBHOOK AUTOMATIC CALLBACK MAYAR.ID (FIXED EXPRIATION DATE) ---
 app.post("/api/mayar/webhook", async (req, res) => {
   try {
     const { event, data } = req.body;
@@ -713,7 +730,6 @@ app.post("/api/mayar/webhook", async (req, res) => {
       data?.status === "PAID";
 
     if (isSuccess) {
-      // Ekstraksi email secara presisi dari payload Mayar.id
       const customerEmail = (
         data?.customerEmail || 
         data?.customer?.email || 
@@ -733,8 +749,9 @@ app.post("/api/mayar/webhook", async (req, res) => {
         if (tx) {
           tx.status = "success";
           await tx.save();
-          await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
-          console.log(`✅ [MAYAR WEBHOOK SUCCESS] User ID ${tx.userId} berhasil di-upgrade ke PREMIUM via Order ID!`);
+          const expiresAt = calculateExpiryDate(tx.planType);
+          await User.findByIdAndUpdate(tx.userId, { plan: "premium", premiumExpiresAt: expiresAt });
+          console.log(`✅ [MAYAR WEBHOOK SUCCESS] User ID ${tx.userId} berhasil di-upgrade ke PREMIUM sampai ${expiresAt}!`);
           isUpgraded = true;
         }
       }
@@ -746,7 +763,9 @@ app.post("/api/mayar/webhook", async (req, res) => {
         });
 
         if (user) {
+          const expiresAt = calculateExpiryDate("1_month");
           user.plan = "premium";
+          user.premiumExpiresAt = expiresAt;
           await user.save();
           console.log(`✅ [MAYAR WEBHOOK SUCCESS] User ${user.email} (${user._id}) berhasil di-upgrade ke PREMIUM via Match Email!`);
           isUpgraded = true;
@@ -957,9 +976,10 @@ app.post("/api/admin/approve-payment", verifyToken, verifyAdmin, async (req, res
     tx.status = "success";
     await tx.save();
 
-    await User.findByIdAndUpdate(tx.userId, { plan: "premium" });
+    const expiresAt = calculateExpiryDate(tx.planType);
+    await User.findByIdAndUpdate(tx.userId, { plan: "premium", premiumExpiresAt: expiresAt });
 
-    res.json({ success: true, message: "Pembayaran disetujui! Status akun user kini telah di-upgrade ke Premium." });
+    res.json({ success: true, message: `Pembayaran disetujui! Status akun user di-upgrade ke Premium (s/d ${expiresAt.toLocaleString('id-ID')}).` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
