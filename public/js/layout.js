@@ -62,11 +62,11 @@
 
               <div id="premiumBarContainer" class="mt-2.5 pt-2 border-t border-slate-700/50 hidden">
                 <div class="flex justify-between items-center text-[10px] text-slate-300 mb-1 font-semibold">
-                  <span id="premiumBarText">Sisa: 0 Hari 0 Jam</span>
-                  <span id="premiumBarPercent" class="text-amber-400 font-extrabold">0%</span>
+                  <span id="premiumBarText">Sisa: 30 Hari 0 Jam</span>
+                  <span id="premiumBarPercent" class="text-amber-400 font-extrabold">100%</span>
                 </div>
                 <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0.5">
-                  <div id="premiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                  <div id="premiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
                 </div>
               </div>
             </div>
@@ -162,11 +162,11 @@
 
           <div id="mobilePremiumBarContainer" class="pt-2 border-t border-slate-700/50 hidden">
             <div class="flex justify-between items-center text-[10px] text-slate-300 mb-1 font-semibold">
-              <span id="mobilePremiumBarText">Sisa: 0 Hari 0 Jam</span>
-              <span id="mobilePremiumBarPercent" class="text-amber-400 font-extrabold">0%</span>
+              <span id="mobilePremiumBarText">Sisa: 30 Hari 0 Jam</span>
+              <span id="mobilePremiumBarPercent" class="text-amber-400 font-extrabold">100%</span>
             </div>
             <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0.5">
-              <div id="mobilePremiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+              <div id="mobilePremiumBarFill" class="bg-gradient-to-r from-amber-400 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
             </div>
           </div>
         </div>
@@ -392,7 +392,7 @@
       const isPremium = data.plan === "premium";
       planEls.forEach(el => {
         if (el) {
-          el.innerText = isPremium ? "Premium Plan" : "Free Plan";
+          el.innerText = isPremium ? "PREMIUM PLAN" : "FREE PLAN";
           el.className = isPremium 
             ? "text-[10px] text-amber-400 font-bold uppercase tracking-wider" 
             : "text-[10px] text-indigo-400 font-bold uppercase tracking-wider";
@@ -406,59 +406,60 @@
         }
       });
 
-      if (isPremium && data.premiumExpiresAt) {
-        const expiryDate = new Date(data.premiumExpiresAt);
+      if (isPremium) {
+        const expiryDate = data.premiumExpiresAt 
+          ? new Date(data.premiumExpiresAt) 
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
         const now = new Date();
-        const diffMs = expiryDate - now;
+        const diffMs = Math.max(0, expiryDate - now);
 
-        if (diffMs > 0) {
-          const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-          const days = Math.floor(totalHours / 24);
-          const hours = totalHours % 24;
+        const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const days = Math.floor(totalHours / 24);
+        const hours = totalHours % 24;
 
-          let totalPlanDays = 30;
-          if (days > 180) totalPlanDays = 365;
-          else if (days > 30) totalPlanDays = 180;
+        let totalPlanDays = 30;
+        if (days > 180) totalPlanDays = 365;
+        else if (days > 30) totalPlanDays = 180;
 
-          const percent = Math.min(100, Math.max(0, Math.round((diffMs / (totalPlanDays * 24 * 60 * 60 * 1000)) * 100)));
+        const percent = Math.min(100, Math.max(1, Math.round((diffMs / (totalPlanDays * 24 * 60 * 60 * 1000)) * 100)));
 
-          const formattedDate = expiryDate.toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short"
-          });
+        const formattedDate = expiryDate.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short"
+        });
 
-          expiryEls.forEach(el => {
-            if (el) {
-              el.innerText = `s/d ${formattedDate}`;
-              el.classList.remove("hidden");
-            }
-          });
-
-          const barText = `Sisa: ${days} Hari ${hours} Jam`;
-
-          const barContainer = document.getElementById("premiumBarContainer");
-          const barTextEl = document.getElementById("premiumBarText");
-          const barPercentEl = document.getElementById("premiumBarPercent");
-          const barFillEl = document.getElementById("premiumBarFill");
-
-          if (barContainer && barTextEl && barPercentEl && barFillEl) {
-            barContainer.classList.remove("hidden");
-            barTextEl.innerText = barText;
-            barPercentEl.innerText = `${percent}%`;
-            barFillEl.style.width = `${percent}%`;
+        expiryEls.forEach(el => {
+          if (el) {
+            el.innerText = `s/d ${formattedDate}`;
+            el.classList.remove("hidden");
           }
+        });
 
-          const mobileBarContainer = document.getElementById("mobilePremiumBarContainer");
-          const mobileBarTextEl = document.getElementById("mobilePremiumBarText");
-          const mobileBarPercentEl = document.getElementById("mobilePremiumBarPercent");
-          const mobileBarFillEl = document.getElementById("mobilePremiumBarFill");
+        const barText = `Sisa: ${days} Hari ${hours} Jam`;
 
-          if (mobileBarContainer && mobileBarTextEl && mobileBarPercentEl && mobileBarFillEl) {
-            mobileBarContainer.classList.remove("hidden");
-            mobileBarTextEl.innerText = barText;
-            mobileBarPercentEl.innerText = `${percent}%`;
-            mobileBarFillEl.style.width = `${percent}%`;
-          }
+        const barContainer = document.getElementById("premiumBarContainer");
+        const barTextEl = document.getElementById("premiumBarText");
+        const barPercentEl = document.getElementById("premiumBarPercent");
+        const barFillEl = document.getElementById("premiumBarFill");
+
+        if (barContainer && barTextEl && barPercentEl && barFillEl) {
+          barContainer.classList.remove("hidden");
+          barTextEl.innerText = barText;
+          barPercentEl.innerText = `${percent}%`;
+          barFillEl.style.width = `${percent}%`;
+        }
+
+        const mobileBarContainer = document.getElementById("mobilePremiumBarContainer");
+        const mobileBarTextEl = document.getElementById("mobilePremiumBarText");
+        const mobileBarPercentEl = document.getElementById("mobilePremiumBarPercent");
+        const mobileBarFillEl = document.getElementById("mobilePremiumBarFill");
+
+        if (mobileBarContainer && mobileBarTextEl && mobileBarPercentEl && mobileBarFillEl) {
+          mobileBarContainer.classList.remove("hidden");
+          mobileBarTextEl.innerText = barText;
+          mobileBarPercentEl.innerText = `${percent}%`;
+          mobileBarFillEl.style.width = `${percent}%`;
         }
       } else {
         expiryEls.forEach(el => { if (el) el.classList.add("hidden"); });

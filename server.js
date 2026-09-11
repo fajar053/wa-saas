@@ -505,10 +505,15 @@ app.get("/api/config", verifyToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!user) return res.status(404).json({ message: "User not found" });
 
-  if (user.plan === "premium" && user.premiumExpiresAt && new Date() > new Date(user.premiumExpiresAt)) {
-    user.plan = "free";
-    user.premiumExpiresAt = null;
-    await user.save();
+  if (user.plan === "premium") {
+    if (!user.premiumExpiresAt) {
+      user.premiumExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await user.save();
+    } else if (new Date() > new Date(user.premiumExpiresAt)) {
+      user.plan = "free";
+      user.premiumExpiresAt = null;
+      await user.save();
+    }
   }
 
   res.json({
