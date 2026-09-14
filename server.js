@@ -40,7 +40,6 @@ import Conversation from "./models/Conversation.js";
 import Schedule from "./models/Schedule.js";
 import Transaction from "./models/Transaction.js";
 import Report from "./models/Report.js";
-import Product from "./models/Product.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
@@ -84,19 +83,6 @@ function calculateExpiryDate(planType) {
 if (!fs.existsSync(path.join(__dirname, "uploads"))) {
   fs.mkdirSync(path.join(__dirname, "uploads"));
 }
-
-const productStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `prod_${req.user.userId}_${Date.now()}${ext}`);
-  }
-});
-
-const uploadProductMedia = multer({
-  storage: productStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
 
 const scheduleStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
@@ -541,50 +527,6 @@ app.post("/api/config", verifyToken, async (req, res) => {
 
     await User.findByIdAndUpdate(req.user.userId, { $set: updateFields });
     res.json({ success: true, message: "Pengaturan berhasil disimpan!" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.get("/api/products", verifyToken, async (req, res) => {
-  try {
-    const products = await Product.find({ userId: req.user.userId }).sort({ createdAt: -1 });
-    res.json({ success: true, data: products });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/products", verifyToken, uploadProductMedia.single("imageFile"), async (req, res) => {
-  try {
-    const { name, price, description } = req.body;
-    if (!name || !price) {
-      return res.status(400).json({ success: false, message: "Nama dan Harga produk wajib diisi!" });
-    }
-
-    let imageUrl = "";
-    if (req.file) {
-      imageUrl = `/uploads/${req.file.filename}`;
-    }
-
-    const newProduct = await Product.create({
-      userId: req.user.userId,
-      name,
-      price: Number(price),
-      description: description || "",
-      imageUrl
-    });
-
-    res.json({ success: true, message: "Produk berhasil ditambahkan ke database!", data: newProduct });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.delete("/api/products/:id", verifyToken, async (req, res) => {
-  try {
-    await Product.deleteOne({ _id: req.params.id, userId: req.user.userId });
-    res.json({ success: true, message: "Produk berhasil dihapus!" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -1378,22 +1320,12 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
 
     conv.messages.push({ role: "user", content: combinedText });
 
-    const products = await Product.find({ userId: strUserId });
-    let productPromptContext = "";
-
-    if (products.length > 0) {
-      productPromptContext = "\n\nKATALOG PRODUK TOKO TERSEDIA:\n" + products.map((p, i) => 
-        `${i + 1}. Nama: ${p.name} | Harga: Rp ${Number(p.price).toLocaleString('id-ID')} | Deskripsi: ${p.description || '-'}`
-      ).join("\n");
-    }
-
     const historyForAI = conv.messages.slice(-10).map(m => ({
       role: m.role,
       content: m.content
     }));
 
-    const basePrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
-    const fullSystemPrompt = `${basePrompt}${productPromptContext}`;
+    const fullSystemPrompt = user.systemPrompt || "Kamu adalah asisten AI yang ramah.";
 
     const messagesPayload = [
       { role: "system", content: fullSystemPrompt },
@@ -1414,23 +1346,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
 
     if (isDelivered) {
       await User.findByIdAndUpdate(strUserId, { $inc: { dailyUsageCount: 1 } });
-
-      const primaryJid = rawMsg?.key?.remoteJid;
-      if (primaryJid) {
-        for (const prod of products) {
-          if (prod.imageUrl && (combinedText.toLowerCase().includes(prod.name.toLowerCase()) || reply.toLowerCase().includes(prod.name.toLowerCase()))) {
-            const fullImgPath = path.join(__dirname, prod.imageUrl);
-            if (fs.existsSync(fullImgPath)) {
-              await sleep(1500);
-              await sock.sendMessage(primaryJid, {
-                image: { url: fullImgPath },
-                caption: `📸 Gambar Produk: *${prod.name}*`
-              }).catch(() => {});
-              break;
-            }
-          }
-        }
-      }
 
       io.to(strUserId).emit("chat-log", {
         time: new Date().toLocaleTimeString(),
