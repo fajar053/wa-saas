@@ -85,9 +85,6 @@
             <a href="/dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/dashboard.html', currentPath)}">
               <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
             </a>
-            <a href="/products.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/products.html', currentPath)}">
-              <i data-lucide="package" class="w-4 h-4"></i> Katalog Produk
-            </a>
             <a href="/schedule.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition ${isActivePath('/schedule.html', currentPath)}">
               <i data-lucide="calendar-clock" class="w-4 h-4"></i> WA Chat Schedule
             </a>
@@ -177,9 +174,6 @@
           </a>
           <a href="/dashboard.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/dashboard.html', currentPath)}">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i> WA Bot AI
-          </a>
-          <a href="/products.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/products.html', currentPath)}">
-            <i data-lucide="package" class="w-4 h-4"></i> Katalog Produk
           </a>
           <a href="/schedule.html" class="flex items-center gap-2 p-2.5 rounded-xl transition ${isActivePath('/schedule.html', currentPath)}">
             <i data-lucide="calendar-clock" class="w-4 h-4"></i> Schedule
