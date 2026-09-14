@@ -41,7 +41,6 @@ import Schedule from "./models/Schedule.js";
 import Transaction from "./models/Transaction.js";
 import Report from "./models/Report.js";
 import Product from "./models/Product.js";
-import { appendChatToSheet, appendProductToSheet } from "./services/googleSheetService.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("⚠️ [UNHANDLED REJECTION]:", reason);
@@ -563,9 +562,7 @@ app.post("/api/products", verifyToken, uploadProductMedia.single("imageFile"), a
       return res.status(400).json({ success: false, message: "Nama dan Harga produk wajib diisi!" });
     }
 
-    const user = await User.findById(req.user.userId);
     let imageUrl = "";
-
     if (req.file) {
       imageUrl = `/uploads/${req.file.filename}`;
     }
@@ -578,16 +575,7 @@ app.post("/api/products", verifyToken, uploadProductMedia.single("imageFile"), a
       imageUrl
     });
 
-    if (user.googleRefreshToken && user.googleSpreadsheetId) {
-      appendProductToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
-        name,
-        price: Number(price),
-        description: description || "",
-        imageUrl: imageUrl ? `${process.env.APP_URL || 'https://wasaas.my.id'}${imageUrl}` : '-'
-      }).catch(() => {});
-    }
-
-    res.json({ success: true, message: "Produk berhasil ditambahkan!", data: newProduct });
+    res.json({ success: true, message: "Produk berhasil ditambahkan ke database!", data: newProduct });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -1451,15 +1439,6 @@ async function handleAIBotReply(strUserId, senderNumber, combinedText, sock, raw
         type: "out"
       });
 
-      if (user.googleRefreshToken && user.googleSpreadsheetId) {
-        appendChatToSheet(user.googleRefreshToken, user.googleSpreadsheetId, {
-          timestamp: new Date().toLocaleString("id-ID"),
-          sender: senderNumber,
-          message: combinedText,
-          reply: reply
-        }).catch(err => console.error("❌ [SHEET APPEND ERR]:", err.message));
-      }
-
       console.log(`✅ [SUCCESS] Pesan balasan sukses terkirim ke WhatsApp ${senderNumber}`);
     } else {
       io.to(strUserId).emit("error-log", {
@@ -1696,7 +1675,6 @@ io.on("connection", (socket) => {
     }
   });
 });
-
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server ready di port ${PORT}`));
