@@ -17,7 +17,8 @@ import makeWASocket, {
   DisconnectReason, 
   fetchLatestBaileysVersion, 
   initAuthCreds, 
-  BufferJSON
+  BufferJSON,
+  Browsers
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 
@@ -1181,7 +1182,7 @@ setInterval(async () => {
         console.log(`🚀 [SCHEDULE SENDING] Mengirim ke ${item.targetName} (${targetJid})...`);
 
         await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
-        await sleep(1500);
+        await sleep(Math.floor(Math.random() * 2000) + 1500);
         await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 
         if (item.mediaType === "image" && fullMediaPath && fs.existsSync(fullMediaPath)) {
@@ -1224,7 +1225,8 @@ setInterval(async () => {
         await item.save();
       }
 
-      await sleep(2500);
+      // Jeda acak 4 - 8 detik agar tidak terdeteksi spam broadcast
+      await sleep(Math.floor(Math.random() * 4000) + 4000);
     }
   } catch (cronErr) {
     console.error("Scheduler Worker Error:", cronErr.message);
@@ -1239,12 +1241,12 @@ async function sendHumanizedReply(sock, rawMsg, replyText) {
       return false;
     }
 
-    const randomJitter = Math.floor(Math.random() * 1200) + 1000;
+    const randomJitter = Math.floor(Math.random() * 1500) + 1200;
     await sleep(randomJitter);
 
     await sock.sendPresenceUpdate("composing", primaryJid).catch(() => {});
 
-    const typingDuration = Math.min(Math.max(replyText.length * 35, 1200), 3500);
+    const typingDuration = Math.min(Math.max(replyText.length * 40, 1500), 4000);
     await sleep(typingDuration);
 
     await sock.sendPresenceUpdate("paused", primaryJid).catch(() => {});
@@ -1461,9 +1463,9 @@ async function startUserBot(userId) {
       logger: globalLogger,
       auth: state,
       printQRInTerminal: false,
-      markOnlineOnConnect: true,
+      markOnlineOnConnect: false, // SAFE: Jangan memaksa online terus-menerus
       syncFullHistory: false,
-      browser: ["Ubuntu", "Chrome", "122.0.6261.111"],
+      browser: Browsers.ubuntu("Desktop"), // SAFE: Identitas Browser Resmi Baileys Legitim
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       keepAliveIntervalMs: 30000
@@ -1489,8 +1491,6 @@ async function startUserBot(userId) {
       if (connection === "open") {
         isStartingSession.delete(strUserId);
         console.log(`✅ WA Connected: ${strUserId}`);
-        
-        sock.sendPresenceUpdate("available").catch(() => {});
         io.to(strUserId).emit("status", "Connected");
       }
 
@@ -1499,13 +1499,23 @@ async function startUserBot(userId) {
         activeSessions.delete(strUserId);
 
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        console.log(`🔌 [CONNECTION CLOSED] User: ${strUserId} | Status Code: ${statusCode}`);
 
-        if (shouldReconnect) {
-          setTimeout(() => startUserBot(strUserId), 5000);
-        } else {
+        // CEK KONFLIK SESI: Jika di-logout atau dihubungkan ke perangkat lain (440 / 401 / 500)
+        const isPermanentDisconnect = 
+          statusCode === DisconnectReason.loggedOut ||
+          statusCode === DisconnectReason.connectionReplaced ||
+          statusCode === DisconnectReason.badSession ||
+          statusCode === 440 ||
+          statusCode === 401;
+
+        if (isPermanentDisconnect) {
+          console.warn(`⚠️ [PERMANENT DISCONNECT / SESI BENTROK] Status Code ${statusCode}. Menghentikan auto-reconnect untuk mencegah pemblokiran akun WA.`);
           await Session.deleteOne({ userId: strUserId }).catch(() => {});
           io.to(strUserId).emit("status", "Disconnected");
+        } else {
+          // Reconnect aman dengan jeda 10 detik jika hanya terputus jaringan sementara
+          setTimeout(() => startUserBot(strUserId), 10000);
         }
       }
     });
